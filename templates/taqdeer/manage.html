@@ -1,0 +1,163 @@
+{# templates/taqdeer/manage.html — everything HR needs for the award. #}
+{# The whole quarter on one screen: open a round, read what managers sent, fix #}
+{# the wording, approve, then issue. Approving is what makes the certificate; #}
+{# issuing is what sends the mail. Two steps, because they are two decisions. #}
+{% extends 'base.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}Manage the Athar Award{% endblock %}
+
+{% block content %}
+<a href="{% url 'taqdeer_home' %}" class="ctx-back" title="AJi Taqdeer"><span class="ctx-back-lab">AJi Taqdeer</span></a>
+
+<div class="tq-nom-head">
+  <div>
+    <div class="eyebrow">HR</div>
+    <h1>The Athar Award <span class="tq-ar">جائزة الأثر</span></h1>
+  </div>
+  <form method="get" class="tq-cycle-pick">
+    <select name="cycle" class="tq-in" onchange="this.form.submit()">
+      {% for c in cycles %}
+      <option value="{{ c.pk }}" {% if cycle and cycle.pk == c.pk %}selected{% endif %}>
+        {{ c.label }} — {{ c.get_stage_display }} ({{ c.n }})</option>
+      {% empty %}
+      <option>No rounds yet</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+{# ── the round ────────────────────────────────────────────────────────── #}
+<div class="tq-round">
+  {% if cycle %}
+  <div class="tq-round-state">
+    <b>{{ cycle.label }}</b>
+    <span class="tq-chip {{ cycle.stage }}">{{ cycle.get_stage_display }}</span>
+    {% if cycle.issued_at %}<span class="tq-round-when">Issued {{ cycle.issued_at|date:"j M Y" }}</span>{% endif %}
+  </div>
+  <div class="tq-round-acts">
+    {% if cycle.stage == 'nominating' %}
+    <form method="post" action="{% url 'taqdeer_cycle_action' %}" style="margin:0">
+      {% csrf_token %}<input type="hidden" name="cycle" value="{{ cycle.pk }}">
+      <input type="hidden" name="action" value="review">
+      <button class="btn ghost sm" type="submit">Close to new nominations</button>
+    </form>
+    {% endif %}
+    {# Release goes through its own confirmation page. This used to be a #}
+    {# second, unguarded path to the same irreversible action — one button #}
+    {# that emailed everybody straight from a review screen. #}
+    {% if approved %}
+    <a class="btn y sm" href="{% url 'taqdeer_release' cycle.pk %}">
+      {% icon "send" 14 %} Review and release {{ approved|length }}</a>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="tq-round-state"><b>No round yet</b>
+    <span class="tq-round-when">Open one below to let managers nominate.</span></div>
+  {% endif %}
+</div>
+
+{# ── nominations ──────────────────────────────────────────────────────── #}
+{% for n in noms %}
+<form method="post" action="{% url 'taqdeer_nomination_update' n.pk %}" class="tq-review">
+  {% csrf_token %}
+  <input type="hidden" name="cycle" value="{{ cycle.pk }}">
+
+  <div class="tq-review-h">
+    {% include 'exchange/_avatar.html' with user=n.recipient size='sm' %}
+    <div class="tq-review-who">
+      <b>{{ n.recipient.get_full_name|default:n.recipient.username }}</b>
+      <span>nominated by {{ n.nominated_by.get_full_name|default:n.nominated_by.username }}
+        · {{ n.created_at|date:"j M" }}</span>
+    </div>
+    <span class="tq-chip {{ n.status }}">{{ n.get_status_display }}</span>
+    {% if n.emailed_at %}<span class="tq-chip sent">Emailed</span>{% endif %}
+  </div>
+
+  <div class="tq-review-b">
+    <div class="tq-field">
+      <label class="tq-lab">Name as printed on the certificate</label>
+      <input class="tq-in" name="recipient_name" value="{{ n.recipient_name }}">
+    </div>
+    <div class="tq-field">
+      <label class="tq-lab">In recognition of the outstanding performance and achievement in…</label>
+      <textarea class="tq-in" name="citation" rows="2">{{ n.citation }}</textarea>
+    </div>
+    {% if n.status != 'approved' %}
+    <div class="tq-field">
+      <label class="tq-lab">If you send it back, what needs changing?</label>
+      <input class="tq-in" name="hr_note" value="{{ n.hr_note }}"
+             placeholder="Shown to the manager who nominated.">
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="tq-review-f">
+    <button class="btn ghost sm" type="submit" name="action" value="save">Save</button>
+    {% if n.status != 'approved' %}
+    <button class="btn ghost sm" type="submit" name="action" value="return">Send back</button>
+    <button class="btn y sm" type="submit" name="action" value="approve">
+      {% icon "check" 14 %} Approve &amp; make certificate</button>
+    {% else %}
+    <a class="cx-iconbtn" href="{% url 'taqdeer_preview' n.pk %}" target="_blank" rel="noopener">
+      {% icon "file-text" 13 %}<span>Preview certificate</span></a>
+    {% if n.certificate %}
+    <a class="cx-iconbtn" href="{% url 'taqdeer_certificate' n.pk %}">
+      {% icon "file-text" 13 %}<span>PDF</span></a>
+    <a class="cx-iconbtn" href="{% url 'taqdeer_certificate_image' n.pk %}">
+      {% icon "image" 13 %}<span>Image</span></a>
+    {% endif %}
+    <span class="tq-hint" style="flex:1">Approved{% if n.reviewed_by %} by
+      {{ n.reviewed_by.get_full_name|default:n.reviewed_by.username }}{% endif %}.
+      Saving a change regenerates the certificate.</span>
+    {% endif %}
+    <button class="cx-iconbtn danger" type="submit" name="action" value="delete"
+            formnovalidate data-confirm="Remove the nomination for {{ n.recipient_name|escapejs }}?">
+      {% icon "trash" 13 %}<span>Remove</span></button>
+  </div>
+</form>
+{% empty %}
+{% if cycle %}
+<div class="tq-none"><span class="tq-none-ic">{% icon "users-group" 20 %}</span>
+  <b>No nominations yet</b>
+  <span>Managers will see the form while {{ cycle.label }} is open.</span></div>
+{% endif %}
+{% endfor %}
+
+{# ── open a round ─────────────────────────────────────────────────────── #}
+<form method="post" action="{% url 'taqdeer_cycle_action' %}" class="tq-open">
+  {% csrf_token %}<input type="hidden" name="action" value="open">
+  <div class="tq-open-h">{% icon "calendar" 15 %} Open a new round</div>
+  <div class="tq-open-b">
+    <div class="tq-field" style="max-width:120px">
+      <label class="tq-lab">Quarter</label>
+      <select class="tq-in" name="quarter">
+        {% for v, lab in quarters %}<option value="{{ v }}">{{ lab }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="tq-field" style="max-width:120px">
+      <label class="tq-lab">Year</label>
+      <input class="tq-in" name="year" value="{{ this_year }}" inputmode="numeric">
+    </div>
+    <div class="tq-field" style="flex:1;min-width:220px">
+      <label class="tq-lab">A line for managers — optional</label>
+      <input class="tq-in" name="note" placeholder="e.g. Nominations close 20 September.">
+    </div>
+    <button class="btn y sm" type="submit">Open</button>
+  </div>
+  <div class="tq-open-note">Opening a round closes whichever one is currently
+    taking nominations.</div>
+</form>
+
+{% if hidden %}
+<div class="tq-hidden-list">
+  <div class="tq-open-h">{% icon "eye-off" 15 %} Kudos you have hidden</div>
+  {% for p in hidden %}
+  <div class="tq-hidden-row">
+    <b>{{ p.giver.get_full_name|default:p.giver.username }} → {{ p.recipient.get_full_name|default:p.recipient.username }}</b>
+    <span>{{ p.subject }}</span>
+    <span class="tq-hint">hidden {{ p.hidden_at|date:"j M" }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,212 @@
+{# templates/people/profile_detail.html #}
+{% extends 'base.html' %}
+{% load people_tags %}
+{% block title %}{{ employee.full_name }} — AJi Hub{% endblock %}
+{% block content %}
+<a href="/people/" class="ctx-back" title="Employee Directory"><span class="ctx-back-lab">Employee Directory</span></a>
+
+<div class="prof-hero rise">
+  {% emp_avatar employee size=80 %}
+  <div style="flex:1;min-width:0">
+    <h1 style="font-size:30px;margin-bottom:5px">{{ employee.full_name }}</h1>
+    <div class="muted" style="font-size:14px">{{ employee.role|default:"" }}{% if employee.entity %} · {{ employee.entity.name }}{% endif %}</div>
+    {% if employee.department %}<div class="muted" style="font-size:13px;margin-top:3px">{{ employee.department.name }}</div>{% endif %}
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    {% if employee.email or employee.email_auto %}
+    <a href="mailto:{{ employee.email|default:employee.email_auto }}" class="btn ghost sm">Email</a>
+    {% endif %}
+    {% if employee.user %}
+    <button class="btn y sm" onclick="chatOpenWith({{ employee.user.pk }}, '{{ employee.full_name|escapejs }}', '{% if employee.photo %}{{ employee.photo.url }}{% endif %}')">Message</button>
+    {% endif %}
+    {% if employee.linkedin %}
+    <a href="{{ employee.linkedin }}" class="btn ghost sm" target="_blank">LinkedIn</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if employee.extension %}
+<div style="margin-top:14px">
+  <span class="prof-ext">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="14" height="14"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
+    Internal Extension: {{ employee.extension }}
+  </span>
+</div>
+{% endif %}
+
+<!-- Manager -->
+{% if employee.manager %}
+<div class="sec-head" style="margin-top:28px"><h2>Reporting Line</h2></div>
+<div class="card rise" style="max-width:460px;padding:0;overflow:hidden">
+  <div style="padding:16px 18px 6px;font-size:12px;color:var(--muted)">Reports to</div>
+  <div id="rlToggle" style="display:flex;align-items:center;gap:14px;padding:8px 18px 18px;cursor:pointer" onclick="rlToggle({{ employee.pk }})">
+    {% emp_avatar employee.manager size=48 %}
+    <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:15px">{{ employee.manager.full_name }}</div><div class="muted" style="font-size:12.5px">{{ employee.manager.role|default:"" }}</div></div>
+    <svg id="rlChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="flex:none;transition:transform .2s"><path d="m6 9 6 6 6-6"/></svg>
+  </div>
+  <div id="rlPanel" style="display:none;border-top:1px solid var(--line)"></div>
+</div>
+{% endif %}
+
+<!-- Skills -->
+{# ── recognition ──────────────────────────────────────────────────────── #}
+{# Only when there is some. A profile that reports "0 Kudos" is telling the #}
+{# reader something the Hub has no business telling them. #}
+{% if praise_count or athar or certs %}
+<div class="sec-head" style="margin-top:28px">
+  <h2>Recognition</h2>
+  <a href="/taqdeer/" class="lk">AJi Taqdeer →</a>
+</div>
+<div class="tq-prof">
+  {% for a in athar %}
+  <div class="tq-prof-athar">
+    <span style="flex:none">{% load cms_tags %}{% icon "medal" 16 %}</span>
+    <div style="flex:1;min-width:0">
+      <b>The Athar Award — {{ a.cycle.label }}</b>
+      <span style="display:block">{{ a.citation|truncatechars:150 }}</span>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% for c in certs %}
+  <div class="tq-prof-row cf-prof">
+    <span class="cf-prof-ic">{% load cms_tags %}{% icon "certificate" 14 %}</span>
+    <div style="min-width:0">
+      <b>{{ c.name }}</b>
+      <span class="tq-prof-from">{{ c.obtained_on|date:"F Y" }}{% if c.issuer %} · {{ c.issuer }}{% endif %}</span>
+      <a class="cf-thumb" href="/taqdeer/certifications/{{ c.pk }}/image/?view=1"
+         data-cert-name="{{ c.name }}" target="_blank" rel="noopener">
+        <img src="/taqdeer/certifications/{{ c.pk }}/image/?view=1"
+             alt="Announcement card for {{ c.name }}" loading="lazy">
+      </a>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if praise_count %}
+  <div class="tq-prof-h">
+    {% icon "hands-clapping" 15 %}<span class="sp">Kudos received</span>
+    <span class="tq-chip approved">{{ praise_count }}</span>
+  </div>
+  {% for p in praise %}
+  <div class="tq-prof-row">
+    <b>{{ p.subject }}</b>
+    <p>{{ p.message|truncatechars:210 }}</p>
+    <span class="tq-prof-from">
+      from {{ p.giver.get_full_name|default:p.giver.username }} · {{ p.created_at|date:"j M Y" }}</span>
+  </div>
+  {% endfor %}
+  {% if praise_count > 4 %}
+  <a class="tq-prof-all" href="/taqdeer/">See all {{ praise_count }} on AJi Taqdeer
+    {% icon "arrow-right" 13 %}</a>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{% if skills_by_cat %}
+<div class="sec-head" style="margin-top:28px"><h2>Skills & Expertise</h2></div>
+<div class="card rise">
+  {% for cat, emp_skills in skills_by_cat.items %}
+  <div class="skp-cat">{{ cat }}</div>
+  <div class="skp-row">
+    {% for es in emp_skills %}
+    <div class="skp-skill">
+      {{ es.skill.name }}
+      <div class="lv">{% for i in "1234" %}<i class="{% if forloop.counter <= es.level %}on{% endif %}"></i>{% endfor %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Direct reports -->
+{% if direct_reports %}
+<div class="sec-head" style="margin-top:28px"><h2>Direct Reports</h2><span class="lk" style="cursor:default">{{ direct_reports.count }}</span></div>
+<div class="grid rise" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
+  {% for rep in direct_reports %}
+  <a href="/people/{{ rep.pk }}/" class="card" style="text-decoration:none;display:flex;align-items:center;gap:12px;transition:.15s" onmouseover="this.style.boxShadow='4px 4px 0 var(--yellow)'" onmouseout="this.style.boxShadow=''">
+    {% emp_avatar rep size=40 %}
+    <div style="min-width:0"><div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ rep.full_name }}</div><div class="muted" style="font-size:12px">{{ rep.role|truncatechars:28 }}</div></div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% include 'taqdeer/_cert_lightbox.html' %}
+{% endblock %}
+
+{% block extra_head %}
+<script>
+var _rlCache = null;
+var _rlOpen = false;
+
+function rlAvatar(person, size) {
+  size = size || 36;
+  if (person.has_photo) {
+    return '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;flex:none;overflow:hidden">' +
+      '<img src="'+person.photo_url+'" alt="'+person.name+'" style="width:100%;height:100%;object-fit:cover;display:block"></div>';
+  }
+  var fs = Math.max(10, Math.round(size / 3));
+  return '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;' +
+    'background:linear-gradient(135deg,var(--ink),#3a3a38);color:var(--yellow);font-weight:700;font-size:'+fs+'px">'+person.initials+'</div>';
+}
+
+function rlRender(data) {
+  var panel = document.getElementById('rlPanel');
+  if (!data.manager) { panel.innerHTML = ''; return; }
+
+  var html = '';
+
+  if (data.manager_manager) {
+    html += '<div style="padding:16px 18px 4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">'
+      + data.manager.name.split(' ')[0] + ' reports to</div>';
+    html += '<a href="/people/'+data.manager_manager.id+'/" style="display:flex;align-items:center;gap:12px;padding:8px 18px 18px;text-decoration:none;color:inherit">'
+      + rlAvatar(data.manager_manager, 40)
+      + '<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px">'+data.manager_manager.name+'</div>'
+      + '<div class="muted" style="font-size:12px">'+(data.manager_manager.role||'')+'</div></div>'
+      + '<span style="font-size:12.5px;font-weight:700;color:var(--ink);white-space:nowrap">View &rarr;</span></a>';
+  }
+
+  html += '<div style="padding:14px 18px 4px;border-top:1px solid var(--line);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">'
+    + data.manager.name.split(' ')[0] + '\u2019s team · ' + data.team_count + '</div>';
+  html += '<div style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 18px 18px">';
+  data.team.forEach(function(p) {
+    var inner = rlAvatar(p, 22) + '<span>' + p.name + (p.is_self ? ' (this profile)' : '') + '</span>';
+    var style = 'display:flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border:1px solid var(--line-2);' +
+      'border-radius:20px;font-size:12.5px;font-weight:600;text-decoration:none;color:inherit;white-space:nowrap;' +
+      (p.is_self ? 'background:var(--yellow);border-color:var(--yellow)' : 'background:var(--paper-2)');
+    if (p.is_self) {
+      html += '<span style="'+style+'">'+inner+'</span>';
+    } else {
+      html += '<a href="/people/'+p.id+'/" style="'+style+'">'+inner+'</a>';
+    }
+  });
+  if (data.more_count > 0) {
+    html += '<span style="display:flex;align-items:center;padding:6px 12px;border-radius:20px;font-size:12.5px;font-weight:700;background:var(--paper-3);color:var(--muted)">+'+data.more_count+'</span>';
+  }
+  html += '</div>';
+
+  html += '<div style="padding:0 18px 18px"><a href="/people/'+data.manager.id+'/" class="btn ghost sm" style="width:100%;justify-content:center">'
+    + 'Open '+data.manager.name.split(' ')[0]+'\u2019s full profile &rarr;</a></div>';
+
+  panel.innerHTML = html;
+}
+
+function rlToggle(employeePk) {
+  var panel = document.getElementById('rlPanel');
+  var chevron = document.getElementById('rlChevron');
+  _rlOpen = !_rlOpen;
+  panel.style.display = _rlOpen ? 'block' : 'none';
+  chevron.style.transform = _rlOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+  if (_rlOpen && !_rlCache) {
+    panel.innerHTML = '<div style="padding:18px;color:var(--muted);font-size:13px">Loading…</div>';
+    fetch('/people/' + employeePk + '/reporting-line/')
+      .then(function(r) { return r.json(); })
+      .then(function(data) { _rlCache = data; rlRender(data); })
+      .catch(function() { panel.innerHTML = '<div style="padding:18px;color:var(--bad);font-size:13px">Could not load reporting line.</div>'; });
+  }
+}
+</script>
+{% endblock %}

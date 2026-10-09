@@ -1,0 +1,206 @@
+{# templates/services/car_log.html #}
+{% extends 'base.html' %}
+{% block title %}Car Usage Log — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+.lg-filters{background:var(--paper-2);border:1px solid var(--line);padding:20px 22px;
+  margin-bottom:18px}
+.lg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px}
+.lg-f{position:relative}
+.lg-f > label{position:absolute;top:7px;left:12px;font-size:9px;font-weight:800;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+  pointer-events:none;z-index:1}
+.lg-f input,.lg-f select{width:100%;border:1px solid var(--line-2);
+  background:var(--paper);padding:21px 12px 8px;outline:none;font-family:inherit;
+  font-size:13px;font-weight:600;color:var(--ink);
+  transition:border-color .14s,box-shadow .14s}
+.lg-f select{appearance:none;-webkit-appearance:none;cursor:pointer}
+.lg-f input:focus,.lg-f select:focus{border-color:var(--ink);
+  box-shadow:0 0 0 3px rgba(252,215,0,.24)}
+.lg-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.lg-count{font-size:12.5px;color:var(--muted);margin-left:auto}
+.lg-count b{color:var(--ink)}
+
+.lg-scroll{overflow-x:auto;border:1px solid var(--line);background:var(--paper-2)}
+table.lg{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1080px}
+table.lg th{position:sticky;top:0;z-index:2;background:var(--ink);
+  color:var(--paper-2);text-align:left;padding:11px 12px;font-size:10px;
+  font-weight:800;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+table.lg td{padding:11px 12px;border-top:1px solid var(--line);vertical-align:top;
+  line-height:1.45}
+table.lg tbody tr:hover{background:var(--paper)}
+.lg-when{white-space:nowrap;font-variant-numeric:tabular-nums}
+.lg-when b{display:block;font-size:13px}
+.lg-when span{color:var(--muted);font-size:11.5px}
+.lg-route{min-width:230px;max-width:330px}
+.lg-route span{color:var(--muted)}
+.lg-car{white-space:nowrap}
+.lg-car span{display:block;color:var(--muted);font-size:11px}
+.lg-by{white-space:nowrap;min-width:150px}
+.lg-by b{display:block;font-size:12.5px}
+.lg-by span{display:block;color:var(--muted);font-size:11px;
+  font-variant-numeric:tabular-nums}
+.lg-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.lg-empty{padding:40px 22px;text-align:center;color:var(--muted);font-size:13.5px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow"><a href="{% url 'services:car_booking' %}" style="color:inherit">Car Booking</a> / Usage log</div>
+    <h1>Car Usage Log</h1>
+    <p>Every trip the fleet has made. Filter it, then take the same rows out
+       as a spreadsheet.</p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a href="{% url 'services:car_requests' %}" class="btn">Requests</a>
+    <a href="{% url 'services:car_schedule' %}" class="btn">Schedule</a>
+    <a href="{% url 'services:fleet_console' %}" class="btn">Fleet</a>
+    <a href="{% url 'services:fleet_approvers' %}" class="btn">Approvers</a>
+  </div>
+</div>
+
+<form method="get" class="lg-filters rise">
+  <div class="lg-grid">
+    <div class="lg-f" style="grid-column:span 2">
+      <label for="lgQ">Search</label>
+      <input type="text" id="lgQ" name="q" value="{{ f.q }}"
+             placeholder="Place, purpose, person…">
+    </div>
+    <div class="lg-f">
+      <label for="lgCar">Car</label>
+      <select id="lgCar" name="car">
+        <option value="">Any car</option>
+        {% for c in cars %}
+          <option value="{{ c.pk }}" {% if f.car == c.pk|stringformat:"s" %}selected{% endif %}>
+            {{ c.make }} {{ c.model }} — {{ c.entity.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="lg-f">
+      <label for="lgEntity">Division</label>
+      <select id="lgEntity" name="entity">
+        <option value="">Any division</option>
+        {% for e in entities %}
+          <option value="{{ e.pk }}" {% if f.entity == e.pk|stringformat:"s" %}selected{% endif %}>
+            {{ e.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="lg-f">
+      <label for="lgUser">Requested by</label>
+      <select id="lgUser" name="user">
+        <option value="">Anyone</option>
+        {% for u in people %}
+          <option value="{{ u.pk }}" {% if f.user == u.pk|stringformat:"s" %}selected{% endif %}>
+            {{ u.get_full_name|default:u.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="lg-f">
+      <label for="lgDriver">Driver</label>
+      <select id="lgDriver" name="driver">
+        <option value="">Anyone</option>
+        {% for d in drivers %}
+          <option value="{{ d.pk }}" {% if f.driver == d.pk|stringformat:"s" %}selected{% endif %}>
+            {{ d.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="lg-f">
+      <label for="lgApprover">Approved by</label>
+      <select id="lgApprover" name="approver">
+        <option value="">Anyone</option>
+        {% for a in approvers %}
+          <option value="{{ a.pk }}" {% if f.approver == a.pk|stringformat:"s" %}selected{% endif %}>
+            {{ a.get_full_name|default:a.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="lg-f">
+      <label for="lgStatus">Outcome</label>
+      <select id="lgStatus" name="status">
+        {% for v, label in statuses %}
+          <option value="{{ v }}" {% if f.status == v %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="lg-f">
+      <label for="lgFrom">From date</label>
+      <input type="date" id="lgFrom" name="from" value="{{ f.from }}">
+    </div>
+    <div class="lg-f">
+      <label for="lgTo">To date</label>
+      <input type="date" id="lgTo" name="to" value="{{ f.to }}">
+    </div>
+  </div>
+
+  <div class="lg-actions">
+    <button class="btn btn-primary">Apply</button>
+    <a href="{% url 'services:car_log' %}" class="btn">Clear</a>
+    <a href="{% url 'services:car_log_export' %}{% if querystring %}?{{ querystring }}{% endif %}"
+       class="btn">Export to Excel</a>
+    <span class="lg-count">
+      <b>{{ total }}</b> trip{{ total|pluralize }}{% if km %} · <b>{{ km }}</b> km logged{% endif %}
+      {% if capped %} · showing the most recent {{ rows|length }}{% endif %}
+    </span>
+  </div>
+</form>
+
+<div class="lg-scroll rise">
+  <table class="lg">
+    <thead>
+      <tr>
+        <th>When</th><th>Division</th><th>Requested by</th><th>Route</th>
+        <th>Car</th><th>Driver</th><th class="lg-num">People</th>
+        <th class="lg-num">Km</th><th>Purpose</th><th>Outcome</th>
+        <th>Decided by</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in rows %}
+      <tr>
+        <td class="lg-when">
+          <b>{{ b.date|date:"d M Y" }}</b>
+          <span>{{ b.departure_time|time:"H:i" }}–{{ b.return_time|time:"H:i" }}{% if b.is_multi_day %} &middot; {{ b.duration_label }}{% endif %}</span>
+        </td>
+        <td>{{ b.entity.code }}</td>
+        <td>{{ b.booked_by.get_full_name|default:b.booked_by.username }}</td>
+        <td class="lg-route">{{ b.from_address|truncatechars:44 }}
+          <span>&rarr;</span> {{ b.to_address|truncatechars:44 }}</td>
+        <td class="lg-car">
+          {% for c in b.cars %}{{ c.make }} {{ c.model }}<span>{{ c.plate|default:"no plate" }}</span>{% empty %}—{% endfor %}
+        </td>
+        <td>{% for a in b.assignments.all %}{% if a.driver %}{{ a.driver.full_name }}{% endif %}{% endfor %}
+          {% if b.driver_required %}{% for a in b.assignments.all %}{% if not a.driver %}<span class="muted">requested</span>{% endif %}{% endfor %}{% endif %}</td>
+        <td class="lg-num">{{ b.attendees }}</td>
+        <td class="lg-num">{% for l in b.trip_logs.all %}{{ l.distance_km|default_if_none:"" }}{% if l.odometer_out %}<span class="muted" style="display:block;font-size:10px;font-weight:600">{{ l.odometer_out }}&rarr;{{ l.odometer_in|default_if_none:"…" }}</span>{% endif %}{% empty %}—{% endfor %}</td>
+        <td>{{ b.purpose|truncatechars:48 }}</td>
+        <td>
+          {% if b.status == 'approved' %}<span class="pill ok">Approved</span>
+          {% elif b.status == 'pending' %}<span class="pill warn">Waiting</span>
+          {% elif b.status == 'rejected' %}<span class="pill bad">Declined</span>
+          {% else %}<span class="pill mut">Cancelled</span>{% endif %}
+        </td>
+        {# Who decided it and when — the pair is one fact, so one column. #}
+        <td class="lg-by">
+          {% if b.reviewed_by %}
+            <b>{{ b.reviewed_by.get_full_name|default:b.reviewed_by.username }}</b>
+            {% if b.reviewed_at %}<span>{{ b.reviewed_at|date:"d M Y, H:i" }}</span>{% endif %}
+            {% if b.review_comment %}<span title="{{ b.review_comment }}">“{{ b.review_comment|truncatechars:34 }}”</span>{% endif %}
+          {% else %}
+            <span class="muted">Not decided yet</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="11" class="lg-empty">
+        Nothing matches those filters.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

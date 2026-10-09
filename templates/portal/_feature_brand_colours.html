@@ -1,0 +1,27 @@
+{# _feature_brand_colours.html - one section of the brand page, as its own block. #}
+{# Split out so it can be moved, retitled or removed on its own, #}
+{# rather than the whole page being one locked lump. Its heading is #}
+{# rendered by the block, which is what makes it editable. #}
+{% load cms_tags %}
+{# ── Colour Palette ── #}
+<div class="swatch-grid rise">
+
+  {% for color in colors %}
+  <div class="swatch">
+    <div class="swatch-bar" style="background:{{ color.hex }};{% if color.hex == '#FFFFFF' or color.light %}border-bottom:1px solid var(--line);{% endif %}"></div>
+    <div class="swatch-body">
+      <div class="swatch-row">
+        <span class="swatch-name">{{ color.name }}</span>
+        <button class="btn ghost sm" onclick="copyHex('{{ color.hex }}', this)">
+          {% icon "download-arrow" 13 2 %}
+          Copy
+        </button>
+      </div>
+      <div class="swatch-hex">{{ color.hex }}</div>
+      <div class="swatch-sub">{{ color.ref }}</div>
+    </div>
+  </div>
+  {% endfor %}
+
+</div>
+

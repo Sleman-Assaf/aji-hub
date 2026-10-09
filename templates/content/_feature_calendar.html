@@ -1,0 +1,600 @@
+{% load cms_tags %}
+{# content/_feature_calendar.html — the working part of Calendar, as a locked feature block. #}
+{# Lifted verbatim from content/calendar.html when that page became builder-driven, so #}
+{# it renders the same markup with the same context as before. Its styles #}
+{# travel with it, which is what lets the feature be placed in a column. #}
+
+{# ── PAGE HEAD ── #}
+{# The primary actions that were here are rows on the page heading block #}
+{# now, so they render inside the header and are editable in the CMS. #}
+{# Booking a meeting is not an administrative act, so this is here for everyone #}
+{# — unlike the event modal below it, which puts something on the whole #}
+{# company's calendar and stays with HR. #}
+<div class="cal-newmeeting rise">
+  <button type="button" class="btn y" onclick="mcOpen()">
+    {% icon "calendar-plus" 15 2 %} New meeting
+  </button>
+  <span class="muted">Invite colleagues, pick a room or Teams, and it goes in their calendar too.</span>
+</div>
+
+{# ── VIEW TOGGLE ── #}
+<div class="cal-toggle rise" style="animation-delay:.04s">
+  {# Week first: it is the one people work in. Whichever is chosen is #}
+  {# remembered against the account, so this opens where it was left. #}
+  <a href="?view=week&y={{ year }}&m={{ month }}"
+     class="cal-toggle-btn {% if cal_view == 'week' %}active{% endif %}">
+    {% icon "calendar-month" 13 2 %}
+    Week
+  </a>
+  <a href="?view=month&y={{ year }}&m={{ month }}"
+     class="cal-toggle-btn {% if cal_view == 'month' %}active{% endif %}">
+    {% icon "calendar" 13 2 %}
+    Month
+  </a>
+  <a href="?view=year&y={{ year }}&m={{ month }}"
+     class="cal-toggle-btn {% if cal_view == 'year' %}active{% endif %}">
+    {% icon "calendar-week" 13 2 %}
+    Year
+  </a>
+</div>
+
+{% if cal_view == 'month' %}
+{# ══════════════════════════════════════ MONTH VIEW ══════════════════════════ #}
+<div class="cal-layout rise" style="animation-delay:.08s">
+
+  <div class="cal-card">
+    <div class="cal-nav">
+      <div class="cal-month-title">{{ month_name }}</div>
+      <div class="cal-nav-btns">
+        <a href="?view=month&y={{ prev_y }}&m={{ prev_m }}" class="cal-nav-btn">‹</a>
+        <a href="?view=month&y={{ today.year }}&m={{ today.month }}" class="cal-nav-btn cal-nav-today">Today</a>
+        <a href="?view=month&y={{ next_y }}&m={{ next_m }}" class="cal-nav-btn">›</a>
+      </div>
+    </div>
+    <div class="cal-weekdays">
+      <div class="cal-weekday">Sun</div><div class="cal-weekday">Mon</div>
+      <div class="cal-weekday">Tue</div><div class="cal-weekday">Wed</div>
+      <div class="cal-weekday">Thu</div><div class="cal-weekday">Fri</div>
+      <div class="cal-weekday">Sat</div>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    {% if is_hr %}
+    <div class="cal-add-hint">Click any day to add an event — or click an existing event to edit it.</div>
+    {% endif %}
+  </div>
+
+  <div class="upnext-card">
+    <div class="upnext-h">Up next</div>
+    {% for ev in upcoming %}
+    <div class="upnext-row">
+      <div class="upnext-date">{{ ev.date|date:"M d" }}</div>
+      <div class="upnext-bar ev-{{ ev.event_type }}"></div>
+      <div class="upnext-info">
+        <div class="upnext-title">{{ ev.title }}</div>
+        <div class="upnext-loc">{% if ev.location %}{{ ev.location }}{% if ev.time %} · {{ ev.time|time:"H:i" }}{% endif %}{% elif ev.all_day %}All day{% endif %}</div>
+      </div>
+    </div>
+    {% empty %}
+    <div style="color:var(--muted);font-size:13px;padding:8px 0">No upcoming events.</div>
+    {% endfor %}
+  </div>
+
+</div>
+
+{% elif cal_view == 'week' %}
+{# ══════════════════════════════════════ WEEK VIEW ═══════════════════════════ #}
+<div class="cal-layout rise" style="animation-delay:.08s">
+
+  <div class="cal-card">
+    <div class="cal-nav">
+      <div class="cal-month-title">{{ week_start|date:"j M" }} – {{ week_end|date:"j M Y" }}</div>
+      <div class="cal-nav-btns">
+        <a href="?view=week&y={{ prev_week.year }}&m={{ prev_week.month }}&d={{ prev_week.day }}" class="cal-nav-btn">‹</a>
+        <a href="?view=week&y={{ today.year }}&m={{ today.month }}&d={{ today.day }}" class="cal-nav-btn cal-nav-today">This week</a>
+        <a href="?view=week&y={{ next_week.year }}&m={{ next_week.month }}&d={{ next_week.day }}" class="cal-nav-btn">›</a>
+      </div>
+    </div>
+
+    {# A time axis. The week used to be seven columns of same-sized chips, so a #}
+    {# fifteen-minute check-in and a four-hour review looked identical. A block's #}
+    {# height is now its duration: --top and --mins are minutes from the start of #}
+    {# the axis, and the CSS turns them into pixels. #}
+    <div class="wk-sched" style="--wk-from:{{ wk_from_min }};--wk-span:{{ wk_span_min }}">
+
+      <div class="wk-corner"></div>
+      {% for d in week_days %}
+      <div class="wk-dayhead{% if d.is_today %} today{% endif %}{% if d.off_month %} off{% endif %}">
+        <span class="wk-wd">{{ d.name }}</span>
+        <span class="wk-num">{{ d.num }}</span>
+      </div>
+      {% endfor %}
+
+      {# All-day entries have no duration, so they sit in their own strip above #}
+      {# the axis rather than being given an arbitrary height on it. #}
+      <div class="wk-allday-label">All day</div>
+      {% for d in week_days %}
+      <div class="wk-allday" data-date="{{ d.iso }}">
+        {% for ev in d.events %}{% if not ev.start_min %}
+        <div class="wk-chip ev-{{ ev.type }}" data-ev="{{ ev.id }}"
+             title="{{ ev.type_label }}{% if ev.location %} · {{ ev.location }}{% endif %}">{{ ev.t }}</div>
+        {% endif %}{% endfor %}
+      </div>
+      {% endfor %}
+
+      <div class="wk-hours">
+        {% for h in wk_hours %}
+        <div class="wk-hour" style="--h:{{ h.offset }}"><span>{{ h.label }}</span></div>
+        {% endfor %}
+      </div>
+
+      {% for d in week_days %}
+      <div class="wk-lane{% if d.is_today %} today{% endif %}{% if d.off_month %} off{% endif %}"
+           data-date="{{ d.iso }}">
+        {% for h in wk_hours %}<div class="wk-rule" style="--h:{{ h.offset }}"></div>{% endfor %}
+        {% for ev in d.events %}{% if ev.start_min %}
+        <div class="wk-block ev-{{ ev.type }}" data-ev="{{ ev.id }}"
+             style="--top:{{ ev.start_min }};--mins:{{ ev.mins }}"
+             title="{{ ev.t }} · {{ ev.range }}{% if ev.location %} · {{ ev.location }}{% endif %}">
+          <span class="wk-block-t">{{ ev.range }}</span>
+          <span class="wk-block-n">{{ ev.t }}</span>
+        </div>
+        {% endif %}{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    {% if is_hr %}
+    <div class="cal-add-hint">Click any day to add an event — or click an existing event to edit it.</div>
+    {% endif %}
+  </div>
+
+  <div class="upnext-card">
+    <div class="upnext-h">Up next</div>
+    {% for ev in upcoming %}
+    <div class="upnext-row">
+      <div class="upnext-date">{{ ev.date|date:"M d" }}</div>
+      <div class="upnext-bar ev-{{ ev.event_type }}"></div>
+      <div class="upnext-info">
+        <div class="upnext-title">{{ ev.title }}</div>
+        <div class="upnext-loc">{% if ev.location %}{{ ev.location }}{% if ev.time %} · {{ ev.time|time:"H:i" }}{% endif %}{% elif ev.all_day %}All day{% endif %}</div>
+      </div>
+    </div>
+    {% empty %}
+    <div style="color:var(--muted);font-size:13px;padding:8px 0">No upcoming events.</div>
+    {% endfor %}
+  </div>
+
+</div>
+
+<script>
+/* Two meetings at the same time were drawn on top of each other, so the one
+   underneath was invisible. They are laid side by side instead.
+   Done here rather than in the template because it needs the events compared
+   against each other, and a column count is not something a per-event loop
+   knows. Pure geometry from --top and --mins, so it never disagrees with the
+   heights the CSS draws. */
+(function(){
+  function layout(lane){
+    const blocks = [...lane.querySelectorAll('.wk-block')].map(el => ({
+      el,
+      start: +getComputedStyle(el).getPropertyValue('--top'),
+      mins:  +getComputedStyle(el).getPropertyValue('--mins') || 30,
+    }));
+    if (blocks.length < 2) return;
+    blocks.forEach(b => { b.end = b.start + b.mins; });
+    blocks.sort((a, b) => a.start - b.start || b.mins - a.mins);
+
+    /* Gather runs of events that touch, then give every event in a run its own
+       column. Grouping by run rather than pairwise keeps a column consistent
+       down the whole overlap instead of shifting under each new event. */
+    let run = [], runEnd = -1;
+    const flush = () => {
+      if (run.length > 1){
+        const cols = [];
+        run.forEach(b => {
+          let c = cols.findIndex(end => end <= b.start);
+          if (c === -1){ c = cols.length; cols.push(0); }
+          cols[c] = b.end;
+          b.col = c;
+        });
+        const n = cols.length;
+        run.forEach(b => {
+          b.el.style.left  = `calc(${(b.col / n) * 100}% + 2px)`;
+          b.el.style.right = `calc(${((n - 1 - b.col) / n) * 100}% + 2px)`;
+        });
+      }
+      run = [];
+    };
+    blocks.forEach(b => {
+      if (run.length && b.start >= runEnd){ flush(); runEnd = -1; }
+      run.push(b);
+      runEnd = Math.max(runEnd, b.end);
+    });
+    flush();
+  }
+
+  function layoutAll(){ document.querySelectorAll('.wk-lane').forEach(layout); }
+  layoutAll();
+  /* A resize changes nothing about the maths -- the offsets are percentages --
+     but a lane re-rendered after an edit needs laying out again. */
+  window.addEventListener('calendar:rerender', layoutAll);
+})();
+</script>
+
+<script id="calWeekData" type="application/json">{{ week_events_json|safe }}</script>
+
+{% else %}
+{# ══════════════════════════════════════ YEAR VIEW ═══════════════════════════ #}
+<div class="year-wrap rise" style="animation-delay:.08s">
+
+  <div class="year-nav-row">
+    <div class="year-title">{{ year }}</div>
+    <div class="cal-nav-btns">
+      <a href="?view=year&y={{ year|add:"-1" }}" class="cal-nav-btn">‹</a>
+      <a href="?view=year&y={{ today.year }}" class="cal-nav-btn cal-nav-today">This year</a>
+      <a href="?view=year&y={{ year|add:"1" }}" class="cal-nav-btn">›</a>
+    </div>
+  </div>
+
+  <div class="year-legend">
+    <div class="year-legend-item"><div class="year-legend-dot" style="background:var(--yellow)"></div>Meeting</div>
+    <div class="year-legend-item"><div class="year-legend-dot" style="background:var(--ok)"></div>Holiday</div>
+    <div class="year-legend-item"><div class="year-legend-dot" style="background:var(--info-bg);border:1px solid var(--info)"></div>Company</div>
+    <div class="year-legend-item"><div class="year-legend-dot" style="background:var(--warn-bg);border:1px solid var(--warn)"></div>Training</div>
+    <div class="year-legend-item"><div class="year-legend-dot" style="background:var(--violet-bg);border:1px solid var(--violet)"></div>Remote Session</div>
+    <div class="year-legend-item"><div class="year-legend-dot" style="background:var(--sky-bg);border:1px solid var(--sky)"></div>Online Meeting</div>
+    <div class="year-legend-item"><div class="year-legend-dot" style="background:var(--clay-bg);border:1px solid var(--clay)"></div>Town Hall</div>
+    <div class="year-legend-item"><div class="year-legend-dot" style="background:var(--bad-bg);border:1px solid var(--bad)"></div>Deadline</div>
+    <div class="year-legend-item"><div class="year-legend-dot" style="background:var(--ink)"></div>Today</div>
+  </div>
+
+  <div class="year-grid" id="yearGrid"></div>
+
+</div>
+{% endif %}
+
+{% if is_hr %}
+{# ── HR EVENT MODAL (create / edit / delete) ── #}
+<div class="evm-back" id="evmBack" onclick="evmClose()"></div>
+<div class="evm" id="evm" role="dialog" aria-modal="true" aria-labelledby="evmHead">
+  <h3 id="evmHead">New event</h3>
+  <form method="post" id="evmForm">
+    {% csrf_token %}
+    <input type="hidden" name="next" id="evmNext" value="">
+    <div class="fld">
+      <label for="evmT">Title</label>
+      <input type="text" id="evmT" name="title" required maxlength="300">
+    </div>
+    <div class="row">
+      <div class="fld">
+        <label for="evmType">Event type</label>
+        <select id="evmType" name="event_type">
+          {% for value, label in event_types %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fld">
+        <label for="evmLoc">Location or link</label>
+        <input type="text" id="evmLoc" name="location" maxlength="300" placeholder="Room, city, or meeting link">
+      </div>
+    </div>
+    <div class="row">
+      <div class="fld">
+        <label for="evmDate">Starts</label>
+        <input type="date" id="evmDate" name="date" required>
+      </div>
+      <div class="fld">
+        <label for="evmEnd">Ends (optional)</label>
+        <input type="date" id="evmEnd" name="end_date">
+      </div>
+      <div class="fld">
+        <label for="evmTime">Starts at (optional)</label>
+        <input type="time" id="evmTime" name="time">
+      </div>
+      <div class="evm-f">
+        {# The end time is what gives an event a length. Without it every meeting #}
+        {# was the same size on the week view whatever it actually ran for. #}
+        {# id is evmEndTime, not evmEnd: it shared that id with the end *date* #}
+        {# above, so getElementById only ever returned the date field. Opening #}
+        {# an event wrote its end time into the date box, which rejected it as #}
+        {# not a date and blanked itself — losing both on the next save. #}
+        <label for="evmEndTime">Ends at (optional)</label>
+        <input type="time" id="evmEndTime" name="end_time">
+        <small class="evm-hint">Leave empty and it is treated as 30 minutes.</small>
+      </div>
+    </div>
+    <div class="fld">
+      <label for="evmDesc">Description</label>
+      <textarea id="evmDesc" name="description" rows="3"></textarea>
+    </div>
+    <label class="chk"><input type="checkbox" name="is_public" id="evmPub" checked> Visible to everyone</label>
+    <div class="evm-actions">
+      <button type="submit" class="btn y">Save event</button>
+      <button type="button" class="btn ghost" onclick="evmClose()">Cancel</button>
+      <button type="button" class="btn ghost" id="evmDelBtn" style="margin-left:auto;display:none" onclick="evmDelete()">Delete</button>
+    </div>
+  </form>
+  {# Separate form so Delete is a POST of its own, not a submit of the edit form. #}
+  <form method="post" id="evmDelForm" style="display:none">
+    {% csrf_token %}<input type="hidden" name="next" id="evmDelNext">
+  </form>
+</div>
+
+<script>
+/* Placeholder pk lets us build per-event URLs from Django's own routing. */
+var EVM_EDIT_TPL = "{% url 'event_edit' 999999 %}";
+var EVM_DEL_TPL  = "{% url 'event_delete' 999999 %}";
+var EVM_CREATE   = "{% url 'event_create' %}";
+var evmId = null;
+
+function evmEl(id) { return document.getElementById(id); }
+function evmShow() { evmEl('evmBack').classList.add('on'); evmEl('evm').classList.add('on'); }
+function evmClose() { evmEl('evmBack').classList.remove('on'); evmEl('evm').classList.remove('on'); }
+
+function evmStampNext() {
+  var here = window.location.pathname + window.location.search;
+  evmEl('evmNext').value = here;
+  evmEl('evmDelNext').value = here;
+}
+
+function evmCreate(dateStr) {
+  evmId = null;
+  evmEl('evmHead').textContent = 'New event';
+  var f = evmEl('evmForm');
+  f.action = EVM_CREATE;
+  f.reset();
+  evmEl('evmDate').value = dateStr || new Date().toISOString().slice(0, 10);
+  evmEl('evmDelBtn').style.display = 'none';
+  evmStampNext();
+  evmShow();
+  evmEl('evmT').focus();
+}
+
+function evmEdit(ev) {
+  evmId = ev.id;
+  evmEl('evmHead').textContent = 'Edit event';
+  var f = evmEl('evmForm');
+  f.action = EVM_EDIT_TPL.replace('999999', ev.id);
+  evmEl('evmT').value = ev.t || '';
+  evmEl('evmType').value = ev.type || 'other';
+  evmEl('evmLoc').value = ev.location || '';
+  evmEl('evmDate').value = ev.date || '';
+  evmEl('evmEnd').value = ev.end_date || '';
+  evmEl('evmTime').value = ev.time || '';
+  evmEl('evmEndTime').value = ev.end || '';
+  evmEl('evmDesc').value = ev.description || '';
+  evmEl('evmPub').checked = !!ev.is_public;
+  evmEl('evmDelBtn').style.display = '';
+  evmStampNext();
+  evmShow();
+  evmEl('evmT').focus();
+}
+
+function evmDelete() {
+  if (evmId === null) return;
+  if (!confirm('Remove this event from the calendar?')) return;
+  var f = evmEl('evmDelForm');
+  f.action = EVM_DEL_TPL.replace('999999', evmId);
+  f.submit();
+}
+
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') evmClose();
+});
+</script>
+{% endif %}
+
+{# ── DATA ISLANDS ── #}
+<script id="calMonthData" type="application/json">{"year":{{ year }},"month":{{ month }},"firstWD":{{ first_weekday }},"lastDay":{{ last_day }},"today":{"y":{{ today.year }},"m":{{ today.month }},"d":{{ today.day }}},"events":{{ event_map_json|safe }}}</script>
+
+<script id="calYearData" type="application/json">{{ year_events_json|safe }}</script>
+<script id="calMiniMonths" type="application/json">{{ mini_months_json|safe }}</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+  var VIEW     = "{{ cal_view }}";
+  var CAL_YEAR = {{ year }};
+  var TODAY    = { y: {{ today.year }}, m: {{ today.month }}, d: {{ today.day }} };
+  var IS_HR    = {{ is_hr|yesno:"true,false" }};
+
+  function pad(n) { return n < 10 ? '0' + n : String(n); }
+
+  /* ── MONTH VIEW ── */
+  if (VIEW === 'month') {
+    var d    = JSON.parse(document.getElementById('calMonthData').textContent);
+    var grid = document.getElementById('calGrid');
+    if (!grid) return;
+
+    for (var i = 0; i < d.firstWD; i++) {
+      var empty = document.createElement('div');
+      empty.className = 'cal-day empty';
+      grid.appendChild(empty);
+    }
+
+    for (var day = 1; day <= d.lastDay; day++) {
+      var isToday = (day === d.today.d && d.month === d.today.m && d.year === d.today.y);
+      var cell = document.createElement('div');
+      cell.className = 'cal-day' + (isToday ? ' today' : '');
+
+      var num = document.createElement('div');
+      num.className = 'cal-day-num';
+      num.textContent = day;
+      cell.appendChild(num);
+
+      var evs = d.events[String(day)] || [];
+      evs.forEach(function(ev) {
+        var chip = document.createElement('div');
+        chip.className = 'cal-ev-chip ev-' + ev.type;
+        chip.textContent = ev.t;
+        chip.title = ev.type_label + (ev.time ? ' · ' + ev.time : '') +
+                     (ev.location ? ' · ' + ev.location : '');
+        if (IS_HR) {
+          chip.classList.add('hr-editable');
+          chip.addEventListener('click', function (e) {
+            // Don't also trigger the day cell's "add event" handler.
+            e.stopPropagation();
+            evmEdit(ev);
+          });
+        }
+        cell.appendChild(chip);
+      });
+
+      if (IS_HR) {
+        cell.classList.add('hr-editable');
+        (function (cellEl, dayNum) {
+          cellEl.addEventListener('click', function () {
+            evmCreate(d.year + '-' + pad(d.month) + '-' + pad(dayNum));
+          });
+        })(cell, day);
+      }
+
+      grid.appendChild(cell);
+    }
+  }
+
+  /* ── WEEK VIEW ── rendered server-side; only the HR wiring is needed here.
+
+     These selectors were .wk-col and .wk-ev, which is what the week view was
+     built from before it grew a time axis. The markup became .wk-lane with
+     .wk-block on it, and .wk-allday with .wk-chip, and this was never brought
+     along — so nothing here matched anything and the week was the one view
+     where an event could not be opened. */
+  if (VIEW === 'week' && IS_HR) {
+    var wkNode = document.getElementById('calWeekData');
+    var wkData = wkNode ? JSON.parse(wkNode.textContent) : {};
+    var AXIS_FROM = {{ wk_from_min }}, AXIS_SPAN = {{ wk_span_min }};
+
+    /* Clicking a lane starts an event at the time that was clicked, not at
+       midnight — on a view whose whole point is the time of day, offering a
+       blank time field would throw away what the click already said. Rounded to
+       the nearest quarter of an hour, because nobody means 14:07. */
+    function timeAt(lane, e) {
+      var box = lane.getBoundingClientRect();
+      if (!box.height) return '';
+      var frac = Math.min(Math.max((e.clientY - box.top) / box.height, 0), 1);
+      var mins = Math.round((AXIS_FROM + frac * AXIS_SPAN) / 15) * 15;
+      mins = Math.min(mins, 23 * 60 + 45);
+      return pad(Math.floor(mins / 60)) + ':' + pad(mins % 60);
+    }
+
+    document.querySelectorAll('.wk-lane').forEach(function (lane) {
+      lane.classList.add('hr-editable');
+      lane.addEventListener('click', function (e) {
+        evmCreate(lane.dataset.date);
+        var t = timeAt(lane, e);
+        if (t) evmEl('evmTime').value = t;
+      });
+    });
+
+    /* The all-day strip means all day, so it opens with no time set. */
+    document.querySelectorAll('.wk-allday').forEach(function (strip) {
+      strip.classList.add('hr-editable');
+      strip.addEventListener('click', function () { evmCreate(strip.dataset.date); });
+    });
+
+    document.querySelectorAll('.wk-block, .wk-chip').forEach(function (el) {
+      el.classList.add('hr-editable');
+      el.addEventListener('click', function (e) {
+        // Don't also fire the lane's "add event" handler underneath.
+        e.stopPropagation();
+        var ev = wkData[el.dataset.ev];
+        if (ev) evmEdit(ev);
+      });
+    });
+  }
+
+  /* ── YEAR VIEW ── */
+  if (VIEW === 'year') {
+    var yearEvents  = JSON.parse(document.getElementById('calYearData').textContent);
+    var miniMonths  = JSON.parse(document.getElementById('calMiniMonths').textContent);
+    var yearGrid    = document.getElementById('yearGrid');
+
+    function pad2(n) { return n < 10 ? '0' + n : String(n); }
+
+    miniMonths.forEach(function(mm) {
+      /* ── build mini-month card ── */
+      var card = document.createElement('div');
+      card.className = 'mini-month';
+
+      /* month name */
+      var nameEl = document.createElement('div');
+      nameEl.className = 'mini-month-name';
+      nameEl.textContent = mm.name.toUpperCase();
+      nameEl.onclick = function() {
+        window.location.href = '?view=month&y=' + CAL_YEAR + '&m=' + mm.month;
+      };
+      card.appendChild(nameEl);
+
+      /* weekday headers */
+      var wdRow = document.createElement('div');
+      wdRow.className = 'mini-weekdays';
+      ['S','M','T','W','T','F','S'].forEach(function(l) {
+        var wd = document.createElement('div');
+        wd.className = 'mini-wd';
+        wd.textContent = l;
+        wdRow.appendChild(wd);
+      });
+      card.appendChild(wdRow);
+
+      /* day grid */
+      var grid = document.createElement('div');
+      grid.className = 'mini-grid';
+
+      /* empty leading cells */
+      for (var i = 0; i < mm.first_wd; i++) {
+        var empty = document.createElement('div');
+        empty.className = 'mini-day empty';
+        grid.appendChild(empty);
+      }
+
+      /* day cells */
+      for (var d = 1; d <= mm.last_day; d++) {
+        var key     = CAL_YEAR + '-' + pad2(mm.month) + '-' + pad2(d);
+        var evs     = yearEvents[key] || [];
+        var isToday = (d === TODAY.d && mm.month === TODAY.m && CAL_YEAR === TODAY.y);
+
+        var cell = document.createElement('div');
+        cell.className = 'mini-day';
+        cell.textContent = d;
+
+        if (isToday) {
+          cell.classList.add('today');
+        } else if (evs.length) {
+          cell.classList.add('has-ev-' + evs[0].type);
+          cell.title = evs.map(function(e){ return e.t; }).join(', ');
+        }
+
+        (function(month){ cell.addEventListener('click', function(){
+          window.location.href = '?view=month&y=' + CAL_YEAR + '&m=' + month;
+        }); })(mm.month);
+
+        grid.appendChild(cell);
+      }
+
+      card.appendChild(grid);
+      yearGrid.appendChild(card);
+    });
+  }
+
+  /* The "New event" button in the page header is a plain link, so it needs a way
+     to open this modal. It used to point at the create endpoint itself, which is
+     POST-only -- a GET there just redirected back to the calendar, so the button
+     appeared to do nothing at all.
+
+     A query parameter rather than stored JavaScript: the button is CMS content,
+     and content must never carry code. The parameter is then removed from the
+     address bar so a refresh does not reopen the dialog. */
+  if (IS_HR && new URLSearchParams(window.location.search).get('new') === '1') {
+    var evmParams = new URLSearchParams(window.location.search);
+    evmParams.delete('new');
+    var evmClean = window.location.pathname +
+                   (evmParams.toString() ? '?' + evmParams.toString() : '');
+    window.history.replaceState({}, '', evmClean);
+    evmCreate();
+  }
+
+}); // DOMContentLoaded
+</script>
+
+{# The composer. Below everything, so its picker markup exists before the #}
+{# script that wires it runs. #}
+{% include 'includes/meeting_composer.html' %}

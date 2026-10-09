@@ -1,0 +1,81 @@
+{# templates/taqdeer/praise_queue.html — moderation, when HR turns it on. #}
+{# The queue only fills while approval is switched on, so when it is off the #}
+{# page says so plainly rather than looking like a broken feature. #}
+{% extends 'base.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}Kudos queue — AJi Taqdeer{% endblock %}
+
+{% block content %}
+<a href="{% url 'taqdeer_home' %}" class="ctx-back" title="AJi Taqdeer"><span class="ctx-back-lab">AJi Taqdeer</span></a>
+
+<div class="tq-nom-head">
+  <div><div class="eyebrow">HR</div><h1>Kudos queue</h1></div>
+  {% if moderation_on %}<span class="tq-chip submitted">Approval is on</span>
+  {% else %}<span class="tq-chip shut">Approval is off</span>{% endif %}
+</div>
+
+{% if not moderation_on %}
+<div class="rl-block">
+  {% icon "check" 18 %}
+  <div><b>Nothing waits for you</b>
+    <span>Praise publishes immediately. Turn approval on in
+      <a href="{% url 'taqdeer_settings' %}">Settings</a> if you want to read each
+      one first — this queue fills up only while that is set.</span></div>
+</div>
+{% endif %}
+
+{% if waiting %}
+<div class="sec-head" style="margin-top:22px">
+  <h2>Waiting</h2><span class="ny-count">{{ waiting|length }}</span></div>
+{% for p in waiting %}
+<form method="post" action="{% url 'taqdeer_praise_decide' p.pk %}" class="tk-praise pq">
+  {% csrf_token %}
+  <div class="tk-praise-top">
+    {% include 'exchange/_avatar.html' with user=p.giver size='sm' %}
+    <div class="tk-praise-who">
+      <b>{{ p.giver.get_full_name|default:p.giver.username }}</b>
+      <span>&rarr; {{ p.recipient.get_full_name|default:p.recipient.username }}</span></div>
+    {% if p.category %}<span class="tk-tag">{{ p.category }}</span>{% endif %}
+    <time>{{ p.created_at|date:"j M, H:i" }}</time>
+  </div>
+  <h3>{{ p.subject }}</h3>
+  <p>{{ p.message|linebreaksbr }}</p>
+  {% if p.project %}<span class="tk-proj">{% icon "folder" 12 %} {{ p.project }}</span>{% endif %}
+  <div class="pq-acts">
+    <button class="btn y sm" type="submit" name="action" value="publish">
+      {% icon "check" 13 %} Publish</button>
+    <button class="cx-iconbtn danger" type="submit" name="action" value="decline"
+            data-confirm="Decline this Kudos? The person who sent it is told.">
+      {% icon "x" 13 %}<span>Decline</span></button>
+    <span class="tq-hint" style="flex:1">The recipient is only told once it is
+      published.</span>
+  </div>
+</form>
+{% endfor %}
+{% elif moderation_on %}
+<div class="tq-none" style="margin-top:20px">
+  <span class="tq-none-ic">{% icon "check" 20 %}</span>
+  <b>Nothing waiting</b><span>Everything sent has been dealt with.</span>
+</div>
+{% endif %}
+
+{% if hidden %}
+<div class="sec-head" style="margin-top:26px"><h2>Hidden and declined</h2></div>
+<div class="cf-list">
+  {% for p in hidden %}
+  <form method="post" action="{% url 'taqdeer_praise_decide' p.pk %}" class="cf-row off">
+    {% csrf_token %}
+    <div class="cf-b">
+      <b>{{ p.subject }}</b>
+      <span>{{ p.giver.get_full_name|default:p.giver.username }} &rarr;
+        {{ p.recipient.get_full_name|default:p.recipient.username }}
+        · {{ p.get_status_display }}{% if p.hidden_by %} by
+        {{ p.hidden_by.get_full_name|default:p.hidden_by.username }}{% endif %}</span>
+    </div>
+    <button class="cx-iconbtn" type="submit" name="action" value="restore">
+      {% icon "eye" 13 %}<span>Put back</span></button>
+  </form>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

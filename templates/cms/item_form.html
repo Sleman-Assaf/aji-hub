@@ -1,0 +1,113 @@
+{# templates/cms/item_form.html #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}{% if item %}Edit item{% else %}Add item{% endif %} — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+.if-in{width:100%;border:1px solid var(--line-2);padding:10px 12px;font-family:inherit;font-size:14px;outline:none;background:var(--paper-2)}
+.if-in:focus{border-color:var(--ink)}
+.if-fld{margin-bottom:15px}
+.if-fld>label{display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:5px}
+.if-row{display:flex;gap:14px;flex-wrap:wrap}
+.if-row>*{flex:1;min-width:190px}
+.if-hint{font-size:12px;color:var(--muted);margin-top:5px}
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="{% url 'cms_section_edit' page.slug section.pk %}" data-frag class="ctx-back" title="{{ section.title|default:section.get_type_display }}"><span class="ctx-back-lab">{{ section.title|default:section.get_type_display }}</span></a>
+
+<div class="page-head rise">
+  <div class="eyebrow">{{ section.get_type_display }}</div>
+  <h1>{% if item %}Edit item{% else %}Add item{% endif %}</h1>
+  <p>Not every field applies to every template — leave the ones you don't need empty.</p>
+</div>
+
+<form data-save method="post" data-frag enctype="multipart/form-data" class="card rise" style="max-width:760px">
+  {% csrf_token %}
+
+  <div class="if-fld">
+    <label for="i-title">Title</label>
+    <input id="i-title" name="title" maxlength="250" class="if-in" value="{{ item.title|default:'' }}">
+    <div class="if-hint">On a Statistics section this is the number itself.</div>
+  </div>
+
+  <div class="if-fld">
+    <label for="i-text">Text</label>
+    <textarea id="i-text" name="text" rows="4" class="if-in">{{ item.text|default:'' }}</textarea>
+  </div>
+
+  <div class="if-row">
+    <div class="if-fld">
+      <label for="i-meta">Secondary line</label>
+      <input id="i-meta" name="meta" maxlength="120" class="if-in" value="{{ item.meta|default:'' }}"
+             placeholder="date, role, file size…">
+    </div>
+    <div class="if-fld">
+      <label for="i-badge">Badge</label>
+      <input id="i-badge" name="badge" maxlength="60" class="if-in" value="{{ item.badge|default:'' }}">
+      <div class="if-hint">On a Button group, use <b>primary</b> for the yellow button.</div>
+    </div>
+  </div>
+
+  <div class="if-row">
+    <div class="if-fld">
+      <label for="i-url">Link</label>
+      <input id="i-url" name="url" maxlength="500" class="if-in" value="{{ item.url|default:'' }}"
+             placeholder="/people/ or https://…">
+    </div>
+    <div class="if-fld">
+      <label for="i-btn">Button label</label>
+      <input id="i-btn" name="button_label" maxlength="80" class="if-in" value="{{ item.button_label|default:'' }}">
+    </div>
+  </div>
+
+  <div class="if-fld">
+    <label>Icon</label>
+      {# A radio grid listed every icon at once. That was reasonable at 76 and #}
+      {# is not at 1,512, so this uses the same picker as the rest of the Hub -- #}
+      {# searchable, by category, one way to choose an icon everywhere. #}
+      <input type="text" name="icon" data-icon-field
+             value="{% if item %}{{ item.icon }}{% endif %}"
+             placeholder="Click to choose an icon">
+    <div class="if-hint" style="margin-top:8px">
+      Search by what it shows — &ldquo;calendar&rdquo;, &ldquo;hard hat&rdquo;, &ldquo;crane&rdquo;.
+      <a href="{% url 'cms_icons' %}" target="_blank" rel="noopener" style="font-weight:700">Upload your own</a>
+      if none of them fit.
+    </div>
+  </div>
+
+  <div class="if-fld">
+    <label for="i-img">Image</label>
+    {% if item and item.image %}
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:9px">
+      <img src="{{ item.image.url }}" alt="" style="width:120px;aspect-ratio:4/3;object-fit:cover;border:1px solid var(--line)">
+      <label style="font-size:13px;display:flex;align-items:center;gap:6px"><input type="checkbox" name="remove_image"> Remove</label>
+    </div>
+    {% endif %}
+    <input id="i-img" type="file" name="image" accept="image/*" style="font-size:13px">
+  </div>
+
+  <div class="if-fld">
+    <label for="i-file">File</label>
+    {% if item and item.file %}
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:9px">
+      <a href="{{ item.file.url }}" download style="font-size:13px;font-weight:700">{{ item.file.name }}</a>
+      <label style="font-size:13px;display:flex;align-items:center;gap:6px"><input type="checkbox" name="remove_file"> Remove</label>
+    </div>
+    {% endif %}
+    <input id="i-file" type="file" name="file" style="font-size:13px">
+    <div class="if-hint">An uploaded file takes precedence over the link above.</div>
+  </div>
+
+  <label style="display:flex;align-items:center;gap:8px;font-size:14px">
+    <input type="checkbox" name="is_visible" {% if not item or item.is_visible %}checked{% endif %}> Visible
+  </label>
+
+  <div class="f-foot">
+    <button type="submit" class="btn y">{% if item %}Save item{% else %}Add item{% endif %}</button>
+    <a href="{% url 'cms_section_edit' page.slug section.pk %}" data-frag class="btn ghost">Cancel</a>
+  </div>
+</form>
+{% endblock %}

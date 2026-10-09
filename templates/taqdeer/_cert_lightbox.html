@@ -1,0 +1,57 @@
+{# templates/taqdeer/_cert_lightbox.html — a certificate card, opened in place. #}
+{# #}
+{# Clicking one used to hand the reader a bare PNG in a new tab: no Hub around #}
+{# it, no title on it and nothing to close, so the only way back was the #}
+{# browser's. This opens the card over the page it was clicked from, with a #}
+{# close button, Escape and the backdrop — the same three ways out as every #}
+{# other dialog in the Hub. #}
+{# #}
+{# Wired as an enhancement rather than a replacement: the link keeps its href #}
+{# and its target, so where the script does not run the card still opens the #}
+{# way it always did. Any .cf-thumb on the page is picked up, so a page that #}
+{# lists certificates only has to include this once. #}
+{% load cms_tags %}
+<dialog class="tk-modal cfl" id="certDlg">
+  <div class="po">
+    <div class="po-h">
+      <span class="po-k">{% icon "certificate" 13 %}
+        <span data-cfl-name>Certification</span></span>
+      <button type="button" class="tk-x" data-close aria-label="Close">
+        {% icon "x" 15 %}</button>
+    </div>
+    <div class="po-b cfl-b">
+      <img class="cfl-img" data-cfl-img alt="">
+    </div>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  var dlg = document.getElementById('certDlg');
+  if (!dlg || !dlg.showModal) return;
+  var img  = dlg.querySelector('[data-cfl-img]');
+  var name = dlg.querySelector('[data-cfl-name]');
+
+  /* Delegated, so cards added to the page later are covered too. */
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('.cf-thumb');
+    if (!a) return;
+    e.preventDefault();
+    var thumb = a.querySelector('img');
+    img.src = a.getAttribute('href');
+    img.alt = thumb ? thumb.alt : '';
+    name.textContent = a.getAttribute('data-cert-name') || 'Certification';
+    dlg.showModal();
+  });
+
+  dlg.querySelectorAll('[data-close]').forEach(function (b) {
+    b.addEventListener('click', function () { dlg.close(); });
+  });
+  /* The dialog covers the whole viewport, so a click on it rather than on the
+     card inside it landed on the backdrop. */
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+  /* Dropped on close so a shut dialog is not holding a full-size card in
+     memory; it is served from cache when the same one is opened again. */
+  dlg.addEventListener('close', function () { img.removeAttribute('src'); });
+})();
+</script>

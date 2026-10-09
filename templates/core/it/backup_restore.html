@@ -1,0 +1,88 @@
+{# templates/core/it/backup_restore.html — the one page that says no by default. #}
+{% extends 'core/it/_shell.html' %}
+{% load cms_tags %}
+{% block title %}Restore a backup — IT Portal{% endblock %}
+{% block it_note %}Putting the Hub back to how it was at one moment.{% endblock %}
+
+{% block it_content %}
+<a class="ctx-back" href="{% url 'it_backups' %}"><span class="ctx-back-lab">Backups</span></a>
+
+<div class="it-card">
+  <div class="it-card-h">{% icon "clock-2" 16 %}<span class="sp">Restore this backup</span>
+    {% if on_disk %}<span class="it-chip ok">On disk</span>
+    {% else %}<span class="it-chip bad">File missing</span>{% endif %}</div>
+  <div class="it-card-b">
+    <table class="it-table">
+      <tr><td><b>File</b></td>
+        <td style="text-align:right"><span class="it-mono">{{ record.filename }}</span></td></tr>
+      <tr><td><b>Taken</b></td>
+        <td style="text-align:right">{{ record.created_at|date:"j M Y, H:i" }}</td></tr>
+      <tr><td><b>Size</b></td>
+        <td style="text-align:right"><span class="it-mono">{{ record.size_display }}</span></td></tr>
+      {% if record.taken_by %}
+      <tr><td><b>By</b></td>
+        <td style="text-align:right">{{ record.taken_by.get_full_name|default:record.taken_by.username }}</td></tr>
+      {% endif %}
+      {% if record.note %}
+      <tr><td><b>Note</b></td><td style="text-align:right">{{ record.note }}</td></tr>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+<div class="it-card rs-warn">
+  <div class="it-card-h">{% icon "alert" 16 %}<span class="sp">What this does</span></div>
+  <div class="it-card-b">
+    <ul class="rs-list">
+      <li><b>The Hub goes back to {{ record.created_at|date:"j M Y, H:i" }}.</b>
+        Everything written since then — pages edited, messages sent, requests
+        raised, recognition given, accounts changed — is gone.</li>
+      <li><b>The database as it stands right now is copied first</b>, before
+        anything is overwritten. If this turns out to be the wrong backup, that
+        copy is at the top of the list and this same page puts it back.</li>
+      <li><b>Everyone is signed out</b>, including you. Sessions live in the
+        database, so they go back to how they were too. Sign in again
+        afterwards.</li>
+      <li><b>Uploaded files are not touched.</b> Photos and documents live on
+        disk, not in the database. A file uploaded since this backup stays on
+        disk, but the page that pointed at it may no longer exist.</li>
+      {% if newer %}
+      <li><b>{{ newer }} newer backup{{ newer|pluralize }}</b> {{ newer|pluralize:"is,are" }}
+        in the list. If you meant the most recent one, go back and check.</li>
+      {% endif %}
+    </ul>
+  </div>
+</div>
+
+{% if on_disk %}
+<form method="post" class="it-card">
+  {% csrf_token %}
+  <div class="it-card-b">
+    <label class="it-lab" for="confirm">Type <b>RESTORE</b> to confirm</label>
+    <input class="it-in" id="confirm" name="confirm" autocomplete="off"
+           spellcheck="false" placeholder="RESTORE" style="max-width:220px">
+    <p class="it-cmd-note">Typed rather than clicked, because this is the one
+      action in the portal that cannot be walked back by hand.</p>
+  </div>
+  <div class="it-bar">
+    <button class="btn danger sm" type="submit">Restore this backup</button>
+    <a class="btn ghost sm" href="{% url 'it_backups' %}">Cancel</a>
+  </div>
+</form>
+{% else %}
+<div class="it-card"><div class="it-card-b">
+  <p style="margin:0;font-size:13px;color:var(--ink-2)">
+    The file is not in the backup folder any more, so there is nothing to
+    restore from. The record is kept so the history still shows the backup was
+    taken.</p>
+</div></div>
+{% endif %}
+
+<style>
+.rs-warn{border-color:var(--bad,#b3261e)}
+.rs-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:9px;
+  font-size:13px;line-height:1.65;color:var(--ink-2)}
+.rs-list b{color:var(--ink)}
+.it-cmd-note{margin:8px 0 0;font-size:11.5px;color:var(--muted);line-height:1.55}
+</style>
+{% endblock %}

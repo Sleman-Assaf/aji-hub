@@ -1,0 +1,13 @@
+{% load static %}
+{# The chat engine. One implementation, two shells — the popup in the corner and #}
+{# the full page at /messaging/. #}
+{# The code lives in static/js/chat_engine.js, not here. Inlined, it was 53 KB of #}
+{# uncacheable <script> on every single page load; as a static file the browser #}
+{# fetches it once. Edit the .js file. #}
+{# defer, so it runs after the document is parsed and can find its shell — and #}
+{# after chat_emoji.js, which it calls into for the picker. #}
+{# The picture cropper, for the group photo. It loads Cropper.js itself, and only #}
+{# when somebody actually chooses a file — so the 60 KB library is not on the #}
+{# critical path of a page where nobody crops anything. #}
+<script src="{% static 'js/photo_crop.js' %}?v={{ asset_version }}" defer></script>
+<script src="{% static 'js/chat_engine.js' %}?v={{ asset_version }}" defer></script>

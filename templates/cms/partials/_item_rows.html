@@ -1,0 +1,44 @@
+{# templates/cms/partials/_item_rows.html — the rows inside a block, editable. #}
+{# #}
+{# Every field a row has is here: its label, its icon and where it goes. Setting #}
+{# an icon or a link used to mean leaving the drawer for the full section form #}
+{# and coming back, which is most of what made editing feel like a round trip. #}
+{# #}
+{# One partial, included by every block type that has rows, so the tile list and #}
+{# the value list cannot drift into being two different things. #}
+{% load cms_tags %}
+<div class="ed-items" data-section-items="{{ section.pk }}">
+  {% for item in section.items.all %}
+  <div class="ed-item" data-item="{{ item.pk }}">
+    <div class="ed-item-top">
+      {% if with_icon %}
+      <input type="text" class="ed-item-ico" data-icon-field value="{{ item.icon }}"
+             title="Icon" placeholder="icon"
+             onchange="edItemSet({{ item.pk }}, 'icon', this.value)">
+      {% endif %}
+      <input type="text" class="ed-item-lbl" value="{{ item.title }}"
+             placeholder="{{ label_placeholder|default:'Label' }}" maxlength="250"
+             onchange="edItemSet({{ item.pk }}, 'title', this.value)">
+      <button type="button" title="Move up" onclick="edItemMove({{ item.pk }}, -1)">↑</button>
+      <button type="button" title="Move down" onclick="edItemMove({{ item.pk }}, 1)">↓</button>
+      <button type="button" title="Remove" class="ed-item-x"
+              onclick="edItemDel({{ item.pk }})">✕</button>
+    </div>
+    {% if with_url %}
+    <input type="text" class="ed-item-url" value="{{ item.url }}"
+           placeholder="Where it goes — /policies/ or https://…" maxlength="500"
+           onchange="edItemSet({{ item.pk }}, 'url', this.value)">
+    {% endif %}
+    {% if with_meta %}
+    <input type="text" class="ed-item-url" value="{{ item.meta }}"
+           placeholder="{{ meta_placeholder|default:'Second line' }}" maxlength="120"
+           onchange="edItemSet({{ item.pk }}, 'meta', this.value)">
+    {% endif %}
+  </div>
+  {% empty %}
+  <span class="muted" style="font-size:12px">{{ empty_label|default:"Nothing yet." }}</span>
+  {% endfor %}
+</div>
+<button type="button" class="ed-item-add" onclick="edItemAdd({{ section.pk }})">
+  + Add {{ add_label|default:"a row" }}
+</button>

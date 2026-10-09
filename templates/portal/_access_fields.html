@@ -1,0 +1,89 @@
+{# templates/portal/_access_fields.html — who may see something, and whether #}
+{# they may keep a copy. Shared by a library and by a single document, so the #}
+{# two cannot drift apart. #}
+{# Expects: obj, all_groups, and `scope` = 'library' | 'document'. #}
+<div class="acc" data-acc>
+  <div class="acc-modes">
+    {% if scope == 'document' %}
+    <label class="acc-mode">
+      <input type="radio" name="access" value="inherit" {% if obj.access == 'inherit' %}checked{% endif %} data-acc-mode>
+      <span><b>Same as the library</b><i>Follows whatever the library above allows</i></span>
+    </label>
+    {% endif %}
+    <label class="acc-mode">
+      <input type="radio" name="access" value="everyone" {% if obj.access == 'everyone' %}checked{% endif %} data-acc-mode>
+      <span><b>Everyone signed in</b><i>Any colleague with a Hub account</i></span>
+    </label>
+    {% if scope == 'library' %}
+    {# Only a library can be listed-but-closed. A single document has no way to #}
+    {# be asked for on its own — the request is always for the library. #}
+    <label class="acc-mode">
+      <input type="radio" name="access" value="request" {% if obj.access == 'request' %}checked{% endif %} data-acc-mode>
+      <span><b>Listed to everyone, contents by request</b><i>Anyone can see it exists and ask you for it</i></span>
+    </label>
+    {% endif %}
+    <label class="acc-mode">
+      <input type="radio" name="access" value="restricted" {% if obj.access == 'restricted' %}checked{% endif %} data-acc-mode>
+      <span><b>Chosen groups and people only</b><i>Nobody else sees it, or knows it exists</i></span>
+    </label>
+  </div>
+
+  {# Hidden while the choice above is "everyone", where the lists mean nothing #}
+  {# and leaving them on screen invites somebody to fill them in and expect #}
+  {# something to happen. Shown for both of the closed modes: under "by #}
+  {# request" this is the list of people already let in, which is exactly what #}
+  {# approving a request adds to. #}
+  <div class="acc-who" data-acc-who>
+    <div class="acc-block">
+      <div class="acc-k">Groups</div>
+      <div class="acc-groups">
+        {% for g in all_groups %}
+        <label class="acc-chk">
+          <input type="checkbox" name="allowed_groups" value="{{ g.pk }}"
+                 {% if g in obj.allowed_groups.all %}checked{% endif %}>
+          <span>{{ g.name }}</span>
+        </label>
+        {% empty %}
+        <span class="muted" style="font-size:12px">No groups exist yet.</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="acc-block">
+      <div class="acc-k">Individual people</div>
+      <div class="acc-people" data-acc-people>
+        {% for u in obj.allowed_users.all %}
+        <span class="acc-chip">
+          {{ u.get_full_name|default:u.username }}
+          <input type="hidden" name="allowed_users" value="{{ u.pk }}">
+          <button type="button" data-acc-drop aria-label="Remove">&times;</button>
+        </span>
+        {% endfor %}
+      </div>
+      <div class="acc-search">
+        <input type="text" placeholder="Search a name to add…" data-acc-find autocomplete="off">
+        <div class="acc-results" data-acc-results hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="acc-block acc-dl">
+    <div class="acc-k">Saving and printing</div>
+    <label class="acc-chk">
+      {% if scope == 'document' %}
+      <select name="downloadable" class="acc-sel">
+        <option value="" {% if obj.downloadable is None %}selected{% endif %}>Same as the library</option>
+        <option value="1" {% if obj.downloadable is True %}selected{% endif %}>Can be downloaded</option>
+        <option value="0" {% if obj.downloadable is False %}selected{% endif %}>Read in the Hub only</option>
+      </select>
+      {% else %}
+      <input type="checkbox" name="downloadable" value="1" {% if obj.downloadable %}checked{% endif %}>
+      <span>Documents here can be downloaded</span>
+      {% endif %}
+    </label>
+    <div class="acc-note">
+      Read-only means the Hub shows pictures of the pages and never sends the file
+      itself. It stops a copy being saved; it cannot stop a screenshot.
+    </div>
+  </div>
+</div>

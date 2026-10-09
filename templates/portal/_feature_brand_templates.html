@@ -1,0 +1,29 @@
+{# _feature_brand_templates.html - one section of the brand page, as its own block. #}
+{# Split out so it can be moved, retitled or removed on its own, #}
+{# rather than the whole page being one locked lump. Its heading is #}
+{# rendered by the block, which is what makes it editable. #}
+{% load cms_tags %}
+{# ── Templates ── #}
+<div class="btile-grid rise">
+
+  {% for asset in templates %}
+  <button class="btile" data-name="{{ asset.name|escapejs }}" data-files="{{ asset.files_json|escape }}" onclick="openFilesFromBtn(this)">
+    <span class="btile-ic">
+      {% if asset.name == 'AJi Logo' %}
+      <span class="btile-aji">AJi</span>
+      {% else %}
+      {# The tile's own icon, chosen at /brand/manage/. Blank keeps the document #}
+      {# this grid has always used, so nothing changes until somebody picks. #}
+      {% icon asset.icon|default:"file-blank" 16 1.7 %}
+      {% endif %}
+    </span>
+    <span style="flex:1;min-width:0">
+      <span class="btile-name">{{ asset.name }}</span>
+      <span class="btile-type">{{ asset.description }}</span>
+    </span>
+    <span class="btile-dl">{% icon "download-tray" 2 2 %}</span>
+  </button>
+  {% endfor %}
+
+</div>
+

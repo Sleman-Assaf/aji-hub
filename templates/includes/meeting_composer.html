@@ -1,0 +1,231 @@
+{# templates/includes/meeting_composer.html — book a meeting from the calendar. #}
+{# #}
+{# Anyone can use this. Putting a meeting in the diary is not an administrative #}
+{# act, and until now a normal employee could not add anything to the calendar #}
+{# at all — event_create is HR-only, and a room booking never reached the #}
+{# calendar to begin with. #}
+{# #}
+{# The fields are the ones an Outlook invitation needs, in that order, so that #}
+{# connecting Graph later is a matter of sending this rather than rebuilding #}
+{# it: subject, attendees split required/optional, start and end, where, body. #}
+{% load cms_tags %}
+<div class="mc-back" id="mcBack" onclick="mcClose()"></div>
+<div class="mc" id="mc" role="dialog" aria-modal="true" aria-labelledby="mcHead">
+  <div class="mc-head">
+    <h3 id="mcHead">New meeting</h3>
+    <button type="button" class="mc-x" onclick="mcClose()" aria-label="Close">{% icon "x" 16 %}</button>
+  </div>
+
+  <div class="mc-body">
+    <div class="mc-f">
+      <label for="mcTitle">Title <em>required</em></label>
+      <input type="text" id="mcTitle" maxlength="200" placeholder="What is this meeting about?">
+    </div>
+
+    <div class="mc-f">
+      <label>Required attendees</label>
+      {% include 'exchange/_people_picker.html' with search_url=people_search_url field='required' placeholder='Who must be there…' %}
+    </div>
+    <div class="mc-f">
+      <label>Optional attendees</label>
+      {% include 'exchange/_people_picker.html' with search_url=people_search_url field='optional' placeholder='Who is welcome…' %}
+    </div>
+
+    {# Mandatory, and checked here as well as on the server: a meeting without a #}
+    {# start and an end cannot be put on anybody's day. #}
+    <div class="mc-row">
+      <div class="mc-f">
+        <label for="mcDate">Date <em>required</em></label>
+        <input type="date" id="mcDate">
+      </div>
+      <div class="mc-f narrow">
+        <label for="mcStart">From <em>required</em></label>
+        <input type="time" id="mcStart" step="900">
+      </div>
+      <div class="mc-f narrow">
+        <label for="mcEnd">To <em>required</em></label>
+        <input type="time" id="mcEnd" step="900">
+      </div>
+    </div>
+
+    {# ── where ── #}
+    {# A room, Teams, or both. Both is the ordinary case for anything across #}
+    {# offices: the people in Amman sit in a room, everyone else joins. #}
+    <div class="mc-where">
+      <div class="mc-f">
+        <label for="mcRoom">Room</label>
+        <select id="mcRoom" onchange="mcCheckRoom()">
+          <option value="">No room — online only</option>
+          {% for room in rooms %}
+          <option value="{{ room.pk }}">{{ room.name }} · {{ room.chairs }} chairs</option>
+          {% endfor %}
+        </select>
+        <div class="mc-avail" id="mcAvail" hidden></div>
+      </div>
+      <label class="mc-chk">
+        <input type="checkbox" id="mcTeams" onchange="mcCheckRoom()">
+        <span>{% icon "video" 14 %} Also a Teams meeting</span>
+      </label>
+      <div class="mc-f" id="mcLinkBox" hidden>
+        <label for="mcLink">Teams link</label>
+        <input type="url" id="mcLink" placeholder="Paste the join link">
+        <small>Until the Hub can create meetings in Outlook for you, paste the link here and everyone invited will see it.</small>
+      </div>
+    </div>
+
+    <div class="mc-f">
+      <label for="mcDesc">Description</label>
+      <textarea id="mcDesc" rows="3" placeholder="Agenda, joining notes, anything the attendees need."></textarea>
+    </div>
+
+    <p class="mc-note">
+      Everyone invited gets a notification in the Hub and can accept or decline.
+      They are not emailed yet.
+    </p>
+  </div>
+
+  <div class="mc-actions">
+    <button type="button" class="btn y" id="mcSave" onclick="mcSave()">Send invitations</button>
+    <button type="button" class="btn ghost" onclick="mcClose()">Cancel</button>
+  </div>
+</div>
+
+<script>
+/* The composer posts to the same endpoint the Room Booking page uses, so there
+   is one place that decides whether a slot is free, whether Reception has to
+   look at it, and who gets told. */
+(function () {
+  var CREATE = "{% url 'services:room_booking_create' %}";
+  var SCHEDULE = "{% url 'services:room_schedule_api' %}";
+
+  function el(id) { return document.getElementById(id); }
+  function csrf() {
+    var m = document.cookie.match(/(^|;\s*)csrftoken=([^;]+)/);
+    return m ? m[2] : '';
+  }
+  function say(msg) {
+    if (typeof toast === 'function') toast(msg);
+    else alert(msg);
+  }
+
+  window.mcOpen = function (dateStr, timeStr) {
+    el('mcTitle').value = '';
+    el('mcDate').value = dateStr || new Date().toISOString().slice(0, 10);
+    el('mcStart').value = timeStr || '';
+    el('mcEnd').value = '';
+    el('mcRoom').value = '';
+    el('mcTeams').checked = false;
+    el('mcLink').value = '';
+    el('mcDesc').value = '';
+    el('mcAvail').hidden = true;
+    el('mcLinkBox').hidden = true;
+    document.querySelectorAll('#mc [data-pk-chosen]').forEach(function (b) { b.innerHTML = ''; });
+    el('mcBack').classList.add('on');
+    el('mc').classList.add('on');
+    el('mcTitle').focus();
+  };
+
+  window.mcClose = function () {
+    el('mcBack').classList.remove('on');
+    el('mc').classList.remove('on');
+  };
+
+  /* Whether the chosen room is free for the chosen slot, answered while the
+     form is being filled in rather than after pressing save. The endpoint
+     returns the day's bookings for one room; the overlap is worked out here. */
+  window.mcCheckRoom = async function () {
+    el('mcLinkBox').hidden = !el('mcTeams').checked;
+    var roomId = el('mcRoom').value;
+    var box = el('mcAvail');
+    var date = el('mcDate').value, from = el('mcStart').value, to = el('mcEnd').value;
+    if (!roomId || !date || !from || !to) { box.hidden = true; return; }
+
+    box.hidden = false;
+    box.className = 'mc-avail';
+    box.textContent = 'Checking…';
+    try {
+      var r = await fetch(SCHEDULE + '?date=' + encodeURIComponent(date),
+                          {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+      var d = await r.json();
+      /* The endpoint answers for every room and ignores room_id, so the one
+         being asked about is picked out here. Flattening all of them would
+         report the Boardroom's 10am as a clash in GF1. */
+      var mine = (d.rooms || []).find(function (rm) { return String(rm.id) === String(roomId); });
+      var clash = ((mine && mine.bookings) || [])
+        .filter(function (b) { return b.start < to && from < b.end; });
+      if (clash.length) {
+        box.className = 'mc-avail busy';
+        box.textContent = 'Taken ' + clash[0].start + '–' + clash[0].end +
+                          ' by ' + (clash[0].booked_by || 'someone else');
+      } else {
+        box.className = 'mc-avail free';
+        box.textContent = 'Free at that time';
+      }
+    } catch (e) {
+      box.hidden = true;                     // never block saving on this
+    }
+  };
+
+  ['mcDate', 'mcStart', 'mcEnd'].forEach(function (id) {
+    document.addEventListener('change', function (e) {
+      if (e.target && e.target.id === id) mcCheckRoom();
+    });
+  });
+
+  window.mcSave = async function () {
+    var title = el('mcTitle').value.trim();
+    var date = el('mcDate').value, from = el('mcStart').value, to = el('mcEnd').value;
+    var roomId = el('mcRoom').value, teams = el('mcTeams').checked;
+
+    if (!title) { say('Give the meeting a title.'); el('mcTitle').focus(); return; }
+    if (!date || !from || !to) { say('A meeting needs a date, a start and an end.'); return; }
+    if (from >= to) { say('The end time has to be after the start.'); return; }
+    if (!roomId && !teams) { say('Choose a room, or turn on Teams.'); return; }
+
+    var body = new URLSearchParams();
+    body.set('date', date);
+    body.set('start_time', from);
+    body.set('end_time', to);
+    body.set('title', title);
+    body.set('meeting_type', 'internal');
+    body.set('description', el('mcDesc').value.trim());
+    body.set('is_online', teams ? '1' : '');
+    body.set('online_url', el('mcLink').value.trim());
+    if (roomId) body.set('room_id', roomId);
+    // The composer has no catering or IT questions; those live on the Room
+    // Booking screen, and the endpoint requires an explicit answer to both.
+    body.set('catering_needed', 'no');
+    body.set('it_needed', 'no');
+    body.set('invitees_posted', '1');
+    document.querySelectorAll('#mc input[type=hidden][name]').forEach(function (i) {
+      body.append(i.name, i.value);
+    });
+
+    var btn = el('mcSave');
+    var was = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      var r = await fetch(CREATE, {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrf(),
+                  'Content-Type': 'application/x-www-form-urlencoded'},
+        body: body.toString(),
+      });
+      var d = await r.json();
+      if (!r.ok || !d.ok) throw new Error(d.error || ('HTTP ' + r.status));
+      mcClose();
+      say('Meeting created and everyone invited.');
+      setTimeout(function () { window.location.reload(); }, 700);
+    } catch (err) {
+      say(err.message || 'That did not save.');
+    } finally {
+      btn.disabled = false; btn.textContent = was;
+    }
+  };
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && el('mc').classList.contains('on')) mcClose();
+  });
+})();
+</script>
+{% include 'includes/people_picker_js.html' %}

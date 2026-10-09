@@ -1,0 +1,135 @@
+{# templates/services/fleet_console.html #}
+{% extends 'base.html' %}
+{% block title %}Fleet — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+.fc-alerts{border:1px solid var(--bad);background:var(--paper-2);padding:16px 18px;margin-bottom:20px}
+.fc-alerts h2{margin:0 0 10px;font-size:14px;color:var(--bad)}
+.fc-alert-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;
+  padding:6px 0;border-top:1px solid var(--line)}
+.fc-alert-row:first-of-type{border-top:none}
+
+.fc-cars{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.fc-car{border:1px solid var(--line);background:var(--paper);padding:16px 18px;
+  text-decoration:none;color:var(--ink);display:block;transition:.12s;
+  overflow:hidden}
+.fc-car:hover .fc-pic{transform:scale(1.03)}
+.fc-pic{transition:transform .35s cubic-bezier(.2,.7,.3,1)}
+.fc-car:hover{border-color:var(--ink)}
+.fc-car-head{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+/* Every car picture is 3:2 now, so a 3:2 frame fits it exactly — no letterbox
+   band, no crop into the car. The picture is the head of the card rather than
+   a thumbnail sitting inside it. */
+.fc-pic{width:calc(100% + 36px);margin:-16px -18px 14px;aspect-ratio:3/2;
+  object-fit:cover;display:block;border-bottom:1px solid var(--line);
+  background:var(--paper-3)}
+.fc-car b{font-size:14.5px}
+.fc-def{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px;color:var(--muted)}
+.fc-def b{color:var(--ink);font-weight:600;font-size:12px}
+.fc-warn{font-size:11.5px;color:var(--bad);font-weight:600;margin-top:8px}
+
+.fc-new{border:1px dashed var(--line-2);background:var(--paper-2);padding:18px;margin-top:22px}
+.fc-new h2{margin:0 0 14px;font-size:15px}
+.fc-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.fc-form label{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.fc-form input,.fc-form select{width:100%;padding:9px 11px;border:1px solid var(--line);
+  background:var(--paper);font-family:inherit;font-size:13px;color:var(--ink)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow"><a href="{% url 'services:car_booking' %}" style="color:inherit">Car Booking</a> / Fleet</div>
+    <h1>The Fleet</h1>
+    <p>Every company car, what it costs, and what is about to run out on it.</p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a href="{% url 'services:car_requests' %}" class="btn">Requests</a>
+    <a href="{% url 'services:car_schedule' %}" class="btn">Schedule</a>
+    <a href="{% url 'services:car_log' %}" class="btn">Log</a>
+    <a href="{% url 'services:fleet_approvers' %}" class="btn">Approvers</a>
+  </div>
+</div>
+
+{% if needs_attention %}
+<div class="fc-alerts rise">
+  <h2>Needs attention</h2>
+  {% for c in needs_attention %}
+    <div class="fc-alert-row">
+      <a href="{% url 'services:fleet_vehicle' c.pk %}"><b>{{ c.make }} {{ c.model }}</b></a>
+      <span class="pill mut" style="font-size:10px">{{ c.entity.code }}</span>
+      {% for kind, text in c.alerts %}
+        <span class="pill {% if kind == 'expired' %}bad{% else %}warn{% endif %}"
+              style="font-size:10px">{{ text }}</span>
+      {% endfor %}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="fc-cars rise">
+  {% for c in cars %}
+  <a class="fc-car" href="{% url 'services:fleet_vehicle' c.pk %}">
+    {% if c.photo %}<img class="fc-pic" src="{{ c.photo.url }}" alt="">{% endif %}
+    <div class="fc-car-head">
+      <b>{{ c.make }} {{ c.model }}</b>
+      <span class="pill mut" style="font-size:10px">{{ c.entity.code }}</span>
+      {% if c.status == 'active' %}<span class="pill ok" style="font-size:10px">In service</span>
+      {% elif c.status == 'maintenance' %}<span class="pill warn" style="font-size:10px">In the garage</span>
+      {% else %}<span class="pill mut" style="font-size:10px">Retired</span>{% endif %}
+    </div>
+    <div class="fc-def">
+      <span>Plate</span><b>{{ c.plate|default:"—" }}</b>
+      <span>Seats</span><b>{{ c.seats }}</b>
+      <span>Odometer</span><b>{% if c.odometer %}{{ c.odometer }} km{% else %}—{% endif %}</b>
+      <span>Insurance</span><b>{{ c.insurance_expiry|date:"d M Y"|default:"—" }}</b>
+      <span>Licence</span><b>{{ c.registration_expiry|date:"d M Y"|default:"—" }}</b>
+      <span>Next service</span><b>{{ c.next_service_due|date:"d M Y"|default:"—" }}</b>
+      <span>Trips</span><b>{{ c.trips }}</b>
+    </div>
+    {% if c.open_events %}
+      <div class="fc-warn">{{ c.open_events }} unsettled fine{{ c.open_events|pluralize }} or accident{{ c.open_events|pluralize }}</div>
+    {% endif %}
+    {% for kind, text in c.alerts %}
+      <div class="fc-warn">{{ text }}</div>
+    {% endfor %}
+  </a>
+  {% empty %}
+    <p class="muted" style="font-size:13px">No cars yet. Add the first one below.</p>
+  {% endfor %}
+</div>
+
+<form class="fc-new rise" method="post" action="{% url 'services:fleet_vehicle_new' %}"
+      enctype="multipart/form-data">
+  {% csrf_token %}
+  <h2>Add a car</h2>
+  <div class="fc-form">
+    <div>
+      <label for="fcEntity">Division</label>
+      <select id="fcEntity" name="entity" required>
+        {% for e in entities %}<option value="{{ e.pk }}">{{ e.code }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label for="fcMake">Make</label>
+      <input type="text" id="fcMake" name="make" required placeholder="KIA"></div>
+    <div><label for="fcModel">Model</label>
+      <input type="text" id="fcModel" name="model" placeholder="Sportage"></div>
+    <div><label for="fcPlate">Plate</label>
+      <input type="text" id="fcPlate" name="plate" placeholder="00-00000"></div>
+    <div><label for="fcSeats">Seats</label>
+      <input type="number" id="fcSeats" name="seats" value="5" min="1" max="60"></div>
+    <div>
+      <label for="fcStatus">Status</label>
+      <select id="fcStatus" name="status">
+        {% for v, label in statuses %}<option value="{{ v }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <button class="btn btn-primary" style="margin-top:14px">Add it</button>
+  <p class="muted" style="font-size:11.5px;margin:8px 0 0">
+    Insurance, licence and service dates are set on the car's own page.</p>
+</form>
+{% endblock %}

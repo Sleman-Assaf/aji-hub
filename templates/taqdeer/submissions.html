@@ -1,0 +1,246 @@
+{# templates/taqdeer/submissions.html — My Athar Submissions. #}
+{# The manager's whole view of the award: what is open, what they have left, #}
+{# the form, and what happened to everything they have sent. The form is on #}
+{# this page rather than behind a link — a form that needs a page load to #}
+{# reach is a form that gets put off until the window closes. #}
+{% extends 'base.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}My Athar Submissions{% endblock %}
+
+{% block content %}
+<a href="{% url 'taqdeer_home' %}" class="ctx-back" title="AJi Taqdeer"><span class="ctx-back-lab">AJi Taqdeer</span></a>
+
+<div class="tq-nom-head">
+  <div>
+    <div class="eyebrow">The Athar Award</div>
+    <h1>My submissions <span class="tq-ar">جائزة الأثر</span></h1>
+  </div>
+  {% if cycle %}<span class="tq-chip open">{{ cycle.label }} — open</span>
+  {% else %}<span class="tq-chip shut">No period open</span>{% endif %}
+</div>
+
+{% if cycle and eligible %}
+{# ── allocation, stated before the form ──────────────────────────────── #}
+<div class="ma-alloc{% if alloc.exhausted %} spent{% endif %}">
+  <div class="ma-alloc-n">
+    <b>{{ alloc.remaining }}</b><span>of {{ alloc.total }} left</span>
+  </div>
+  <div class="ma-alloc-b">
+    <div class="ma-bar">
+      {% for i in ""|ljust:alloc.total %}
+      <span class="ma-pip{% if forloop.counter <= alloc.used %} used{% endif %}"></span>
+      {% endfor %}
+    </div>
+    <span class="ma-alloc-t">
+      {% if alloc.exhausted %}
+        You have used all {{ alloc.total }} of your {{ cycle.label }} awards.
+        Withdraw one to put somebody else forward.
+      {% else %}
+        You may put forward {{ alloc.remaining }} more
+        {% if alloc.remaining == 1 %}person{% else %}people{% endif %} this quarter.
+        {% if cycle.closes_on %}Nominations close {{ cycle.closes_on|date:"j F" }}.{% endif %}
+      {% endif %}
+    </span>
+  </div>
+</div>
+
+{% if cycle.note %}<p class="tq-nom-note">{{ cycle.note }}</p>{% endif %}
+
+{# ── the form ────────────────────────────────────────────────────────── #}
+{% if not alloc.exhausted %}
+<details class="ma-new" id="newAward" {% if not this_period %}open{% endif %}>
+  <summary class="ma-new-sum">
+    <span class="ma-plus">{% icon "plus" 15 %}</span>
+    <b>Create Athar Award</b>
+    <span class="ma-new-hint">Choose a colleague and say why in one line</span>
+  </summary>
+
+  <form method="post" action="{% url 'taqdeer_nominate' %}" class="ma-form">
+    {% csrf_token %}
+    <div class="tq-field">
+      <label class="tq-lab">Who are you nominating?</label>
+      {% url 'taqdeer_people' as ppl %}
+      {% include 'exchange/_people_picker.html' with search_url=ppl field='recipient' placeholder='Search colleagues…' one=1 %}
+    </div>
+
+    {# Filled in by script once somebody is chosen: the spec asks for the name, #}
+    {# department, position and photograph to confirm the right person. #}
+    <div class="ma-card" id="whoCard" hidden>
+      <span class="ma-card-av" id="whoAv"></span>
+      <span class="ma-card-b">
+        <b id="whoName"></b>
+        <span id="whoMeta"></span>
+      </span>
+      <span class="tq-chip" id="whoFlag" hidden></span>
+    </div>
+
+    <div class="tq-field">
+      <label class="tq-lab" for="cit">Why they deserve it</label>
+      <textarea class="tq-in" id="cit" name="citation" rows="3" maxlength="400" required
+                placeholder="One line. It is printed on the certificate after “In recognition of the outstanding performance and achievement in…”"></textarea>
+      <span class="tq-hint">Finish that sentence — “…in consistently demonstrating
+        exceptional ownership and supporting the successful delivery of the project.”</span>
+    </div>
+
+    <div class="ma-form-foot">
+      <span class="tq-hint">This goes to HR for review. You will be told if they
+        send it back.</span>
+      <button class="btn y" type="submit">Submit to HR</button>
+    </div>
+  </form>
+</details>
+{% endif %}
+
+{% elif cycle and not eligible %}
+<div class="tq-none">
+  <span class="tq-none-ic">{% icon "lock" 20 %}</span>
+  <b>{{ cycle.label }} is open, but not to you</b>
+  <span>HR sets which managers can nominate each quarter. Ask HR if you think
+    that is wrong.</span>
+</div>
+{% else %}
+<div class="tq-none">
+  <span class="tq-none-ic">{% icon "clock" 20 %}</span>
+  <b>No period is open</b>
+  <span>HR opens a round each quarter. You will be notified when the next one
+    starts, with how many awards you have.</span>
+</div>
+{% endif %}
+
+{# ── returned first: these are the ones waiting on the reader ────────── #}
+{% if returned %}
+<div class="sec-head" style="margin-top:28px">
+  <h2>Waiting on you</h2>
+  <span class="ny-count">{{ returned|length }}</span>
+</div>
+{% for n in returned %}
+<form method="post" action="{% url 'taqdeer_resubmit' n.pk %}" class="ma-ret">
+  {% csrf_token %}
+  <div class="ma-ret-h">
+    {% if n.recipient.employee.photo %}
+    <img class="tqr-av" src="{{ n.recipient.employee.photo.url }}" alt="">
+    {% else %}<span class="tqr-av tone">{{ n.recipient|initials }}</span>{% endif %}
+    <span class="ma-ret-who">
+      <b>{{ n.recipient_name }}</b>
+      <span>{{ n.cycle.label }}</span>
+    </span>
+    <span class="tq-chip returned">Returned</span>
+  </div>
+  {% if n.hr_note %}
+  <div class="ma-ret-note">
+    {% icon "arrow-bend-up-left" 13 %}
+    <span><b>HR asked:</b> {{ n.hr_note }}</span>
+  </div>
+  {% endif %}
+  <div class="tq-field">
+    <label class="tq-lab" for="c{{ n.pk }}">Why they deserve it</label>
+    <textarea class="tq-in" id="c{{ n.pk }}" name="citation" rows="3" required>{{ n.citation }}</textarea>
+  </div>
+  <div class="ma-form-foot">
+    <button class="cx-iconbtn danger" type="submit" name="action" value="withdraw"
+            formnovalidate data-confirm="Withdraw the nomination for {{ n.recipient_name|escapejs }}? It frees the slot.">
+      {% icon "trash" 13 %}<span>Withdraw</span></button>
+    <span style="flex:1"></span>
+    <button class="btn y sm" type="submit" name="action" value="resubmit">
+      Send to HR again</button>
+  </div>
+</form>
+{% endfor %}
+{% endif %}
+
+{# ── this period ─────────────────────────────────────────────────────── #}
+{% if this_period %}
+<div class="sec-head" style="margin-top:28px"><h2>{{ cycle.label }}</h2></div>
+<div class="tq-mine">
+  {% for n in this_period %}
+  <div class="tq-mine-row">
+    <span class="tq-mine-cycle">{{ n.created_at|date:"j M" }}</span>
+    <div class="tq-mine-b">
+      <b>{{ n.recipient_name }}</b>
+      <span>{{ n.citation|truncatechars:150 }}</span>
+    </div>
+    <span class="tq-chip {{ n.status }}">{{ n.get_status_display }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if earlier %}
+<div class="sec-head" style="margin-top:28px"><h2>Earlier quarters</h2></div>
+<div class="tq-mine">
+  {% for n in earlier %}
+  <div class="tq-mine-row">
+    <span class="tq-mine-cycle">{{ n.cycle.label }}</span>
+    <div class="tq-mine-b">
+      <b>{{ n.recipient_name }}</b>
+      <span>{{ n.citation|truncatechars:150 }}</span>
+    </div>
+    <span class="tq-chip {{ n.status }}">{{ n.get_status_display }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% include 'includes/people_picker_js.html' %}
+<script>
+/* The confirmation card. The picker writes a hidden input when somebody is
+   chosen, so this watches the chip list rather than the search box — the box
+   still holds whatever was typed, which is not who was picked. */
+(function () {
+  var form = document.querySelector('.ma-form');
+  if (!form) return;
+  var pick = form.querySelector('[data-pick]');
+  var card = document.getElementById('whoCard');
+  var url = '{% url "taqdeer_person_card" %}';
+  var last = null;
+
+  function chosen() {
+    var chip = pick.querySelector('[data-pk-chip]');
+    return chip ? chip.getAttribute('data-pk-chip') : null;
+  }
+
+  function draw(d) {
+    document.getElementById('whoName').textContent = d.name;
+    var meta = [d.position, d.department].filter(Boolean).join(' · ');
+    document.getElementById('whoMeta').textContent = meta || 'No department on record';
+    var av = document.getElementById('whoAv');
+    av.innerHTML = '';
+    if (d.photo) {
+      var img = document.createElement('img');
+      img.src = d.photo; img.alt = '';
+      av.appendChild(img);
+    } else {
+      av.textContent = d.initials;
+    }
+    var flag = document.getElementById('whoFlag');
+    if (d.already) {
+      flag.textContent = 'Already nominated';
+      flag.className = 'tq-chip returned';
+      flag.hidden = false;
+    } else if (!d.eligible) {
+      flag.textContent = 'Not eligible';
+      flag.className = 'tq-chip returned';
+      flag.hidden = false;
+    } else {
+      flag.hidden = true;
+    }
+    card.hidden = false;
+  }
+
+  function check() {
+    var id = chosen();
+    if (id === last) return;
+    last = id;
+    if (!id) { card.hidden = true; return; }
+    fetch(url + '?id=' + encodeURIComponent(id))
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d.found) draw(d); })
+      .catch(function () { card.hidden = true; });
+  }
+
+  /* The picker gives no event of its own, so the chip list is observed. */
+  new MutationObserver(check).observe(
+    pick.querySelector('[data-pk-chosen]'), {childList: true, subtree: true});
+})();
+</script>
+{% endblock %}

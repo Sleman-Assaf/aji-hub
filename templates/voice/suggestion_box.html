@@ -1,0 +1,17 @@
+{# templates/voice/suggestion_box.html #}
+{% extends 'base.html' %}
+{% block title %}Suggestion Box — AJi Hub{% endblock %}
+{% block content %}
+<a href="/people-culture/?tab=voice" class="ctx-back" title="People &amp; Culture"><span class="ctx-back-lab">People & Culture</span></a>
+<div class="page-head"><div class="eyebrow">My Voice</div><h1>Suggestion Box</h1><p>Share an idea, suggestion or feedback. Submissions are completely anonymous — HR sees the idea, never who sent it.</p></div>
+<div class="card rise" style="max-width:640px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:12.5px;color:var(--muted)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Anonymous — your name is never attached to this submission.
+  </div>
+  <form method="post">
+    {% csrf_token %}
+    <textarea name="text" rows="6" placeholder="Type your idea or suggestion…" style="width:100%;border:1px solid var(--line-2);padding:13px;outline:none;resize:vertical;font-family:inherit;font-size:14px;transition:.14s" onfocus="this.style.borderColor='var(--ink)'" onblur="this.style.borderColor='var(--line-2)'"></textarea>
+    <div style="text-align:right;margin-top:14px"><button type="submit" class="btn y">Submit anonymously →</button></div>
+  </form>
+</div>
+{% endblock %}

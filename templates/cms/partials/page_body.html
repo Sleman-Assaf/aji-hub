@@ -1,0 +1,11 @@
+{# templates/cms/partials/page_body.html — a whole page rendered from its blocks. #}
+{% load cms_tags %}
+<div class="cms-page{% if cms_edit_mode %} ed-on{% endif %}" id="cmsPage"
+     data-page="{{ page.pk }}">
+  {% for section in sections %}{% cms_block section %}{% endfor %}
+  {% if cms_edit_mode %}
+  <button type="button" class="ed-add" onclick="edPalette(null,0)">
+    + Add a section to this page
+  </button>
+  {% endif %}
+</div>

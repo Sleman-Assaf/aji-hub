@@ -1,0 +1,5 @@
+{% include 'cms/_section_head.html' %}
+{# Raw HTML. cms_tags.safe_html only renders it unescaped once a superuser #}
+{# has saved it, so a content editor cannot inject script. #}
+{% load cms_tags %}
+<div class="card" style="max-width:900px">{{ section|safe_html }}</div>

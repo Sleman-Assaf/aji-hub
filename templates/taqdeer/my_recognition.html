@@ -1,0 +1,105 @@
+{# templates/taqdeer/my_recognition.html — one person's whole record. #}
+{# The only page where a certificate is reachable, because the public feed #}
+{# deliberately does not carry it. #}
+{% extends 'base.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}My recognition — AJi Taqdeer{% endblock %}
+
+{% block content %}
+<a href="{% url 'taqdeer_home' %}" class="ctx-back" title="AJi Taqdeer"><span class="ctx-back-lab">AJi Taqdeer</span></a>
+
+<div class="tq-nom-head">
+  <div>
+    <div class="eyebrow">Yours</div>
+    <h1>My recognition</h1>
+  </div>
+  {% if total %}<span class="tq-chip approved">{{ total }} in total</span>{% endif %}
+</div>
+
+{% if waiting %}
+<div class="mr-wait">
+  {% icon "clock" 15 %}
+  <div><b>{{ waiting|length }} Kudos you sent {% if waiting|length == 1 %}is{% else %}are{% endif %} with HR</b>
+    <span>{% for w in waiting %}{{ w.recipient.get_full_name|default:w.recipient.username }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+      They will appear once published.</span></div>
+</div>
+{% endif %}
+
+{% if awards %}
+<div class="sec-head" style="margin-top:24px"><h2>The Athar Award</h2></div>
+{% for a in awards %}
+<div class="mr-award">
+  <span class="mr-award-ic">{% icon "medal" 16 %}</span>
+  <div class="mr-award-b">
+    <b>{{ a.cycle.label }}</b>
+    <p>{{ a.citation }}</p>
+    <span>Nominated by {{ a.nominated_by.get_full_name|default:a.nominated_by.username }}</span>
+  </div>
+  {% if a.certificate %}
+  <span class="mr-get">
+    <a class="btn ghost sm" href="{% url 'taqdeer_certificate' a.pk %}">
+      {% icon "file-text" 13 %} PDF</a>
+    <a class="btn ghost sm" href="{% url 'taqdeer_certificate_image' a.pk %}">
+      {% icon "image" 13 %} Image</a>
+  </span>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{% if certs %}
+<div class="sec-head" style="margin-top:24px"><h2>Certifications</h2></div>
+<div class="cf-list">
+  {% for c in certs %}
+  <div class="cf-row">
+    {% if c.logo %}<img class="cf-logo" src="{{ c.logo.url }}" alt="">{% endif %}
+    <div class="cf-b">
+      <b>{{ c.name }}</b>
+      <span>{{ c.obtained_on|date:"F Y" }}{% if c.issuer %} · {{ c.issuer }}{% endif %}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="sec-head" style="margin-top:24px">
+  <h2>Kudos received</h2><span class="ny-count">{{ received|length }}</span></div>
+<div class="tk-feed">
+  {% for p in received %}
+  <article class="tk-praise">
+    <div class="tk-praise-top">
+      {% include 'exchange/_avatar.html' with user=p.giver size='sm' %}
+      <div class="tk-praise-who">
+        <b>{{ p.giver.get_full_name|default:p.giver.username }}</b>
+        <span>thanked you</span></div>
+      {% if p.category %}<span class="tk-tag">{{ p.category }}</span>{% endif %}
+      <time>{{ p.created_at|date:"j M Y" }}</time>
+    </div>
+    <h3>{{ p.subject }}</h3>
+    <p>{{ p.message|linebreaksbr }}</p>
+  </article>
+  {% empty %}
+  <div class="tq-none">
+    <span class="tq-none-ic">{% icon "hands-clapping" 20 %}</span>
+    <b>Nothing yet</b>
+    <span>When a colleague thanks you it will appear here and on your profile.</span>
+  </div>
+  {% endfor %}
+</div>
+
+{% if given %}
+<div class="sec-head" style="margin-top:24px">
+  <h2>Kudos you gave</h2><span class="ny-count">{{ given|length }}</span></div>
+<div class="tq-mine">
+  {% for p in given %}
+  <div class="tq-mine-row">
+    <span class="tq-mine-cycle">{{ p.created_at|date:"j M" }}</span>
+    <div class="tq-mine-b">
+      <b>{{ p.recipient.get_full_name|default:p.recipient.username }}</b>
+      <span>{{ p.subject }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

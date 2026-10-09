@@ -1,0 +1,35 @@
+{# templates/services/approvals_inbox.html #}
+{% extends 'base.html' %}
+{% block title %}Approvals — AJi Hub{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">Services</div>
+    <h1>Approvals</h1>
+    <p>Items waiting on your decision.</p>
+  </div>
+</div>
+
+{% if items %}
+<div class="card rise">
+  <h3>Job Requisitions</h3>
+  {% for r in items %}
+  <div style="padding:14px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <div>
+      <div style="font-weight:700">{{ r.job_title }}</div>
+      <div style="font-size:12.5px;color:var(--muted)">
+        {{ r.department.name|default:'—' }} · Requested by {{ r.requested_by.get_full_name|default:r.requested_by.username }}
+        · {{ r.stage_label }}
+      </div>
+    </div>
+    <a href="{% url 'services:job_requisition_detail' r.pk %}" class="btn sm y">Review</a>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card rise">
+  <p style="color:var(--muted)">You're all caught up — nothing waiting on your approval.</p>
+</div>
+{% endif %}
+{% endblock %}

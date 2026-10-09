@@ -1,0 +1,46 @@
+{# _feature_people_culture_work.html - one section of the people_culture page, as its own block. #}
+{# Split out so it can be moved, retitled or removed on its own, #}
+{# rather than the whole page being one locked lump. Its heading is #}
+{# rendered by the block, which is what makes it editable. #}
+{% load cms_tags %}
+{# These few selectors are styled differently by another page, so they #}
+{# stay scoped here rather than being hoisted into the stylesheet. #}
+<style>
+.tile{border:1px solid var(--line);background:var(--paper-2);padding:22px 20px;cursor:pointer;transition:box-shadow .16s,border-color .16s;display:flex;flex-direction:column;gap:10px}
+.tile:hover{box-shadow:0 8px 22px rgba(18,18,16,.07);border-color:var(--line-2)}
+.tile .ic{width:42px;height:42px;background:var(--paper-2);display:flex;align-items:center;justify-content:center}
+.tile h4{font-weight:700;font-size:15px;margin:0}
+.tile p{font-size:13px;color:var(--muted);margin:0}
+</style>
+{# ── WORK AT AJi ── #}
+{# One featured resource. The heading used to be repeated as both an eyebrow #}
+{# and an h3; the eyebrow now carries the category instead. #}
+<div class="card hb-hero" style="margin-bottom:28px">
+  <div class="hb-icon">
+    {% icon "book-open" 30 1.6 %}
+  </div>
+  <div class="hb-text">
+    <h3 {% if cms_edit_mode %}data-ed-url="{% url 'handbook_inline_save' %}" data-ed-field="title" contenteditable="true"{% endif %}>{{ handbook.title|default:"Employee Handbook" }}</h3>
+    <p class="muted" {% if cms_edit_mode %}data-ed-url="{% url 'handbook_inline_save' %}" data-ed-field="description" contenteditable="true"{% endif %}>
+      {{ handbook.description|default:"A full overview of AJi's culture, expectations, policies and procedures — your reference for responsibilities, rights, benefits and the standards that guide daily work." }}
+    </p>
+  </div>
+  <div class="hb-acts">
+    {# open_url, not read_url: read_url holds the onboarding default until HR #}
+    {# changes it, so this button ignored the uploaded PDF entirely. #}
+    <a href="{{ handbook.open_url|default:'/onboarding/' }}" class="btn y sm"
+       {% if handbook.file %}target="_blank" rel="noopener"{% endif %}>
+      {% icon "book-spread" 15 2 %}
+      Open handbook
+    </a>
+    {% if handbook.file %}
+    <a href="{{ handbook.file.url }}" class="btn ghost sm" download>
+      {% icon "download-tray" 15 2 %}
+      Download PDF
+    </a>
+    {% elif is_hr %}
+    <a href="{% url 'hr_content_manage' %}" class="btn ghost sm">Upload the PDF</a>
+    {% endif %}
+  </div>
+</div>
+

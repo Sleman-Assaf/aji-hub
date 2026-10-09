@@ -1,0 +1,35 @@
+{# templates/cms/sections/value_cards.html — a card holding a grid of labelled values. #}
+{# Reproduces the "Key values" card exactly. The four values were a literal list #}
+{# in portal/views.py and every cell drew the same hardcoded icon, so a value #}
+{# could not be renamed, reordered, given its own icon or hidden. #}
+{% load cms_tags %}
+<div class="card">
+  {% if section.title %}
+  <h3>
+    {% if section.icon %}{% cms_icon section.icon 14 %}{% endif %}
+    <span {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title }}</span>
+  </h3>
+  {% endif %}
+
+  {% page_actions section as values %}
+  <div class="values-grid" style="--cols:{{ section|cfg:"columns"|default:2 }}">
+    {% for v in values %}
+    <div class="value-cell{% if cms_edit_mode %} ed-item{% endif %}"
+         data-item="{{ v.pk }}" data-owner="{{ section.pk }}"
+         {% if cms_edit_mode %}draggable="true"{% endif %}>
+      <div class="value-icon">{% editable_icon v v.icon|default:"grid" 16 kind="item" %}</div>
+      <b {% if cms_edit_mode %}data-ed-item="{{ v.pk }}" data-ed-field="title" contenteditable="true"{% endif %}>{{ v.title }}</b>
+      {% if v.text %}
+      <div class="muted" style="font-size:12px;margin-top:4px;line-height:1.5"
+           {% if cms_edit_mode %}data-ed-item="{{ v.pk }}" data-ed-field="text" contenteditable="true"{% endif %}>{{ v.text }}</div>
+      {% endif %}
+    </div>
+    {% empty %}
+    {% if cms_edit_mode %}
+    <p class="muted" style="grid-column:1/-1;font-size:12.5px;margin:0">
+      No values yet — add one from this block's settings.
+    </p>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>

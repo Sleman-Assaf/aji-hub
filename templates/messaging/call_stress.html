@@ -1,0 +1,290 @@
+{# templates/messaging/call_stress.html — Call capacity: live monitor + stress test. #}
+{# Admin-only (same rule as Global Settings). Reached from the call log's gauge #}
+{# button or directly at /messaging/calls/stress/. #}
+{% extends 'base.html' %}
+{% block title %}Call capacity — AJi Hub{% endblock %}
+
+{% block content %}
+<style>
+.cs-wrap{max-width:1040px;margin:0 auto;padding:18px 16px 60px}
+.cs-wrap h1{font-size:22px;letter-spacing:-.02em;margin:6px 0 2px;display:flex;align-items:center;gap:10px}
+.cs-sub{color:var(--ink-3,#777);font-size:13.5px;margin-bottom:18px}
+.cs-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:860px){.cs-grid{grid-template-columns:1fr}}
+.cs-card{background:var(--paper-2,#fff);border:1px solid var(--line,#e5e2da);border-radius:14px;padding:16px 18px}
+.cs-card h2{font-size:14px;font-weight:700;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.cs-card h2 .dot{width:8px;height:8px;border-radius:50%;background:#2fa463;animation:cs-pulse 1.6s infinite}
+@keyframes cs-pulse{50%{opacity:.35}}
+.cs-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.cs-stat{background:var(--paper,#faf9f5);border:1px solid var(--line,#e5e2da);border-radius:10px;padding:10px 12px}
+.cs-stat b{display:block;font-size:24px;letter-spacing:-.02em;line-height:1.1}
+.cs-stat span{font-size:11.5px;color:var(--ink-3,#777)}
+.cs-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+.cs-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3,#777);padding:6px 8px;border-bottom:1px solid var(--line,#e5e2da)}
+.cs-table td{padding:7px 8px;border-bottom:1px solid var(--line,#efece5)}
+.cs-empty{color:var(--ink-3,#888);font-size:13px;padding:14px 4px}
+.cs-pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#eef4ff;color:#2b57c9}
+.cs-pill.group{background:#f0ecff;color:#6a3fd0}
+.cs-pill.share{background:#fff2e0;color:#b05c00}
+.cs-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px}
+.cs-form label{font-size:11.5px;color:var(--ink-3,#777);display:block;margin-bottom:4px}
+.cs-form input{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line,#dcd8ce);border-radius:9px;font-size:14px;background:var(--paper,#fff)}
+.cs-btn{border:0;border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer;background:#1f6f4a;color:#fff}
+.cs-btn[disabled]{opacity:.55;cursor:wait}
+.cs-btn.ghost{background:transparent;color:var(--ink-3,#777);border:1px solid var(--line,#dcd8ce);font-weight:600}
+.cs-run{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.cs-note{font-size:12px;color:var(--ink-3,#888);margin-top:10px;line-height:1.5}
+.cs-cap{margin-top:12px;padding:12px 14px;border-radius:10px;background:#f2f8f1;border:1px solid #d7e8d4}
+.cs-cap b{font-size:20px}
+.cs-err{color:#b03030;font-size:13px;margin-top:8px}
+.cs-when{font-size:12px;color:var(--ink-3,#888)}
+.cs-prog{height:6px;border-radius:99px;background:var(--line,#eee);overflow:hidden;margin-top:10px;display:none}
+.cs-prog.on{display:block}
+.cs-prog i{display:block;height:100%;width:40%;background:#1f6f4a;border-radius:99px;animation:cs-slide 1.1s linear infinite}
+@keyframes cs-slide{from{transform:translateX(-110%)}to{transform:translateX(280%)}}
+</style>
+
+<div class="cs-wrap">
+  <h1>Call capacity</h1>
+  <div class="cs-sub">Live count of calls on the system, and a stress test that measures the
+    signalling ceiling — how many people can be on calls at once before the server falls behind.</div>
+
+  <div class="cs-grid">
+    {# ── live monitor ── #}
+    <div class="cs-card">
+      <h2><span class="dot"></span>On the system right now <span class="cs-when" data-cs-when></span></h2>
+      <div class="cs-stats">
+        <div class="cs-stat"><b data-cs="concurrent_calls">–</b><span>Concurrent calls</span></div>
+        <div class="cs-stat"><b data-cs="p2p_calls">–</b><span>Peer-to-peer</span></div>
+        <div class="cs-stat"><b data-cs="group_calls">–</b><span>Group calls</span></div>
+        <div class="cs-stat"><b data-cs="peers_on_calls">–</b><span>People on calls</span></div>
+        <div class="cs-stat"><b data-cs="screens_sharing">–</b><span>Screens sharing</span></div>
+      </div>
+      <div data-cs-livelist></div>
+    </div>
+
+    {# ── configured limits + capacity verdict ── #}
+    <div class="cs-card">
+      <h2>Limits &amp; measured maximum</h2>
+      <div class="cs-stats">
+        <div class="cs-stat"><b data-cs-bmax>{{ max_participants }}</b><span data-cs-bmaxlbl>Max people per call (WebRTC mesh)</span></div>
+        <div class="cs-stat"><b data-cs-cap="max_concurrent_peers">?</b><span>Max people on calls at once</span></div>
+        <div class="cs-stat"><b data-cs-cap="max_concurrent_p2p_calls">?</b><span>Max concurrent P2P calls</span></div>
+        <div class="cs-stat"><b data-cs-cap="max_concurrent_full_group_calls">?</b><span>Max concurrent full ({{ max_participants }}-person) group calls</span></div>
+      </div>
+      <div class="cs-note" data-cs-capnote>Run the stress test below to measure the maximums —
+        they depend on this server's disk and database, so they are measured, not assumed.</div>
+      <div class="cs-note" data-cs-env></div>
+    </div>
+  </div>
+
+  {# ── the stress test ── #}
+  <div class="cs-card" style="margin-top:14px">
+    <h2>Stress test</h2>
+    <div class="cs-note" style="margin:0 0 12px">
+      Creates synthetic calls in a private test room (nobody's phone rings), then simulates the
+      per-second sync every participant makes — heartbeat, roster, signal box, and WebRTC signal
+      writes — from parallel workers against the real database. Everything is deleted when it ends.
+    </div>
+    <div class="cs-form">
+      <div><label>Simulated calls (1–{{ max_test_calls }})</label>
+        <input type="number" data-cs-in="calls" value="20" min="1" max="{{ max_test_calls }}"></div>
+      <div><label>People per call (2–{{ max_test_peers }})</label>
+        <input type="number" data-cs-in="peers" value="6" min="2" max="{{ max_test_peers }}"></div>
+      <div><label>Duration, seconds (2–{{ max_duration }})</label>
+        <input type="number" data-cs-in="duration" value="10" min="2" max="{{ max_duration }}"></div>
+      <div><label>Parallel workers (1–{{ max_workers }})</label>
+        <input type="number" data-cs-in="workers" value="16" min="1" max="{{ max_workers }}"></div>
+    </div>
+    <div class="cs-run">
+      <button type="button" class="cs-btn" data-cs-run>Run stress test</button>
+      <button type="button" class="cs-btn ghost" data-cs-clean title="Remove test data a crashed run may have left">Clean up leftovers</button>
+      <span class="cs-when" data-cs-leftover hidden></span>
+    </div>
+    <div class="cs-prog" data-cs-prog><i></i></div>
+    <div class="cs-err" data-cs-err hidden></div>
+
+    <div data-cs-report hidden>
+      <div class="cs-cap" data-cs-verdict></div>
+      <table class="cs-table">
+        <thead><tr><th>Syncs/sec</th><th>Total syncs</th><th>Avg</th><th>Median</th><th>95th&nbsp;pct</th><th>Slowest</th><th>DB errors</th></tr></thead>
+        <tbody><tr data-cs-mrow></tr></tbody>
+      </table>
+      <div class="cs-note" data-cs-rnote></div>
+    </div>
+  </div>
+</div>
+
+{% csrf_token %}
+<script>
+(function(){
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s);
+  const csrf = $('input[name=csrfmiddlewaretoken]').value;
+  const URLS = {
+    status: "{% url 'api_call_stress_status' %}",
+    run:    "{% url 'api_call_stress_run' %}",
+    clean:  "{% url 'api_call_stress_cleanup' %}",
+  };
+
+  function esc(s){ const d=document.createElement('div'); d.textContent=String(s??''); return d.innerHTML; }
+  function mins(sec){ sec=+sec||0; return sec<60?sec+'s':Math.floor(sec/60)+'m '+(sec%60)+'s'; }
+
+  function paintCapacity(rep){
+    if(!rep || !rep.capacity) return;
+    for(const k of ['max_concurrent_peers','max_concurrent_p2p_calls','max_concurrent_full_group_calls']){
+      const el=$('[data-cs-cap="'+k+'"]'); if(el) el.textContent=rep.capacity[k];
+    }
+    $('[data-cs-capnote]').textContent =
+      'Measured '+new Date(rep.ran_at).toLocaleString()+' by '+rep.ran_by+' — '+rep.capacity.note;
+  }
+
+  function paintReport(rep){
+    if(!rep) return;
+    paintCapacity(rep);
+    const m=rep.measured, c=rep.capacity, p=rep.params;
+    $('[data-cs-report]').hidden=false;
+    $('[data-cs-verdict]').innerHTML =
+      'Sustained capacity: <b>'+c.max_concurrent_peers+'</b> people on calls at once — '+
+      'up to <b>'+c.max_concurrent_p2p_calls+'</b> peer-to-peer calls or '+
+      '<b>'+c.max_concurrent_full_group_calls+'</b> full group calls '+
+      '(measured '+m.syncs_per_sec+' syncs/sec on '+
+      esc(m.db_engine==='microsoft'?'SQL Server':m.db_engine)+', quoted at '+
+      Math.round(c.headroom*100)+'% headroom).';
+    $('[data-cs-mrow]').innerHTML =
+      '<td><b>'+m.syncs_per_sec+'</b></td><td>'+m.total_syncs+'</td>'+
+      '<td>'+m.avg_ms+' ms</td><td>'+m.p50_ms+' ms</td><td>'+m.p95_ms+' ms</td>'+
+      '<td>'+m.max_ms+' ms</td><td>'+((m.db_errors!=null?m.db_errors:m.db_lock_errors)||0)+'</td>';
+    $('[data-cs-rnote]').innerHTML =
+      esc('Simulated '+p.simulated_peers+' participants across '+p.calls+' calls ('+
+      p.peers_per_call+' each) for '+p.duration_s+'s with '+p.workers+' workers.')+
+      envLine(rep.environment)+hints(rep);
+  }
+
+  function engineName(env){
+    return env.db_engine==='microsoft' ? 'SQL Server'
+         : env.db_engine==='sqlite'    ? 'SQLite'
+         : env.db_engine;
+  }
+
+  function envLine(env){
+    if(!env) return '';
+    const bits=[];
+    if(env.db_engine==='microsoft'){
+      bits.push('DB: SQL Server '+(env.mssql_version||'')+
+        (env.mssql_edition?' — '+env.mssql_edition:'')+
+        (env.mssql_database?' ['+env.mssql_database+']':''));
+      if(env.mssql_schedulers) bits.push(env.mssql_schedulers+' DB scheduler(s)');
+    }else{
+      bits.push('DB: '+engineName(env)+
+        (env.sqlite_journal_mode?' ('+env.sqlite_journal_mode.toUpperCase()+
+         ', sync='+(env.sqlite_synchronous||'?')+')':''));
+    }
+    if(env.db_ping_ms!=null) bits.push('DB round trip '+env.db_ping_ms+' ms');
+    if(env.os) bits.push(env.os);
+    if(env.cpu_cores) bits.push(env.cpu_cores+' cores'+(env.cpu?' — '+env.cpu:''));
+    if(env.ram_gb) bits.push(env.ram_gb+' GB RAM');
+    if(env.python) bits.push('Python '+env.python);
+    return '<br>Environment: '+esc(bits.join(' · '));
+  }
+
+  function hints(rep){
+    const m=rep.measured, env=rep.environment||{}, out=[];
+    const errs = (m.db_errors!=null?m.db_errors:m.db_lock_errors)||0;
+    if(env.db_engine==='sqlite'){
+      if(errs>0)
+        out.push('SQLite was saturated ("database is locked") — the ceiling is write contention. SQL Server removes this limit.');
+      if(env.sqlite_journal_mode && env.sqlite_journal_mode.toLowerCase()!=='wal')
+        out.push('Journal mode is '+env.sqlite_journal_mode.toUpperCase()+
+          ' — restart the Hub so WAL mode is applied; expect a large improvement.');
+      if(m.max_ms>1500 && m.p50_ms<50)
+        out.push('Median is fast but the slowest sync took '+(m.max_ms/1000).toFixed(1)+
+          's: classic disk fsync stalls. A local SSD/NVMe for db.sqlite3 is the fix; for hundreds of participants, PostgreSQL or SQL Server.');
+    }else if(env.db_engine==='microsoft'){
+      if(errs>0)
+        out.push(errs+' deadlock/timeout error(s) under load — unusual for this workload; worth a look at SQL Server activity if it repeats.');
+      if(env.db_ping_ms!=null && env.db_ping_ms>3 && m.p50_ms < env.db_ping_ms*6)
+        out.push('The DB round trip alone is '+env.db_ping_ms+' ms, so latency is dominated by the '+
+          'network/driver between the Hub and SQL Server, not by load. If SQL Server is on another '+
+          'machine, that is the cost; if local, check the connection uses localhost.');
+      if(m.p95_ms>150)
+        out.push('95th percentile is high for SQL Server on local hardware — check the server was not '+
+          'busy with the data migration or backups during the test, and re-run.');
+      if(errs===0 && m.p95_ms<=150)
+        out.push('Healthy: no contention errors and tight latency. The next ceiling is the Python '+
+          'process itself — raise Waitress threads (e.g. threads=24) to use this headroom.');
+    }
+    return out.length?'<br><b>Tuning:</b> '+esc(out.join(' ')):'';
+  }
+
+  function paintLive(live, when){
+    for(const k of ['concurrent_calls','p2p_calls','group_calls','peers_on_calls','screens_sharing']){
+      const el=$('[data-cs="'+k+'"]'); if(el) el.textContent=live[k];
+    }
+    $('[data-cs-when]').textContent='· updated '+new Date(when).toLocaleTimeString();
+    const box=$('[data-cs-livelist]');
+    if(!live.calls.length){ box.innerHTML='<div class="cs-empty">No calls in progress.</div>'; return; }
+    box.innerHTML='<table class="cs-table"><thead><tr><th>Call</th><th>Type</th><th>People</th><th>Length</th></tr></thead><tbody>'+
+      live.calls.map(c=>'<tr><td>'+esc(c.name)+(c.sharing?' <span class="cs-pill share">sharing</span>':'')+'</td>'+
+        '<td><span class="cs-pill '+(c.kind==='group'?'group':'')+'">'+(c.kind==='group'?'Group':'P2P')+'</span></td>'+
+        '<td>'+c.peers+'</td><td>'+mins(c.seconds)+'</td></tr>').join('')+'</tbody></table>';
+  }
+
+  let timer=null;
+  async function refresh(){
+    try{
+      const r=await fetch(URLS.status,{headers:{'X-Requested-With':'fetch'}});
+      if(!r.ok) return;
+      const d=await r.json();
+      paintLive(d.live, d.now);
+      if(d.bridge){
+        const b=d.bridge, el=$('[data-cs-bmax]'), lbl=$('[data-cs-bmaxlbl]');
+        if(b.up){
+          el.textContent=b.max_participants;
+          lbl.innerHTML='Max people per group call — <b style="color:#1f6f4a">media bridge online</b>'+
+            (b.rooms?(' · '+b.rooms+' room(s), '+b.peers+' on it now'):'');
+        }else{
+          el.textContent='{{ max_participants }}';
+          lbl.innerHTML='Max people per call — media bridge offline (mesh mode). '+
+            'Start it with <code>manage.py run_media_bridge</code> for large group calls.';
+        }
+      }
+      if(d.environment) $('[data-cs-env]').innerHTML = envLine(d.environment).replace(/^<br>/,'');
+      if(d.last_report) paintReport(d.last_report);
+      const lo=$('[data-cs-leftover]');
+      lo.hidden = !d.leftover_test_conversations;
+      if(d.leftover_test_conversations)
+        lo.textContent=d.leftover_test_conversations+' leftover test room(s) found — clean up.';
+    }catch(e){}
+  }
+
+  $('[data-cs-run]').addEventListener('click', async ()=>{
+    const btn=$('[data-cs-run]'), err=$('[data-cs-err]'), prog=$('[data-cs-prog]');
+    btn.disabled=true; err.hidden=true; prog.classList.add('on');
+    clearInterval(timer);                       // the test loads the DB; do not poll over it
+    const body=new URLSearchParams({csrfmiddlewaretoken:csrf});
+    for(const el of document.querySelectorAll('[data-cs-in]'))
+      body.set(el.getAttribute('data-cs-in'), el.value);
+    try{
+      const r=await fetch(URLS.run,{method:'POST',body});
+      const d=await r.json();
+      if(!r.ok||!d.ok) throw new Error(d.error||('HTTP '+r.status));
+      paintReport(d.report);
+    }catch(e){ err.textContent='Test failed: '+e.message; err.hidden=false; }
+    finally{
+      btn.disabled=false; prog.classList.remove('on');
+      refresh(); timer=setInterval(refresh, 3000);
+    }
+  });
+
+  $('[data-cs-clean]').addEventListener('click', async ()=>{
+    const body=new URLSearchParams({csrfmiddlewaretoken:csrf});
+    try{ await fetch(URLS.clean,{method:'POST',body}); }catch(e){}
+    refresh();
+  });
+
+  refresh();
+  timer=setInterval(refresh, 3000);
+})();
+</script>
+{% endblock %}

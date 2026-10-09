@@ -1,0 +1,156 @@
+{# templates/cafeteria/package_order.html #}
+{% extends 'base.html' %}
+{% block title %}Meeting Packages — AJi Hub{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow"><a href="{% url 'my_aji' %}" style="color:inherit">My <span class="kc">AJi</span></a> / Workplace &amp; Facilities / Meeting Packages</div>
+    <h1>Meeting Packages</h1>
+    <p>Order a catering package for an AJi meeting according to the level of the attendees. <b>Paid by AJi</b> — not by the visitor.</p>
+  </div>
+  <a href="{% url 'cafeteria:home' %}" class="btn">Cafeteria menu</a>
+</div>
+
+{# ── Catering requests from room bookings ── #}
+{% if catering_requests %}
+<div class="sec-head rise"><h2>Catering requests from room bookings</h2></div>
+{% for req in catering_requests %}
+<div class="card rise" style="padding:18px;margin-bottom:12px{% if req.status != 'pending' %};opacity:.6{% endif %}">
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <span class="pill {% if req.status == 'approved' %}ok{% elif req.status == 'rejected' %}bad{% else %}warn{% endif %}" style="font-size:10.5px">{{ req.get_status_display }}</span>
+    <b>{{ req.booking.title|default:"Meeting" }}</b>
+    <span class="muted" style="font-size:12.5px">{{ req.booking.room.name }} · {{ req.booking.date|date:"M d, Y" }} · {{ req.booking.start_time|time:"H:i" }}–{{ req.booking.end_time|time:"H:i" }}</span>
+    <span class="muted" style="font-size:12.5px">Requested by {{ req.requested_by.get_full_name|default:req.requested_by.username }}</span>
+  </div>
+  {% if req.notes %}<div class="muted" style="font-size:12px;margin-top:8px">“{{ req.notes }}”</div>{% endif %}
+
+  {% if req.status == 'pending' %}
+  <form method="post" action="{% url 'cafeteria:catering_review' req.pk %}" style="display:grid;grid-template-columns:2fr 1fr 2fr auto auto;gap:10px;align-items:center;margin-top:14px">
+    {% csrf_token %}
+    <select name="package" style="padding:8px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+      {% for package in packages %}
+      <option value="{{ package.pk }}" {% if req.package_id == package.pk %}selected{% endif %}>{{ package.get_level_display }} — {{ package.name }} ({{ package.price_per_person }} JD/p)</option>
+      {% endfor %}
+    </select>
+    <input name="attendees_count" type="number" min="1" value="{{ req.attendees_count }}" title="Attendees" style="padding:8px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+    <input name="comment" placeholder="Comment (optional)" style="padding:8px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+    <button class="btn y" name="action" value="approve" style="padding:8px 16px;font-size:12.5px">Approve &amp; order</button>
+    <button class="btn" name="action" value="reject" style="padding:8px 16px;font-size:12.5px">Reject</button>
+  </form>
+  <div class="muted" style="font-size:11.5px;margin-top:8px">You can change the package or attendee count before approving. On approval the order goes to the cafeteria staff — paid by AJi ({{ req.total }} JD as requested).</div>
+  {% else %}
+  <div class="muted" style="font-size:12px;margin-top:8px">
+    {{ req.package.get_level_display }} — {{ req.package.name }} · {{ req.attendees_count }} attendees · {{ req.total }} JD
+    {% if req.reviewed_by %} · Reviewed by {{ req.reviewed_by.get_full_name|default:req.reviewed_by.username }}{% endif %}
+    {% if req.review_comment %} · “{{ req.review_comment }}”{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+<div style="height:22px"></div>
+{% endif %}
+
+<div class="rise" style="display:grid;grid-template-columns:1.2fr 1fr;gap:22px;align-items:start">
+
+  {# ── Available packages ── #}
+  <div>
+    {% for package in packages %}
+    <label class="card" style="display:block;padding:16px 18px;margin-bottom:12px;cursor:pointer">
+      <div style="display:flex;align-items:center;gap:12px">
+        <input type="radio" name="pkgPick" value="{{ package.pk }}" data-price="{{ package.price_per_person }}" data-name="{{ package.name|escapejs }}" onchange="pickPackage(this)">
+        <span class="pill mut" style="font-size:10px">{{ package.get_level_display }}</span>
+        <b style="flex:1">{{ package.name }}</b>
+        <b style="white-space:nowrap">{{ package.price_per_person }} JD <span class="muted" style="font-weight:400;font-size:11px">/ person</span></b>
+      </div>
+      {% if package.description %}<div class="muted" style="font-size:12.5px;margin-top:8px;line-height:1.5">{{ package.description }}</div>{% endif %}
+    </label>
+    {% empty %}
+    <div class="card" style="padding:24px;text-align:center;color:var(--muted)">No packages available yet — ask the cafeteria staff to add packages.</div>
+    {% endfor %}
+  </div>
+
+  {# ── Order form ── #}
+  <form method="post" class="card" style="padding:20px;position:sticky;top:90px">
+    {% csrf_token %}
+    <div style="font-weight:800;font-size:14px;letter-spacing:.03em;margin-bottom:14px">ORDER PACKAGE</div>
+    <input type="hidden" name="package" id="pkgField" required>
+    <div id="pkgChosen" class="muted" style="font-size:12.5px;margin-bottom:12px">Select a package on the left.</div>
+
+    <label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Meeting title</label>
+    <input name="meeting_title" required style="width:100%;margin:4px 0 12px;padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Date</label>
+        <input name="meeting_date" type="date" required style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+      </div>
+      <div>
+        <label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Time</label>
+        <input name="meeting_time" type="time" required style="width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+      </div>
+    </div>
+
+    <label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:block;margin-top:12px">Meeting room / location</label>
+    <input name="meeting_room" style="width:100%;margin:4px 0 12px;padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+
+    <label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Attendees count</label>
+    <input name="attendees_count" id="attendeesField" type="number" min="1" value="1" required oninput="updateTotal()" style="width:100%;margin:4px 0 12px;padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+
+    <label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Notes for cafeteria staff (optional)</label>
+    <input name="notes" style="width:100%;margin:4px 0 12px;padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+
+    <div style="display:flex;justify-content:space-between;font-weight:800;padding:12px 0;border-top:2px solid var(--ink)">
+      <span>Total — billed to AJi</span><span id="pkgTotal">—</span>
+    </div>
+    <button class="btn y" style="width:100%;justify-content:center">Order package</button>
+  </form>
+</div>
+
+{# ── My package orders ── #}
+{% if my_orders %}
+<div class="sec-head rise" style="margin-top:34px"><h2>My package orders</h2></div>
+<div class="card rise" style="padding:0;overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:var(--paper-2);text-align:left">
+        <th style="padding:12px 18px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Status</th>
+        <th style="padding:12px 18px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Package</th>
+        <th style="padding:12px 18px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Meeting</th>
+        <th style="padding:12px 18px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Attendees</th>
+        <th style="padding:12px 18px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Total (AJi)</th>
+        <th style="padding:12px 18px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">When</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in my_orders %}
+      <tr style="border-bottom:1px solid var(--line)">
+        <td style="padding:13px 18px;white-space:nowrap">
+          <span class="pill {% if order.status == 'delivered' %}ok{% elif order.status == 'cancelled' %}bad{% else %}warn{% endif %}" style="font-size:10.5px">{{ order.get_status_display }}</span>
+        </td>
+        <td style="padding:13px 18px;white-space:nowrap"><span class="pill mut" style="font-size:10px">{{ order.package.get_level_display }}</span> {{ order.package.name }}</td>
+        <td style="padding:13px 18px">{{ order.meeting_title }}{% if order.meeting_room %}<div class="muted" style="font-size:11.5px">{{ order.meeting_room }}</div>{% endif %}</td>
+        <td style="padding:13px 18px;text-align:center">{{ order.attendees_count }}</td>
+        <td style="padding:13px 18px;font-weight:700;white-space:nowrap">{{ order.total }} JD</td>
+        <td style="padding:13px 18px;color:var(--muted);white-space:nowrap;font-size:12px">{{ order.meeting_date|date:"M d, Y" }} — {{ order.meeting_time|time:"H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<script>
+let pkgPrice=0;
+function pickPackage(radio){
+  pkgPrice=parseFloat(radio.dataset.price);
+  document.getElementById('pkgField').value=radio.value;
+  document.getElementById('pkgChosen').innerHTML='Selected: <b>'+radio.dataset.name+'</b> — '+pkgPrice.toFixed(2)+' JD / person';
+  updateTotal();
+}
+function updateTotal(){
+  const n=parseInt(document.getElementById('attendeesField').value)||0;
+  document.getElementById('pkgTotal').textContent=pkgPrice?(pkgPrice*n).toFixed(2)+' JD':'—';
+}
+</script>
+{% endblock %}

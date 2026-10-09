@@ -1,0 +1,35 @@
+{% load cms_tags %}
+{# services/_feature_my_aji.html — the working part of My AJi, as a locked feature block. #}
+{# Lifted verbatim from services/my_aji.html when that page became builder-driven, so #}
+{# it renders the same markup with the same context as before. Its styles #}
+{# travel with it, which is what lets the feature be placed in a column. #}
+
+
+
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">
+  {% for c in categories %}
+  {% with cat=c.obj %}
+  <a href="{% if cat.category_type == 'approvals' %}{% url 'services:approvals_inbox' %}{% else %}{% url 'my_aji_category' cat.pk %}{% endif %}"
+     class="card rise" style="display:flex;align-items:center;gap:14px;text-decoration:none;color:inherit">
+    <span style="width:44px;height:44px;flex:none;border-radius:50%;background:var(--disc);color:var(--yellow);display:flex;align-items:center;justify-content:center">
+      {% cms_icon cat.icon|default:"folder" 20 1.7 %}
+    </span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:700;font-size:15px">{{ cat.name }}</div>
+      {% if cat.description %}<div class="muted" style="font-size:12.5px">{{ cat.description }}</div>{% endif %}
+    </div>
+    {% if c.pending_count %}
+    <span style="background:var(--yellow);color:var(--on-yellow);font-size:12px;font-weight:800;min-width:24px;height:24px;border-radius:12px;display:flex;align-items:center;justify-content:center;padding:0 7px;flex:none">{{ c.pending_count }}</span>
+    {% endif %}
+  </a>
+  {% endwith %}
+  {% endfor %}
+</div>
+
+{% if not categories %}
+<div class="card rise" style="text-align:center;color:var(--muted);padding:40px 20px">
+  {% feature_text section "empty" %}
+</div>
+{% endif %}
+

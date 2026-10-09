@@ -1,0 +1,93 @@
+{% extends 'core/it/_shell.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}{{ person.get_full_name|default:person.username }} — IT Portal{% endblock %}
+{% block it_note %}One account: its details, its roles, and whether it can sign in.{% endblock %}
+
+{% block it_back %}
+<a href="{% url 'it_users' %}" class="ctx-back" title="All accounts"><span class="ctx-back-lab">All accounts</span></a>
+{% endblock %}
+
+{% block it_content %}
+
+<div class="it-grid2">
+  <div class="it-card">
+    <div class="it-card-h">
+      {% if person.employee.photo %}<img class="it-av" src="{{ person.employee.photo.url }}" alt="">
+      {% else %}<span class="it-av">{{ person|initials }}</span>{% endif %}
+      <span class="sp">{{ person.get_full_name|default:person.username }}</span>
+      {% if person.is_active %}<span class="it-chip ok">Active</span>
+      {% else %}<span class="it-chip bad">Disabled</span>{% endif %}
+    </div>
+    <form method="post" action="{% url 'it_user_save' person.pk %}">
+      {% csrf_token %}
+      <div class="it-card-b">
+        <div style="display:grid;gap:14px;grid-template-columns:1fr 1fr">
+          <div><label class="it-lab" for="fn">First name</label>
+            <input class="it-in" id="fn" name="first_name" value="{{ person.first_name }}"></div>
+          <div><label class="it-lab" for="ln">Last name</label>
+            <input class="it-in" id="ln" name="last_name" value="{{ person.last_name }}"></div>
+        </div>
+        <div style="margin-top:14px"><label class="it-lab" for="em">Email</label>
+          <input class="it-in" id="em" name="email" type="email" value="{{ person.email }}"></div>
+
+        <hr style="border:none;border-top:1px solid var(--line);margin:18px 0">
+        <label class="it-lab">Roles</label>
+        <div style="display:flex;flex-wrap:wrap;gap:7px">
+          {% for g in all_roles %}
+          <label class="ba-tick" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+                 font-size:12.5px;border:1px solid var(--line-2);border-radius:999px;
+                 padding:5px 11px;background:var(--paper-2)">
+            <input type="checkbox" name="roles" value="{{ g.pk }}"
+                   {% if g.pk in held %}checked{% endif %} style="accent-color:var(--ink)">
+            {{ g.name }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="it-bar"><button class="btn y sm" type="submit">Save account</button></div>
+    </form>
+  </div>
+
+  <div>
+    <div class="it-card">
+      <div class="it-card-h">{% icon "clock-2" 16 %}<span class="sp">Account</span></div>
+      <table class="it-table">
+        <tr><td style="color:var(--muted)">Username</td><td class="it-mono">{{ person.username }}</td></tr>
+        <tr><td style="color:var(--muted)">Last signed in</td>
+            <td>{% if person.last_login %}{{ person.last_login|date:"j M Y, H:i" }}{% else %}Never{% endif %}</td></tr>
+        <tr><td style="color:var(--muted)">Account created</td><td>{{ person.date_joined|date:"j M Y" }}</td></tr>
+        <tr><td style="color:var(--muted)">Sign-in method</td>
+            <td>{% if person.has_usable_password %}Hub password{% else %}Directory (LDAP){% endif %}</td></tr>
+        <tr><td style="color:var(--muted)">Superuser</td>
+            <td>{% if person.is_superuser %}<span class="it-chip y">Yes</span>{% else %}No{% endif %}</td></tr>
+      </table>
+    </div>
+
+    <div class="it-card">
+      <div class="it-card-h">{% icon "lock" 16 %}<span class="sp">Access</span></div>
+      <div class="it-card-b">
+        {% if is_self %}
+          <p style="margin:0;font-size:13px;color:var(--muted);line-height:1.6">
+            This is your own account. Disabling it from here is not offered.</p>
+        {% elif person.is_superuser and person.is_active %}
+          <p style="margin:0;font-size:13px;color:var(--muted);line-height:1.6">
+            A superuser account is disabled from the Django back-office, deliberately:
+            it is the last way in if the portal itself is misconfigured.</p>
+        {% else %}
+          <p style="margin:0 0 12px;font-size:13px;color:var(--muted);line-height:1.6">
+            {% if person.is_active %}Disabling stops them signing in. Their roles and
+            everything they have posted stay as they are.
+            {% else %}This account cannot sign in.{% endif %}</p>
+          <form method="post" action="{% url 'it_user_toggle' person.pk %}"
+                data-confirm="{% if person.is_active %}Disable{% else %}Enable{% endif %} {{ person.get_full_name|default:person.username|escapejs }}?">
+            {% csrf_token %}
+            <button class="btn {% if person.is_active %}ghost danger{% else %}y{% endif %} sm" type="submit">
+              {% if person.is_active %}Disable account{% else %}Enable account{% endif %}
+            </button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

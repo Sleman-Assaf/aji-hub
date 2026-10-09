@@ -1,0 +1,110 @@
+{# templates/services/job_requisition_detail.html #}
+{% extends 'base.html' %}
+{% block title %}{{ req.job_title }} — Job Requisition{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">Services · Job Requisition</div>
+    <h1>{{ req.job_title }}</h1>
+    <p>Requested by {{ req.requested_by.get_full_name|default:req.requested_by.username }} on {{ req.date_of_request }}</p>
+  </div>
+  <span class="pill {% if req.status == 'approved' %}ok{% elif req.status == 'rejected' %}bad{% else %}warn{% endif %}"
+        style="padding:8px 14px;font-weight:700">{{ req.stage_label }}</span>
+</div>
+
+<div class="card rise" style="max-width:760px">
+  <h3>New Position Details</h3>
+  <table style="width:100%;font-size:13.5px;border-collapse:collapse">
+    <tr><td style="padding:6px 0;color:var(--muted);width:200px">Company</td><td>{{ req.company.name|default:'—' }}</td></tr>
+    <tr><td style="padding:6px 0;color:var(--muted)">Department / Unit</td><td>{{ req.department.name|default:'—' }}</td></tr>
+    <tr><td style="padding:6px 0;color:var(--muted)">Reports To</td><td>{{ req.reports_to.full_name|default:'—' }}</td></tr>
+    <tr><td style="padding:6px 0;color:var(--muted)">Targeted Start Date</td><td>{{ req.targeted_start_date|default:'—' }}</td></tr>
+    <tr><td style="padding:6px 0;color:var(--muted)">Work Location</td><td>{{ req.work_location|default:'—' }}</td></tr>
+  </table>
+
+  <h3 style="margin-top:20px">Justification</h3>
+  <p style="white-space:pre-wrap">{{ req.business_need }}</p>
+
+  {% if req.primary_responsibilities %}
+  <h3 style="margin-top:20px">Primary Responsibilities</h3>
+  <p style="white-space:pre-wrap">{{ req.primary_responsibilities }}</p>
+  {% endif %}
+
+  {% if req.key_qualifications %}
+  <h3 style="margin-top:20px">Key Qualifications</h3>
+  <p style="white-space:pre-wrap">{{ req.key_qualifications }}</p>
+  {% endif %}
+
+  <h3 style="margin-top:20px">Approvals</h3>
+  <table style="width:100%;font-size:13.5px;border-collapse:collapse">
+    <tr><td style="padding:6px 0;color:var(--muted);width:200px">Hiring Manager</td><td>{{ req.requested_by.get_full_name|default:req.requested_by.username }}</td></tr>
+    <tr><td style="padding:6px 0;color:var(--muted)">Director</td><td>{% if req.director %}{{ req.director.get_full_name|default:req.director.username }}{% else %}—{% endif %}</td></tr>
+    <tr><td style="padding:6px 0;color:var(--muted)">HR Manager</td><td>{% if req.hr_approver %}{{ req.hr_approver.get_full_name|default:req.hr_approver.username }}{% else %}Pending{% endif %}</td></tr>
+    <tr><td style="padding:6px 0;color:var(--muted)">CEO</td><td>{% if req.ceo_approver %}{{ req.ceo_approver.get_full_name|default:req.ceo_approver.username }}{% else %}Pending{% endif %}</td></tr>
+  </table>
+
+  <h3 style="margin-top:20px">Approval Status</h3>
+  <div style="display:flex;align-items:flex-start;overflow-x:auto;padding:10px 2px 2px">
+    {% for s in stages %}
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;width:132px;flex:none">
+      <div style="position:relative;width:64px;height:64px">
+        <div style="width:64px;height:64px;border-radius:50%;background:var(--paper-2);box-sizing:border-box;
+                    border:3px solid {% if s.state == 'upcoming' %}#E3E2D8{% elif s.state == 'rejected' %}#C2410C{% else %}{{ s.color }}{% endif %};
+                    display:flex;align-items:center;justify-content:center">
+          {% if s.label == 'Hiring Manager' %}
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="{% if s.state == 'upcoming' %}#B9B8AC{% else %}{{ s.color }}{% endif %}" stroke-width="1.8" style="width:26px;height:26px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+          {% elif s.label == 'Director' %}
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="{% if s.state == 'upcoming' %}#B9B8AC{% else %}{{ s.color }}{% endif %}" stroke-width="1.8" style="width:26px;height:26px"><path d="M12 2 4 5v6c0 5 3.5 8.7 8 10 4.5-1.3 8-5 8-10V5z"/></svg>
+          {% elif s.label == 'HR Manager' %}
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="{% if s.state == 'upcoming' %}#B9B8AC{% else %}{{ s.color }}{% endif %}" stroke-width="1.8" style="width:26px;height:26px"><circle cx="8.5" cy="8" r="3"/><path d="M2 20c0-3.3 2.9-5.5 6.5-5.5"/><circle cx="16.5" cy="8" r="3"/><path d="M22 20c0-3.3-2.9-5.5-6.5-5.5"/></svg>
+          {% else %}
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="{% if s.state == 'upcoming' %}#B9B8AC{% else %}{{ s.color }}{% endif %}" stroke-width="1.8" style="width:26px;height:26px"><path d="m12 3 2.6 5.3 5.9.8-4.3 4.1 1 5.8L12 16l-5.2 2.9 1-5.8L3.5 9.1l5.9-.8z"/></svg>
+          {% endif %}
+        </div>
+        {% if s.state == 'done' %}
+        <div style="position:absolute;bottom:-2px;right:-2px;width:22px;height:22px;border-radius:50%;background:#1F9D55;border:2px solid #fff;display:flex;align-items:center;justify-content:center">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" style="width:12px;height:12px"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+        {% elif s.state == 'rejected' %}
+        <div style="position:absolute;bottom:-2px;right:-2px;width:22px;height:22px;border-radius:50%;background:#C2410C;border:2px solid #fff;display:flex;align-items:center;justify-content:center">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" style="width:12px;height:12px"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </div>
+        {% elif s.state == 'current' %}
+        <div style="position:absolute;bottom:-2px;right:-2px;width:22px;height:22px;border-radius:50%;background:#A87A00;border:2px solid #fff;display:flex;align-items:center;justify-content:center">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" style="width:12px;height:12px"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        </div>
+        {% endif %}
+      </div>
+      <div style="margin-top:11px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:{% if s.state == 'upcoming' %}#8A8A80{% else %}{{ s.color }}{% endif %}">{{ s.label }}</div>
+      <div style="font-size:12.5px;color:#2A2A24;margin-top:2px;max-width:126px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</div>
+      {% if s.time %}<div style="font-size:10.5px;color:#9A9A8F;margin-top:4px">{{ s.time|date:"M d, Y — H:i" }}</div>{% endif %}
+      {% if s.comment %}<div style="font-size:11px;color:#C2410C;margin-top:4px;font-style:italic;max-width:126px">"{{ s.comment }}"</div>{% endif %}
+    </div>
+    {% if not forloop.last %}
+    <div style="flex:1 1 26px;min-width:22px;height:3px;margin:34px -2px 0;position:relative;background:{% if s.state == 'done' %}#1F9D55{% else %}#E3E2D8{% endif %}">
+      <div style="position:absolute;right:-1px;top:50%;transform:translateY(-50%);width:0;height:0;
+                  border-top:5px solid transparent;border-bottom:5px solid transparent;
+                  border-left:7px solid {% if s.state == 'done' %}#1F9D55{% else %}#E3E2D8{% endif %}"></div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  {% if can_act %}
+  <h3 style="margin-top:20px">Your Decision</h3>
+  <form data-save="reload" method="post" action="{% url 'services:job_requisition_action' req.pk %}">
+    {% csrf_token %}
+    <div class="field">
+      <label>Comment (optional)</label>
+      <textarea name="comment" rows="3"></textarea>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button type="submit" name="decision" value="approve" class="btn y">Approve</button>
+      <button type="submit" name="decision" value="reject" class="btn ghost"
+              onclick="return confirm('Reject this job requisition?')">Reject</button>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

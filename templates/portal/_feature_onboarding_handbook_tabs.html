@@ -1,0 +1,81 @@
+{% load cms_tags %}
+{# portal/_feature_onboarding_handbook_tabs.html — the handbook chapters. #}
+{# #}
+{# This used to be the bottom half of _feature_onboarding_handbook.html, so the #}
+{# download banner and the chapter explorer were one block: moving one moved the #}
+{# other, and neither could be removed on its own or have a section put between #}
+{# them. Two blocks, like the three on the brand page. #}
+{# #}
+{# The tabs and their rows are records — ExploreTab and OnboardingHandbookItem — #}
+{# managed at /onboarding/manage/#ob-items, so what is in here is already #}
+{# editable without touching this file. #}
+<div class="sec-head rise">{% feature_text section "explore_head" "h2" %}</div>
+<div class="ob-box rise">
+
+  {# Sidebar tabs #}
+  <div class="ob-side">
+    {# Buttons calling obTab, not links. They were anchors to ?tab=..., which #}
+    {# reloaded the whole page for a panel swap and threw the reader back to the #}
+    {# top -- and the script that was meant to switch them looked for a data-tab #}
+    {# the anchors never carried, so it could never fire at all. #}
+    {% for tb in ob_tabs %}
+    <button type="button" class="ob-tab {% if tab == tb.key %}on{% endif %}"
+            data-tab="{{ tb.key }}" onclick="obTab('{{ tb.key }}')">
+      {% cms_icon tb.icon|default:"file-lines" 15 1.7 %}
+      <span>{{ tb.label }}</span>
+    </button>
+    {% endfor %}
+  </div>
+
+  {# Tab content panel — all panels rendered, JS shows/hides #}
+  <div class="ob-content">
+
+    {% for panel_id, panel_items_list in all_panels_list %}
+    <div class="ob-panel" data-panel="{{ panel_id }}">
+
+      {% if panel_id == 'att' %}
+      <div class="att-banner">
+        {% icon "clock-face" 2 2 %}
+        <div>
+          {% feature_text section "hours" "div" "att-banner-t" %}
+          {% feature_text section "hours_note" "div" "att-banner-s" %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% for item in panel_items_list %}
+      <div class="hb-row">
+        <div class="hb-key">{{ item.0 }}</div>
+        <div class="hb-val">{{ item.1 }}</div>
+      </div>
+      {% endfor %}
+
+    </div>
+    {% endfor %}
+
+  </div>
+</div>
+
+
+<script>
+(function () {
+  var initial = '{{ tab }}' || 'conduct';
+
+  function obTab(id) {
+    document.querySelectorAll('.ob-tab').forEach(function(btn) {
+      btn.classList.toggle('on', btn.dataset.tab === id);
+    });
+    document.querySelectorAll('.ob-panel').forEach(function(panel) {
+      panel.classList.toggle('active', panel.dataset.panel === id);
+    });
+    var url = new URL(window.location.href);
+    url.searchParams.set('tab', id);
+    window.history.replaceState({}, '', url.toString());
+  }
+
+  window.obTab = obTab;
+  obTab(initial);
+})();
+</script>
+
+

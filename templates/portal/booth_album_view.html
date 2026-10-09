@@ -1,0 +1,149 @@
+{# templates/portal/booth_album_view.html #}
+{% extends 'base.html' %}
+{% block title %}{{ album.name }} — AJi Booth{% endblock %}
+
+{% block extra_head %}
+<style>
+.av-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.av-card{position:relative;overflow:hidden;border:1px solid var(--line);background:var(--paper-2);cursor:pointer}
+.av-card img,.av-card video{width:100%;height:180px;object-fit:cover;display:block;transition:transform .2s}
+.av-card:hover img,.av-card:hover video{transform:scale(1.04)}
+.av-play{position:absolute;top:0;left:0;right:0;height:180px;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.av-play span{width:46px;height:46px;border-radius:50%;background:rgba(10,10,8,.55);display:flex;align-items:center;justify-content:center}
+.av-play svg{width:20px;height:20px;color:#fff;margin-left:3px}
+.av-caption{padding:9px 11px;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Lightbox */
+#lightbox{display:none;position:fixed;inset:0;z-index:1300;background:rgba(10,10,8,.92);align-items:center;justify-content:center;flex-direction:column}
+#lightbox.open{display:flex}
+#lightbox img,#lightbox video{max-width:90vw;max-height:80vh;object-fit:contain;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+#lightbox .lb-cap{color:#fff;margin-top:14px;font-size:13.5px;opacity:.85;max-width:80vw;text-align:center}
+.lb-close{position:absolute;top:20px;right:24px;background:none;border:none;color:#fff;font-size:30px;cursor:pointer;line-height:1}
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.1);border:none;color:#fff;width:48px;height:48px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .13s}
+.lb-nav:hover{background:rgba(255,255,255,.22)}
+.lb-prev{left:24px}
+.lb-next{right:24px}
+.lb-nav svg{width:22px;height:22px}
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# The Hub's back control, the same one the album's manage screen and every #}
+{# news and P&C page uses. This was an arrow and the words "AJi Booth" set as #}
+{# the eyebrow, so the one line that said where you were was also the only way #}
+{# back — and it looked like a label rather than something to press. #}
+<a href="{% url 'booth_wall' %}" class="ctx-back" title="AJi Booth"><span class="ctx-back-lab">AJi Booth</span></a>
+
+<div class="page-head rise" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
+  <div>
+    <div class="eyebrow">AJi Booth</div>
+    <h1>{{ album.name }}</h1>
+    <p>{{ album.get_tag_display }}{% if album.period %} · {{ album.period }}{% endif %} · {{ photos.count }} photo{{ photos.count|pluralize }}{% if videos %} · {{ videos.count }} video{{ videos.count|pluralize }}{% endif %}</p>
+  </div>
+  {% if is_branding_member %}
+  <a href="{% url 'booth_album_photos' album.pk %}" class="btn ghost" style="margin-top:10px">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+    Manage album
+  </a>
+  {% endif %}
+</div>
+
+{% if photos or videos %}
+<div class="av-grid rise" id="avGrid">
+  {% for photo in photos %}
+  <div class="av-card" data-type="image" data-full="{{ photo.image.url }}" data-caption="{{ photo.caption|escapejs }}" onclick="openLightbox(this)">
+    <img src="{{ photo.image.url }}" alt="{{ photo.caption|default:album.name }}">
+    {% if photo.caption %}<div class="av-caption">{{ photo.caption }}</div>{% endif %}
+  </div>
+  {% endfor %}
+  {% for video in videos %}
+  <div class="av-card" data-type="video" data-full="{{ video.video.url }}" data-caption="{{ video.caption|escapejs }}" onclick="openLightbox(this)">
+    <video src="{{ video.video.url }}" preload="metadata" muted></video>
+    <div class="av-play"><span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>
+    {% if video.caption %}<div class="av-caption">{{ video.caption }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card rise" style="text-align:center;color:var(--muted);padding:48px">
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="opacity:.2;display:block;margin:0 auto 12px"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m3 9 4.5 4.5L9 12l3 3 4-4 2 2"/></svg>
+  No photos or videos in this album yet.
+  {% if is_branding_member %}<br><a href="{% url 'booth_album_photos' album.pk %}">Upload some →</a>{% endif %}
+</div>
+{% endif %}
+
+{# ── Lightbox ── #}
+<div id="lightbox">
+  <button class="lb-close" onclick="closeLightbox()">×</button>
+  <button class="lb-nav lb-prev" onclick="lbNav(-1)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+  </button>
+  <img id="lbImg" src="" alt="" style="display:none">
+  <video id="lbVideo" controls style="display:none"></video>
+  <button class="lb-nav lb-next" onclick="lbNav(1)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+  </button>
+  <div class="lb-cap" id="lbCap"></div>
+</div>
+
+<script>
+var _lbItems = [];
+var _lbIndex = 0;
+
+document.querySelectorAll('#avGrid .av-card').forEach(function(card) {
+  _lbItems.push({ type: card.dataset.type, url: card.dataset.full, caption: card.dataset.caption });
+});
+
+function openLightbox(card) {
+  _lbIndex = Array.prototype.indexOf.call(card.parentNode.children, card);
+  renderLightbox();
+  document.getElementById('lightbox').classList.add('open');
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  var v = document.getElementById('lbVideo');
+  v.pause();
+  v.removeAttribute('src');
+  v.load();
+}
+
+function lbNav(dir) {
+  _lbIndex = (_lbIndex + dir + _lbItems.length) % _lbItems.length;
+  renderLightbox();
+}
+
+function renderLightbox() {
+  var item = _lbItems[_lbIndex];
+  var img = document.getElementById('lbImg');
+  var vid = document.getElementById('lbVideo');
+  if (item.type === 'video') {
+    img.style.display = 'none';
+    img.src = '';
+    vid.style.display = 'block';
+    vid.src = item.url;
+    vid.play().catch(function(){});
+  } else {
+    vid.pause();
+    vid.style.display = 'none';
+    vid.removeAttribute('src');
+    img.style.display = 'block';
+    img.src = item.url;
+  }
+  document.getElementById('lbCap').textContent = item.caption || '';
+}
+
+document.getElementById('lightbox').addEventListener('click', function(e) {
+  if (e.target === this) closeLightbox();
+});
+
+document.addEventListener('keydown', function(e) {
+  if (!document.getElementById('lightbox').classList.contains('open')) return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft') lbNav(-1);
+  if (e.key === 'ArrowRight') lbNav(1);
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,126 @@
+{# templates/taqdeer/certifications.html — HR records a credential. #}
+{# Two fields and a date. The announcement is not written here and cannot be #}
+{# written here: it comes from the template in Settings, so a hundred of them #}
+{# read identically and nobody has to design one. #}
+{% extends 'base.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}Certifications — AJi Taqdeer{% endblock %}
+
+{% block content %}
+<a href="{% url 'taqdeer_home' %}" class="ctx-back" title="AJi Taqdeer"><span class="ctx-back-lab">AJi Taqdeer</span></a>
+
+<div class="tq-nom-head">
+  <div>
+    <div class="eyebrow">HR</div>
+    <h1>Certifications</h1>
+  </div>
+  <a class="btn ghost sm" href="{% url 'taqdeer_settings' %}">
+    {% icon "settings" 14 %} Announcement wording</a>
+</div>
+
+<p class="tq-nom-note">
+  Record who earned what and when. The announcement is generated from the
+  template in Settings — you do not write or design one.
+</p>
+
+{# ── add ──────────────────────────────────────────────────────────────── #}
+<form method="post" enctype="multipart/form-data" class="tq-open">
+  {% csrf_token %}
+  <div class="tq-open-h">{% icon "plus" 15 %} Add a certification</div>
+  <div class="ap-form">
+    {% for f in form %}
+    {% if f.name == 'employee' %}
+    {# A select of 1,256 names is a scroll, not a choice. Same directory search #}
+    {# as everywhere else in the Hub, and it posts the same primary key the #}
+    {# dropdown did, so the form is unchanged. #}
+    <div class="tq-field ap-f wide">
+      <label class="tq-lab">{{ f.label }}</label>
+      {% url 'taqdeer_people_all' as ppl %}
+      {% include 'exchange/_people_picker.html' with search_url=ppl field='employee' placeholder='Search colleagues by name…' one=1 %}
+      {% for e in f.errors %}<span class="tq-err">{{ e }}</span>{% endfor %}
+    </div>
+    {% elif f.field.widget.input_type == 'checkbox' %}
+    <label class="ts-check ap-f" style="grid-column:1/-1;border:none">
+      {{ f }}<span><b>{{ f.label }}</b>
+      <i>Unpublished ones stay on record but appear nowhere.</i></span>
+    </label>
+    {% else %}
+    <div class="tq-field ap-f">
+      <label class="tq-lab" for="{{ f.id_for_label }}">{{ f.label }}</label>
+      {{ f }}
+      {% for e in f.errors %}<span class="tq-err">{{ e }}</span>{% endfor %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="cf-preview">
+    <div class="cf-preview-k">{% icon "image" 13 %} What gets published</div>
+    <span class="tq-hint">An AJi-branded card is drawn for you — the wordmark,
+      the name, the certification and the date. There is nothing to design and
+      no logo to find.</span>
+  </div>
+
+  <div class="ap-foot">
+    <button class="btn y sm" type="submit">Add certification</button>
+  </div>
+</form>
+
+{# ── the record ───────────────────────────────────────────────────────── #}
+<div class="sec-head" style="margin-top:28px">
+  <h2>On record</h2>
+  <span class="ny-count">{{ n_published }} published of {{ rows|length }}</span>
+</div>
+
+<div class="cf-list">
+  {% for c in rows %}
+  <div class="cf-row{% if not c.published %} off{% endif %}">
+    {% if c.employee.employee.photo %}
+    <img class="tqr-av" src="{{ c.employee.employee.photo.url }}" alt="">
+    {% else %}<span class="tqr-av tone">{{ c.employee|initials }}</span>{% endif %}
+
+    <div class="cf-b">
+      <b>{{ c.name }}</b>
+      <span>{{ c.employee|person }}{% if c.issuer %} · {{ c.issuer }}{% endif %}
+        · {{ c.obtained_on|date:"F Y" }}</span>
+      <span class="cf-state">
+        {% if c.published %}{% icon "eye" 11 %} Published
+        {% else %}{% icon "eye-off" 11 %} On record only{% endif %}</span>
+    </div>
+
+    {# The card is square, so a 420px-wide thumbnail was a 420px-tall block in #}
+    {# the middle of a list row, with the buttons floating somewhere beside it. #}
+    {# A square crop keeps every row the same height; the full card is a click #}
+    {# away in the lightbox, which is where it can actually be read. #}
+    <a class="cf-thumb" href="{% url 'taqdeer_certification_image' c.pk %}?view=1"
+       data-cert-name="{{ c.name }}" title="Open the full card">
+      <img src="{% url 'taqdeer_certification_image' c.pk %}?view=1"
+           alt="Announcement card for {{ c.name }}" loading="lazy">
+      <span class="cf-thumb-go">{% icon "arrows-out-simple" 13 %}</span>
+    </a>
+
+    <form method="post" action="{% url 'taqdeer_certification_update' c.pk %}" class="cf-acts">
+      {% csrf_token %}
+      <a class="cx-iconbtn" href="{% url 'taqdeer_certification_image' c.pk %}">
+        {% icon "image" 13 %}<span>Image</span></a>
+      <button class="cx-iconbtn" type="submit" name="action" value="toggle">
+        {% if c.published %}{% icon "eye-off" 13 %}<span>Hide</span>
+        {% else %}{% icon "eye" 13 %}<span>Publish</span>{% endif %}</button>
+      <button class="cx-iconbtn danger" type="submit" name="action" value="delete"
+              data-confirm="Remove {{ c.name|escapejs }} for {{ c.employee.get_full_name|default:c.employee.username|escapejs }}?">
+        {% icon "trash" 13 %}<span>Remove</span></button>
+    </form>
+  </div>
+  {% empty %}
+  <div class="tq-none">
+    <span class="tq-none-ic">{% icon "certificate" 20 %}</span>
+    <b>Nothing recorded yet</b>
+    <span>Add the first certification above. It appears on AJi Taqdeer, on the
+      homepage and on that person's profile.</span>
+  </div>
+  {% endfor %}
+</div>
+
+{% include 'taqdeer/_cert_lightbox.html' %}
+{% include 'includes/people_picker_js.html' %}
+{% endblock %}

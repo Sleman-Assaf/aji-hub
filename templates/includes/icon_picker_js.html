@@ -1,0 +1,219 @@
+{# templates/includes/icon_picker_js.html — the shared icon picker, site-wide. #}
+{# Included once from base.html so any form on any page can call icPick(input). #}
+{% if user.is_authenticated %}
+<div class="ovl" id="ipOvl" role="dialog" aria-modal="true" aria-label="Choose an icon">
+  <div class="dlg ip-dlg">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-4)">
+      <b style="font-size:15px">Choose an icon</b>
+      <button type="button" class="btn ghost sm" onclick="ipClose()">Close</button>
+    </div>
+    <div id="ipBody"><div class="skel" style="height:200px"></div></div>
+  </div>
+</div>
+
+<script>
+/* One picker for every icon field on the Hub. Attach it by giving an input a
+   data-icon-field attribute, or call ipOpen(input) directly. The input keeps the
+   icon *name*, so nothing downstream needs to know about the picker. */
+const IP = {input: null, loaded: false, cat: '', q: '', seq: 0, timer: null};
+
+async function ipOpen(input){
+  IP.input = input;
+  /* Both the overlay and the dialog inside it are shown by the `on` class --
+     the convention every other dialog on the Hub uses. This added `show`, which
+     matches no rule in the stylesheet, and never gave the dialog a class at all,
+     so the icon picker was fully wired and permanently invisible. The media
+     picker had exactly the same defect. */
+  ipToggle(true);
+  if(!IP.loaded){
+    try {
+      const r = await fetch(ipUrl());
+      const d = await r.json();
+      document.getElementById('ipBody').innerHTML = d.html;
+      ipBind();
+      IP.loaded = true;
+    } catch(e){
+      document.getElementById('ipBody').innerHTML =
+        '<p class="muted" style="font-size:12.5px">The icon library could not be loaded.</p>';
+      return;
+    }
+  }
+  ipMark(IP.input ? IP.input.value : '');
+  document.getElementById('ipSearch')?.focus();
+}
+
+function ipClose(){ ipToggle(false); }
+
+function ipToggle(open){
+  const ovl = document.getElementById('ipOvl');
+  ovl.classList.toggle('on', open);
+  ovl.querySelector('.dlg')?.classList.toggle('on', open);
+}
+
+function ipIsOpen(){
+  return document.getElementById('ipOvl').classList.contains('on');
+}
+
+function ipMark(name){
+  document.querySelectorAll('#ipGrid .ip-cell').forEach(c =>
+    c.classList.toggle('on', c.dataset.name === name));
+}
+
+/* Searching and browsing both happen on the server. A client-side substring
+   filter over every cell was fine at 76 icons; at 1,512 it would mean inlining
+   the whole set -- about 800 KB of path data -- into the page on every open. */
+function ipUrl(grid){
+  const p = new URLSearchParams();
+  if(IP.q) p.set('q', IP.q);
+  if(IP.cat) p.set('cat', IP.cat);
+  if(grid) p.set('grid', '1');
+  if(IP.input && IP.input.value) p.set('current', IP.input.value);
+  return '/p/icons/pick/?' + p.toString();
+}
+
+async function ipLoad(){
+  const box = document.getElementById('ipResults');
+  if(!box) return;
+  /* Requests can come back out of order when someone types quickly, so a stale
+     reply is dropped rather than overwriting a newer one. */
+  const mine = ++IP.seq;
+  box.setAttribute('aria-busy', 'true');
+  try {
+    const r = await fetch(ipUrl(true));
+    const d = await r.json();
+    if(mine !== IP.seq) return;
+    box.innerHTML = d.html;
+  } catch(e){
+    if(mine === IP.seq) box.innerHTML =
+      '<p class="ip-none">Those icons could not be loaded. Try again.</p>';
+  } finally {
+    if(mine === IP.seq) box.removeAttribute('aria-busy');
+  }
+}
+
+/* Typing waits for a pause rather than firing a request per keystroke. */
+function ipFilter(q){
+  IP.q = (q || '').trim();
+  /* A search looks across the whole set: staying inside one category while
+     typing hides the icon being searched for. */
+  if(IP.q) IP.cat = '';
+  ipMarkCat();
+  clearTimeout(IP.timer);
+  IP.timer = setTimeout(ipLoad, 180);
+}
+
+function ipCat(key){
+  IP.cat = key;
+  IP.q = '';
+  const box = document.getElementById('ipSearch');
+  if(box) box.value = '';
+  ipMarkCat();
+  ipLoad();
+}
+
+function ipMarkCat(){
+  document.querySelectorAll('#ipRail .ip-cat').forEach(b =>
+    b.classList.toggle('on', b.dataset.cat === IP.cat));
+}
+
+/* The picker body is replaced wholesale, so its controls are bound after each
+   render rather than inline in the markup. */
+function ipBind(){
+  const box = document.getElementById('ipSearch');
+  if(box && !box.dataset.bound){
+    box.dataset.bound = '1';
+    box.addEventListener('input', () => ipFilter(box.value));
+    box.addEventListener('keydown', e => {
+      if(e.key === 'Enter'){
+        e.preventDefault();
+        document.querySelector('#ipGrid .ip-cell')?.click();
+      }
+    });
+  }
+  const rail = document.getElementById('ipRail');
+  if(rail && !rail.dataset.bound){
+    rail.dataset.bound = '1';
+    rail.addEventListener('click', e => {
+      const b = e.target.closest('.ip-cat');
+      if(b) ipCat(b.dataset.cat);
+    });
+  }
+}
+
+function ipPick(name, cell){
+  if(IP.input){
+    IP.input.value = name;
+    IP.input.dispatchEvent(new Event('change', {bubbles: true}));
+    ipPreview(IP.input, cell);
+  }
+  ipMark(name);
+  ipClose();
+}
+
+function ipClear(){ ipPick(''); }
+
+/* Show the chosen icon beside its field, so a name in a text box is not the only
+   feedback an editor gets.
+
+   The drawing is taken from the picker's own cell when there is one, and only
+   falls back to svgIcon(). That is not a micro-optimisation — svgIcon reads
+   window.AJI_ICONS, which deliberately carries a subset: the built-ins, the
+   common shortlist, and the names already in use (see icon_models.icon_map,
+   and names_in_use for why not all 1,512). A freshly chosen icon is by
+   definition not in use yet, so for anything outside the shortlist svgIcon
+   returned nothing and the swatch stayed on its empty "+" state — you picked an
+   icon and the field looked untouched. The cell beside your cursor was drawn by
+   the server a moment earlier and always has it.
+
+   Saving is unaffected either way: the field holds the name, the server draws
+   from the database, and watch_icon_fields() rebuilds the browser's copy on
+   save so the JavaScript-drawn parts of the page catch up. */
+function ipPreview(input, cell){
+  let html = '';
+  if(input.value){
+    const source = cell || document.querySelector(
+      '#ipGrid .ip-cell[data-name="' + (window.CSS && CSS.escape
+        ? CSS.escape(input.value) : input.value) + '"]');
+    const drawn = source && source.querySelector('svg, img');
+    if(drawn){
+      /* The grid draws at 22 and the swatch wants 20. */
+      const shown = drawn.cloneNode(true);
+      shown.setAttribute('width', 20);
+      shown.setAttribute('height', 20);
+      html = shown.outerHTML;
+    }else if(window.svgIcon){
+      html = svgIcon(input.value, 20);
+    }
+  }
+  pickShow(input, html);
+}
+
+/* Any input marked data-icon-field becomes a picker trigger, including ones
+   inserted later by the page builder's settings drawer. */
+function ipWire(root){
+  (root || document).querySelectorAll('input[data-icon-field]').forEach(inp => {
+    if(inp.dataset.ipWired) return;
+    inp.dataset.ipWired = '1';
+    inp.readOnly = true;
+    inp.style.cursor = 'pointer';
+    inp.addEventListener('click', () => ipOpen(inp));
+    inp.addEventListener('focus', () => ipOpen(inp));
+    const row = pickField(inp, 'icon');
+    /* data-icon-only: the swatch is the whole control and the name is not shown.
+       "presentation-chart" written beside a picture of a presentation chart adds
+       nothing the picture has not, and took a third of the row to do it. */
+    if (row && inp.hasAttribute('data-icon-only')) row.classList.add('pick-only');
+    ipPreview(inp);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => ipWire(document));
+document.getElementById('ipOvl').addEventListener('click', e => {
+  if(e.target.id === 'ipOvl') ipClose();
+});
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && ipIsOpen()) ipClose();
+});
+window.ipWire = ipWire;
+</script>
+{% endif %}

@@ -1,0 +1,23 @@
+{# templates/voice/suggestion_admin.html #}
+{% extends 'base.html' %}
+{% block title %}Suggestion Box — HR View{% endblock %}
+{% block content %}
+<a href="/people-culture/?tab=voice" class="ctx-back" title="People &amp; Culture"><span class="ctx-back-lab">People & Culture</span></a>
+<div class="page-head"><div class="eyebrow">HR View</div><h1>Suggestion Box — HR View</h1><p>All submitted ideas — anonymous, no employee identity shown.</p></div>
+<div class="muted" style="font-size:12px;margin-bottom:14px;display:flex;align-items:center;gap:6px">🔒 HR / admin view — {{ suggestions.count }} submission{{ suggestions.count|pluralize }}, all anonymous.</div>
+<div class="grid" style="max-width:760px;gap:12px">
+  {% for s in suggestions %}
+  <div class="card">
+    <div style="display:flex;gap:12px">
+      <div style="width:34px;height:34px;border-radius:50%;background:var(--paper-3);display:flex;align-items:center;justify-content:center;flex:none">✨</div>
+      <div style="flex:1">
+        <p style="margin:0;font-size:14px;line-height:1.55">{{ s.text }}</p>
+        <div class="muted" style="font-size:11px;margin-top:8px">Anonymous · {{ s.submitted_at|date:"j M Y" }}</div>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="card" style="text-align:center;color:var(--muted);padding:40px">No suggestions submitted yet.</div>
+  {% endfor %}
+</div>
+{% endblock %}

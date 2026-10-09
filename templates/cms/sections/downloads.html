@@ -1,0 +1,23 @@
+{% load cms_tags %}
+{% include 'cms/_section_head.html' %}
+<div class="card" style="max-width:900px">
+  {% for item in section.visible_items %}
+  <div style="display:flex;align-items:center;gap:13px;padding:12px 0;{% if not forloop.last %}border-bottom:1px solid var(--line){% endif %}">
+    <span style="flex:none;color:var(--muted)">{% cms_icon item.icon|default:"file-text" 18 %}</span>
+    <span style="flex:1;min-width:0">
+      <span style="display:block;font-weight:700;font-size:13.5px">{{ item.title }}</span>
+      {% if item.text %}<span class="muted" style="display:block;font-size:12px;margin-top:2px">{{ item.text }}</span>{% endif %}
+    </span>
+    {% if item.badge %}<span class="pill mut">{{ item.badge }}</span>{% endif %}
+    {% if item.meta %}<span class="muted" style="font-size:11.5px;white-space:nowrap">{{ item.meta }}</span>
+    {% elif item.file %}<span class="muted" style="font-size:11.5px;white-space:nowrap">{{ item.filesize }}</span>{% endif %}
+    {% if item.href %}
+    <a href="{{ item.href }}" class="btn ghost sm" style="flex:none" {% if item.file %}download{% endif %}>
+      {{ item.button_label|default:"Download" }}
+    </a>
+    {% endif %}
+  </div>
+  {% empty %}
+  <div class="muted" style="font-size:13px;padding:6px 0">No documents yet.</div>
+  {% endfor %}
+</div>

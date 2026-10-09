@@ -1,0 +1,222 @@
+{# templates/content/news_form.html — HR create/edit for AJi News #}
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{% if article %}Edit article{% else %}New article{% endif %} — AJi News{% endblock %}
+
+{% block extra_head %}
+<style>
+.nf-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;align-items:start}
+.nf-grid>*{min-width:0}
+.nf-fld{margin-bottom:17px}
+.nf-fld>label{display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.09em;color:var(--muted);margin-bottom:5px}
+.nf-in{width:100%;border:1px solid var(--line-2);padding:10px 12px;font-family:inherit;
+  font-size:14px;outline:none;background:var(--paper-2);transition:border-color .13s}
+.nf-in:focus{border-color:var(--ink)}
+.nf-in.bad{border-color:var(--bad);background:var(--bad-bg)}
+.nf-err{font-size:12px;color:var(--bad);font-weight:600;margin-top:5px}
+.nf-hint{font-size:12px;color:var(--muted);margin-top:5px}
+.nf-title-in{font-size:20px;font-weight:700;letter-spacing:-.02em;padding:12px}
+.nf-body-in{min-height:340px;line-height:1.65;resize:vertical}
+.nf-row{display:flex;gap:13px;flex-wrap:wrap}
+.nf-row>*{flex:1;min-width:150px}
+.nf-side{background:var(--paper-2);border:1px solid var(--line);padding:18px}
+.nf-side-h{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;
+  color:var(--muted);margin:0 0 13px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+
+/* Cover: previewed at the exact ratio it is stored and displayed at, so what
+   you frame here is what readers see. */
+.nf-cover{position:relative;width:100%;aspect-ratio:16/9;background:var(--paper-3);
+  border:1px solid var(--line);overflow:hidden;display:flex;align-items:center;
+  justify-content:center}
+.nf-cover img{width:100%;height:100%;object-fit:cover;display:block}
+.nf-cover-empty{font-size:12px;color:var(--muted);text-align:center;padding:14px}
+.nf-cover-acts{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+.nf-slug{font-family:var(--mono,monospace);font-size:12.5px}
+.nf-count{font-size:11.5px;color:var(--muted);margin-top:5px;text-align:right}
+
+@media(max-width:900px){.nf-grid{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="{% if article %}{% url 'news_detail' article.slug %}{% else %}{% url 'news_list' %}{% endif %}" class="ctx-back" title="{% if article %}Back to article{% else %}AJi News{% endif %}"><span class="ctx-back-lab">{% if article %}Back to article{% else %}AJi News{% endif %}</span></a>
+
+<div class="page-head rise">
+  <div class="eyebrow">Company</div>
+  <h1>{% if article %}Edit article{% else %}New article{% endif %}</h1>
+  <p>Published articles appear in the <span class="kc">AJi</span> News feed for everyone. Save as a draft to finish later.</p>
+</div>
+
+<form {% if article %}data-save{% endif %} method="post"
+      enctype="multipart/form-data" class="rise" id="nfForm">
+  {% csrf_token %}
+  <input type="hidden" name="cover_cropped" id="coverCropped">
+  <input type="hidden" name="cover_filename" id="coverFilename">
+  <input type="hidden" name="remove_image" id="removeImage">
+
+  <div class="nf-grid">
+    {# ── main column ── #}
+    <div>
+      <div class="nf-fld">
+        <label for="f-title">Headline</label>
+        <input id="f-title" type="text" name="title" maxlength="300"
+               class="nf-in nf-title-in{% if errors.title %} bad{% endif %}"
+               placeholder="What happened?"
+               value="{{ form.title }}">
+        {% if errors.title %}<div class="nf-err">{{ errors.title }}</div>{% endif %}
+      </div>
+
+      <div class="nf-fld">
+        <label for="f-excerpt">Summary</label>
+        <input id="f-excerpt" type="text" name="excerpt" maxlength="400"
+               class="nf-in" value="{{ form.excerpt }}"
+               placeholder="One line shown on the news feed">
+        <div class="nf-hint">Optional — the opening of the body is used if you leave this empty.</div>
+      </div>
+
+      <div class="nf-fld">
+        <label for="f-body">Body</label>
+        <textarea id="f-body" name="body" oninput="nfCount()"
+                  class="nf-in nf-body-in{% if errors.body %} bad{% endif %}"
+                  placeholder="Write the story. Leave a blank line between paragraphs.">{{ form.body }}</textarea>
+        {% if errors.body %}<div class="nf-err">{{ errors.body }}</div>{% endif %}
+        <div class="nf-count" id="nfCount"></div>
+      </div>
+
+      <div class="nf-fld">
+        <label for="f-att">Attach images or files</label>
+        <input id="f-att" type="file" name="attachments" multiple style="font-size:13px">
+        <div class="nf-hint">Images appear inline in the article; other files become downloads.
+          {% if article %}You can also add these from the article itself.{% endif %}</div>
+      </div>
+    </div>
+
+    {# ── sidebar ── #}
+    <div>
+      <div class="nf-side" style="margin-bottom:16px">
+        <div class="nf-side-h">Cover image</div>
+        <div class="nf-cover" id="coverPreview">
+          {% if article and article.image %}
+            <img src="{{ article.image.url }}" alt="" id="coverImg">
+          {% else %}
+            <div class="nf-cover-empty" id="coverEmpty">
+              No cover yet.<br>Covers are shown at 16:9.
+            </div>
+          {% endif %}
+        </div>
+        <div class="nf-cover-acts">
+          <button type="button" class="cm-btn" onclick="document.getElementById('coverFile').click()">
+            {% if article and article.image %}Replace…{% else %}Choose image…{% endif %}
+          </button>
+          <button type="button" class="cm-btn" id="coverRecrop" style="display:none"
+                  onclick="cmReopen()">Reframe</button>
+          <button type="button" class="cm-btn" id="coverClear"
+                  style="{% if not article or not article.image %}display:none{% endif %}"
+                  onclick="coverRemove()">Remove</button>
+        </div>
+        <input type="file" id="coverFile" name="image" accept="image/*"
+               style="display:none" onchange="cmOpen(this)">
+        <div class="nf-hint">You choose the framing — zoom and drag so the right part of the
+          picture is shown, instead of it being cut off automatically.</div>
+      </div>
+
+      <div class="nf-side">
+        <div class="nf-side-h">Publishing</div>
+
+        <label class="nf-fld" style="display:block">
+          <span style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:5px">Status</span>
+          <span style="display:flex;align-items:center;gap:8px;font-size:13.5px">
+            <input type="checkbox" name="published" id="f-pub"
+                   {% if form.published %}checked{% endif %}>
+            Published — visible to everyone
+          </span>
+          <span style="display:flex;align-items:center;gap:8px;font-size:13.5px;margin-top:9px">
+            <input type="checkbox" name="pinned" id="f-pin"
+                   {% if form.pinned %}checked{% endif %}>
+            Pin to the top of the feed
+          </span>
+        </label>
+
+        <div class="nf-fld">
+          <label for="f-cat">Category</label>
+          <select id="f-cat" name="category" class="nf-in">
+            <option value="">— none —</option>
+            {% for c in categories %}
+            <option value="{{ c.pk }}" {% if form.category == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="nf-fld">
+          <label for="f-date">Date</label>
+          <input id="f-date" type="date" name="date"
+                 class="nf-in{% if errors.date %} bad{% endif %}" value="{{ form.date }}">
+          {% if errors.date %}<div class="nf-err">{{ errors.date }}</div>{% endif %}
+        </div>
+
+        <div class="nf-fld">
+          <label for="f-author">Author</label>
+          <input id="f-author" type="text" name="author_name" maxlength="200"
+                 class="nf-in" value="{{ form.author_name }}">
+        </div>
+
+        <div class="nf-fld" style="margin-bottom:0">
+          <label for="f-slug">Link</label>
+          <input id="f-slug" type="text" name="slug" class="nf-in nf-slug"
+                 value="{{ form.slug }}" placeholder="auto from headline">
+          {% if errors.slug %}<div class="nf-err">{{ errors.slug }}</div>{% endif %}
+          <div class="nf-hint">/news/<span id="slugPreview">{{ form.slug|default:"…" }}</span>/</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="f-foot">
+    <button type="submit" class="btn y">{% if article %}Save changes{% else %}Create article{% endif %}</button>
+    <a href="{% if article %}{% url 'news_detail' article.slug %}{% else %}{% url 'news_list' %}{% endif %}" class="btn ghost">Cancel</a>
+    {% if article %}
+    <a href="{% url 'news_delete' article.slug %}" class="btn ghost" style="margin-left:auto">Delete article</a>
+    {% endif %}
+  </div>
+</form>
+
+{% include 'includes/cover_crop.html' with cover_w=cover_w cover_h=cover_h %}
+
+<script>
+/* News-form helpers. The cover dialog itself lives in the shared include. */
+function nfCount() {
+  var box = document.getElementById('f-body');
+  var out = document.getElementById('nfCount');
+  if (!box || !out) return;
+  var v = box.value.trim();
+  var words = v ? v.split(/\s+/).length : 0;
+  out.textContent = words + (words === 1 ? ' word' : ' words') + ' · ' + v.length + ' characters';
+}
+
+function nfSlugify(s) {
+  return s.toLowerCase().trim()
+          .replace(/[^\w\s-]/g, '').replace(/[\s_]+/g, '-')
+          .replace(/^-+|-+$/g, '').slice(0, 60);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  nfCount();
+  var title = document.getElementById('f-title');
+  var slug = document.getElementById('f-slug');
+  var prev = document.getElementById('slugPreview');
+  if (!title || !slug || !prev) return;
+
+  /* Once the author edits the link by hand, stop syncing it from the title. */
+  var touched = slug.value.trim() !== '';
+  slug.addEventListener('input', function () {
+    touched = true;
+    prev.textContent = nfSlugify(slug.value) || '…';
+  });
+  title.addEventListener('input', function () {
+    if (touched) return;
+    prev.textContent = nfSlugify(title.value) || '…';
+  });
+});
+</script>
+{% endblock %}

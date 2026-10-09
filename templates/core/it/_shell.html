@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+{% load cms_tags %}
+{# The IT portal's chrome: a title, a row of tabs, and whatever the page puts #}
+{# in it_content. Six pages share it, so the tabs cannot drift apart. #}
+
+{% block extra_head %}
+<style>
+.it-wrap{max-width:1180px;margin:0 auto}
+.it-head{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:4px}
+.it-head h1{margin:0;font-size:29px;letter-spacing:-.022em}
+.it-head .eyebrow{margin-bottom:4px}
+.it-head-note{font-size:13px;color:var(--muted);margin:6px 0 0;max-width:74ch}
+
+/* ── tabs ── */
+.it-tabs{display:flex;gap:2px;flex-wrap:wrap;margin:22px 0 24px;
+  border-bottom:1px solid var(--line)}
+.it-tab{display:inline-flex;align-items:center;gap:8px;padding:11px 15px;
+  font-size:13.5px;font-weight:650;color:var(--muted);text-decoration:none;
+  border-bottom:2px solid transparent;margin-bottom:-1px;transition:.13s}
+.it-tab:hover{color:var(--ink);background:var(--paper)}
+.it-tab.on{color:var(--ink);border-bottom-color:var(--yellow)}
+.it-tab em{font-style:normal;font-size:10.5px;font-weight:800;background:var(--yellow);
+  color:var(--on-yellow);border-radius:999px;padding:1px 6px;min-width:17px;text-align:center}
+
+/* ── panels and lists ── */
+.it-card{background:var(--paper-2);border:1px solid var(--line);border-radius:14px;
+  margin-bottom:16px;overflow:hidden}
+/* A card holding a people picker cannot clip its children. The results list
+   hangs below the search box, which sits in the bar at the foot of the card,
+   so `overflow:hidden` cut all but the first result off — the search worked,
+   you just could not reach what it found. The corners the clip used to round
+   are put back on the pieces that show them. */
+.it-card:has(.pk){overflow:visible}
+.it-card:has(.pk) > :first-child{border-radius:14px 14px 0 0}
+.it-card:has(.pk) > :last-child{border-radius:0 0 14px 14px}
+.it-card-h{display:flex;align-items:center;gap:11px;padding:14px 18px;
+  border-bottom:1px solid var(--line);font-size:14px;font-weight:700}
+.it-card-h .sp{flex:1}
+.it-card-b{padding:18px}
+.it-card-b.flush{padding:0}
+.it-none{padding:34px 18px;text-align:center;color:var(--muted);font-size:13px}
+
+.it-stats{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));
+  margin-bottom:20px}
+.it-stat{background:var(--paper-2);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.it-stat b{display:block;font-size:27px;letter-spacing:-.03em;line-height:1.1;
+  font-variant-numeric:tabular-nums}
+.it-stat span{display:block;font-size:11.5px;color:var(--muted);margin-top:4px;
+  text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.it-stat.warn b{color:var(--bad)}
+
+.it-row{display:flex;align-items:center;gap:13px;padding:12px 18px;
+  border-bottom:1px solid var(--line);text-decoration:none;color:inherit}
+.it-row:last-child{border-bottom:none}
+a.it-row:hover{background:var(--paper)}
+.it-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.it-row-main b{font-size:13.5px;font-weight:650}
+.it-row-main span{font-size:11.5px;color:var(--muted)}
+.it-av{width:32px;height:32px;border-radius:50%;flex:none;object-fit:cover;
+  background:var(--paper-3);color:var(--ink);display:inline-flex;align-items:center;
+  justify-content:center;font-size:11px;font-weight:700;
+  box-shadow:inset 0 0 0 1px rgba(18,18,16,.08)}
+
+.it-chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:800;
+  letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px;
+  background:var(--paper-3);color:var(--ink-2);white-space:nowrap}
+.it-chip.y{background:var(--yellow);color:var(--on-yellow)}
+.it-chip.ok{background:var(--ok-bg);color:var(--ok)}
+.it-chip.bad{background:var(--bad-bg);color:var(--bad)}
+.it-chip.warnc{background:var(--warn-bg);color:var(--warn)}
+
+.it-in{width:100%;box-sizing:border-box;border:1px solid var(--line-2);border-radius:9px;
+  padding:9px 12px;font-family:inherit;font-size:13.5px;background:var(--paper-2);outline:none;
+  transition:border-color .14s,box-shadow .14s}
+.it-in:focus{border-color:var(--ink);box-shadow:0 0 0 3px rgba(18,18,16,.07)}
+.it-lab{display:block;font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--muted);margin-bottom:6px}
+.it-bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:14px 18px;
+  background:var(--paper);border-top:1px solid var(--line)}
+/* ── pager ──
+   Named rather than numbered at the ends: on a log, "newer" and "older" are
+   what somebody is actually asking for, and which direction page 3 lies in is
+   a thing they should not have to work out. */
+.it-pager{justify-content:space-between}
+.it-pg-nums{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.it-pg{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;min-width:30px;
+  justify-content:center;font-size:12.5px;font-weight:650;color:var(--ink-2);
+  text-decoration:none;border:1px solid var(--line);border-radius:8px;
+  background:var(--paper-2);transition:.13s}
+.it-pg:hover{border-color:var(--ink);color:var(--ink)}
+.it-pg.on{background:var(--ink);border-color:var(--ink);color:var(--paper-2)}
+.it-pg.off{opacity:.4;pointer-events:none}
+.it-pg-gap{padding:0 3px;color:var(--muted);font-size:12.5px}
+@media(max-width:640px){.it-pg-nums{order:3;width:100%;justify-content:center}}
+
+.it-filters{display:flex;gap:9px;flex-wrap:wrap;align-items:center;padding:14px 18px;
+  border-bottom:1px solid var(--line);background:var(--paper)}
+.it-filters .it-in{width:auto;flex:1;min-width:180px}
+.it-grid2{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+@media(max-width:640px){.it-filters{flex-direction:column;align-items:stretch}}
+
+.it-finding{display:flex;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.it-finding:last-child{border-bottom:none}
+.it-finding-ic{flex:none;width:26px;height:26px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-size:13px;font-weight:800}
+.it-finding.bad .it-finding-ic{background:var(--bad-bg);color:var(--bad)}
+.it-finding.warn .it-finding-ic{background:var(--warn-bg);color:var(--warn)}
+.it-finding.info .it-finding-ic{background:var(--paper-3);color:var(--ink-2)}
+.it-finding b{display:block;font-size:13.5px;margin-bottom:2px}
+.it-finding p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.6}
+
+/* ── one account, as a row of columns ──
+   Was a flex row with the roles as siblings of the name, so somebody holding
+   ten of them lost their name to a 40px column and had their username pushed
+   underneath the chips. Columns now, so a person with no roles and a person
+   with ten line up. */
+/* Every track is a fixed size or a fraction — nothing is `auto`. Each row is
+   its own grid, so an auto column sized to its own content: a row with a
+   "Disabled" chip came out wider than one without, and the columns stopped
+   lining up down the page. */
+.it-urow{display:grid;align-items:center;gap:14px;padding:11px 18px;
+  grid-template-columns:32px minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,1.6fr) 104px;
+  border-bottom:1px solid var(--line);text-decoration:none;color:inherit}
+.it-urow:last-child{border-bottom:none}
+.it-urow:hover{background:var(--paper)}
+.it-uwho{min-width:0;display:flex;flex-direction:column;gap:1px}
+.it-uwho b{font-size:13.5px;font-weight:650;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.it-uwho .it-mono{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it-umail{min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+/* One line of chips. A tenth role widens the "+n" rather than the row. */
+.it-uroles{min-width:0;display:flex;gap:5px;flex-wrap:nowrap;overflow:hidden}
+.it-uroles .it-chip{flex:none;max-width:118px;overflow:hidden;text-overflow:ellipsis;
+  display:inline-block;line-height:1.5}
+.it-udash{font-size:11.5px;color:var(--muted)}
+.it-ustate{display:flex;gap:5px;justify-content:flex-end}
+@media(max-width:1000px){
+  .it-urow{grid-template-columns:32px minmax(0,1fr) minmax(0,1.4fr) 104px}
+  .it-umail{display:none}
+}
+@media(max-width:660px){
+  .it-urow{grid-template-columns:32px minmax(0,1fr) 92px}
+  .it-uroles{display:none}
+}
+
+/* The baseline everybody has, as a plain list of what is included. */
+.it-std{display:grid;gap:10px 20px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.it-std-item{display:flex;gap:9px;align-items:flex-start}
+.it-std-tick{flex:none;width:18px;height:18px;border-radius:50%;background:var(--ok-bg);
+  color:var(--ok);display:flex;align-items:center;justify-content:center;margin-top:1px}
+.it-std-item b{display:block;font-size:13px;font-weight:650}
+.it-std-item i{display:block;font-style:normal;font-size:11.5px;color:var(--muted);
+  line-height:1.5;margin-top:1px}
+
+.it-caps{margin:0;padding-left:18px}
+.it-caps li{font-size:12.5px;color:var(--ink-2);line-height:1.6;margin-bottom:3px}
+.it-mono{font-family:var(--mono,monospace);font-size:12px;color:var(--muted)}
+table.it-table{width:100%;border-collapse:collapse}
+.it-table th{background:var(--paper);font-size:10.5px;letter-spacing:.06em;
+  padding:9px 14px;border-bottom:1px solid var(--line);color:var(--ink-2)}
+.it-table td{padding:10px 14px;border-bottom:1px solid var(--line);font-size:13px;
+  vertical-align:middle}
+.it-table tr:last-child td{border-bottom:none}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="it-wrap">
+  {# The back button belongs above the portal's own header, not buried under #}
+  {# it. Left inside it_content it rendered below the title and the tab row — #}
+  {# 325px down the page, where every other page in the Hub puts it at 100. #}
+  {% block it_back %}{% endblock %}
+  <div class="it-head">
+    <div>
+      <div class="eyebrow">Administration</div>
+      <h1>IT Portal</h1>
+    </div>
+  </div>
+  <p class="it-head-note">{% block it_note %}Roles, accounts, backups and the audit trail.{% endblock %}</p>
+
+  <nav class="it-tabs">
+    <a class="it-tab{% if tab == 'overview' %} on{% endif %}" href="{% url 'it_home' %}">{% icon "grid" 15 %} Overview</a>
+    <a class="it-tab{% if tab == 'roles' %} on{% endif %}" href="{% url 'it_roles' %}">{% icon "shield" 15 %} Roles &amp; access</a>
+    <a class="it-tab{% if tab == 'users' %} on{% endif %}" href="{% url 'it_users' %}">{% icon "users-group" 15 %} Accounts</a>
+    <a class="it-tab{% if tab == 'directory' %} on{% endif %}" href="{% url 'it_directory' %}">{% icon "identification-badge" 15 %} Directory</a>
+    <a class="it-tab{% if tab == 'backups' %} on{% endif %}" href="{% url 'it_backups' %}">{% icon "download-tray" 15 %} Backups</a>
+    <a class="it-tab{% if tab == 'calls' %} on{% endif %}" href="{% url 'it_calls' %}">{% icon "phone" 15 %} Calls</a>
+    <a class="it-tab{% if tab == 'emails' %} on{% endif %}" href="{% url 'it_emails' %}">{% icon "mail" 15 %} Emails</a>
+    <a class="it-tab{% if tab == 'logs' %} on{% endif %}" href="{% url 'it_logs' %}">{% icon "clipboard-text" 15 %} Audit log</a>
+    <a class="it-tab{% if tab == 'security' %} on{% endif %}" href="{% url 'it_security' %}">{% icon "lock" 15 %} Security</a>
+    <a class="it-tab{% if tab == 'integrations' %} on{% endif %}" href="{% url 'it_integrations' %}">{% icon "settings" 15 %} Integrations</a>
+  </nav>
+
+  {% block it_content %}{% endblock %}
+</div>
+
+{# Every destructive form in this portal carries data-confirm, and until now #}
+{# nothing read it: the handler lives in the Exchange bundle, which these #}
+{# pages do not load. So "Delete backup" deleted the file on one click, with #}
+{# the confirmation it was written to have silently absent. #}
+{# Restoring is guarded by its own page rather than this, because a dialog is #}
+{# one stray Enter away from happening by accident. #}
+<script>
+/* The confirmation dialog is in base.html now, for every page. */
+});
+</script>
+{% endblock %}

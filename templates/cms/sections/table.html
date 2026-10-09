@@ -1,0 +1,27 @@
+{% include 'cms/_section_head.html' %}
+{# Each item is a row: title | meta | text | badge. Header labels come from #}
+{# the section config, so a table never needs a bespoke template. #}
+<div class="card" style="max-width:960px;overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr>
+        <th style="text-align:left;padding:9px 10px;border-bottom:1px solid var(--line-2)">{{ section.config.h1|default:"Name" }}</th>
+        <th style="text-align:left;padding:9px 10px;border-bottom:1px solid var(--line-2)">{{ section.config.h2|default:"Detail" }}</th>
+        <th style="text-align:left;padding:9px 10px;border-bottom:1px solid var(--line-2)">{{ section.config.h3|default:"Notes" }}</th>
+        <th style="text-align:left;padding:9px 10px;border-bottom:1px solid var(--line-2)">{{ section.config.h4|default:"Status" }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in section.visible_items %}
+      <tr>
+        <td style="padding:9px 10px;border-bottom:1px solid var(--line);font-weight:600">{{ item.title }}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid var(--line)">{{ item.meta }}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid var(--line);color:var(--muted)">{{ item.text }}</td>
+        <td style="padding:9px 10px;border-bottom:1px solid var(--line)">{% if item.badge %}<span class="pill mut">{{ item.badge }}</span>{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="muted" style="padding:12px 10px">No rows yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

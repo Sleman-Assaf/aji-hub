@@ -1,0 +1,187 @@
+{# templates/taqdeer/_post.html — one recognition, in the dialog. #}
+{# Fetched, not a page: the reader is mid-feed and should come back to it. #}
+{% load cms_tags hub_extras %}
+{# A certification is a picture with a conversation beside it; a praise is a #}
+{# few lines with a conversation under it. Same markup, two arrangements — the #}
+{# split is a class rather than a second template. #}
+<div class="po{% if kind == 'certification' %} po-split{% endif %}">
+  <div class="po-h">
+    {% if kind == 'certification' %}
+    <span class="po-k">{% icon "certificate" 13 %} Certification</span>
+    {% else %}
+    <span class="po-k">{% icon "hands-clapping" 13 %} Kudos</span>
+    {% endif %}
+    <button type="button" class="tk-x" data-close aria-label="Close">{% icon "x" 15 %}</button>
+  </div>
+
+  <div class="po-cols">
+    <div class="po-b">
+    {% if kind == 'certification' %}
+    {# The card in full — the whole point of opening this. #}
+    <img class="po-img" src="{% url 'taqdeer_certification_image' cert.pk %}?view=1"
+         alt="{{ cert.employee.get_full_name|default:cert.employee.username }} obtained {{ cert.name }}">
+    <div class="po-who">
+      {% if cert.employee.employee.photo %}
+      <img class="tk-praise-av" src="{{ cert.employee.employee.photo.url }}" alt="">
+      {% else %}<span class="tk-praise-av tone">{{ cert.employee|initials }}</span>{% endif %}
+      <div>
+        <b>{{ cert.employee|person }}</b>
+        <span>{{ cert.name }}{% if cert.issuer %} · {{ cert.issuer }}{% endif %}
+          · {{ cert.obtained_on|date:"F Y" }}</span>
+      </div>
+      <a class="cx-iconbtn" href="{% url 'taqdeer_certification_image' cert.pk %}">
+        {% icon "image" 13 %}<span>Save</span></a>
+    </div>
+    {% else %}
+    <div class="po-who">
+      {% if praise.recipient.employee.photo %}
+      <img class="tk-praise-av" src="{{ praise.recipient.employee.photo.url }}" alt="">
+      {% else %}<span class="tk-praise-av tone">{{ praise.recipient|initials }}</span>{% endif %}
+      <div>
+        <b>{{ praise.recipient|person }}</b>
+        <span>recognised by {{ praise.giver|person }}
+          · {{ praise.created_at|date:"j M Y" }}{% if praise.edited_at %} · edited{% endif %}</span>
+      </div>
+      {# The chip up here said the category, so a Kudos was labelled #}
+      {# "TEAMWORK" where a certification is labelled "Certification" — the #}
+      {# kind of thing it is, replaced by the drawer it was filed in. The #}
+      {# category is a footnote and sits at the foot, as on the card. #}
+      <span class="tk-tag">Kudos</span>
+    </div>
+    <div class="po-view">
+      <h3 class="po-sub">{{ praise.subject }}</h3>
+      <p class="po-msg">{{ praise.message|linebreaksbr }}</p>
+      {% if praise.category or praise.project %}
+      <span class="tk-foot">
+        {% if praise.category %}<span class="tk-proj">{% icon "tag" 12 %} {{ praise.category }}</span>{% endif %}
+        {% if praise.project %}<span class="tk-proj">{% icon "folder" 12 %} {{ praise.project }}</span>{% endif %}
+      </span>
+      {% endif %}
+    </div>
+
+    {# The giver's own controls. Edit is theirs alone; withdrawing is theirs #}
+    {# or HR's. Both sit under the words rather than in the header, where they #}
+    {# would be the first thing a reader saw about someone else's thank-you. #}
+    {% if can_edit_praise or can_withdraw_praise %}
+    <div class="cmt-tools po-own">
+      {% if can_edit_praise %}
+      <button type="button" class="cmt-tool" data-praise-edit>{% icon "pencil" 11 %} Edit</button>
+      {% endif %}
+      {% if can_withdraw_praise %}
+      {# Not a data-po-form: withdrawing removes the Kudos from the feed, so #}
+      {# the dialog has nothing left to show and the page behind it is stale. #}
+      {# A plain post and a redirect is the honest answer. #}
+      <form method="post" action="{% url 'taqdeer_praise_hide' praise.pk %}"
+            data-confirm="Withdraw this Kudos? It stops showing on the wall, and the comments and likes go with it."
+            data-confirm-kind="danger" data-confirm-ok="Withdraw">
+        {% csrf_token %}
+        <button type="submit" class="cmt-tool danger">
+          {% icon "trash" 11 %} {% if can_edit_praise %}Withdraw{% else %}Hide{% endif %}</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if can_edit_praise %}
+    <form method="post" action="{% url 'taqdeer_praise_edit' praise.pk %}"
+          class="po-edit" hidden data-po-form>
+      {% csrf_token %}
+      <div class="tq-field">
+        <label class="tq-lab" for="pe-sub-{{ praise.pk }}">What for?</label>
+        <input class="tq-in" id="pe-sub-{{ praise.pk }}" name="subject"
+               maxlength="140" required value="{{ praise.subject }}">
+      </div>
+      <div class="tq-field">
+        <label class="tq-lab" for="pe-msg-{{ praise.pk }}">Why are you recognising them?</label>
+        <textarea class="tq-in" id="pe-msg-{{ praise.pk }}" name="message"
+                  rows="3" required>{{ praise.message }}</textarea>
+      </div>
+      <div class="tk-give-row">
+        <div class="tq-field">
+          <label class="tq-lab" for="pe-cat-{{ praise.pk }}">Category — optional</label>
+          <select class="tq-in" id="pe-cat-{{ praise.pk }}" name="category">
+            {% include 'taqdeer/_category_options.html' with chosen=praise.category %}
+          </select>
+        </div>
+        <div class="tq-field">
+          <label class="tq-lab" for="pe-proj-{{ praise.pk }}">Project or team — optional</label>
+          <input class="tq-in" id="pe-proj-{{ praise.pk }}" name="project"
+                 maxlength="160" value="{{ praise.project }}">
+        </div>
+      </div>
+      <div class="cmt-edit-f">
+        <button type="button" class="btn ghost sm" data-praise-cancel>Cancel</button>
+        <button type="submit" class="btn y sm">Save changes</button>
+      </div>
+    </form>
+    {% endif %}
+    {% if praise.attachment %}
+    <a class="po-att" href="{{ praise.attachment.url }}" target="_blank" rel="noopener">
+      {% icon "paperclip" 13 %} Attachment</a>{% endif %}
+    {% endif %}
+
+    {# ── likes and the count ── #}
+    <div class="po-acts">
+      <div class="rx one big" data-rx="{% url 'taqdeer_like' kind item.pk %}">
+        <button type="button" class="rx-b{% if item.liked %} on{% endif %}"
+                data-emoji="❤️" title="Like this"
+                aria-pressed="{% if item.liked %}true{% else %}false{% endif %}">
+          <span class="rx-e">
+            <span class="rx-off">{% icon "heart-round" 17 %}</span>
+            <span class="rx-on">{% icon "heart" 17 %}</span>
+          </span><span class="rx-n">{{ item.n_likes }}</span>
+        </button>
+      </div>
+      <span class="po-n">{{ item.n_comments }} comment{{ item.n_comments|pluralize }}</span>
+    </div>
+    </div>
+
+    {# ── the conversation. Its own column beside a certificate, under a #}
+    {# praise. ── #}
+    <div class="po-side">
+    <div class="po-thread">
+    {% for c in comments %}
+    <article class="po-c">
+      {% include 'exchange/_avatar.html' with user=c.author size='sm' %}
+      <div>
+        <div class="po-c-top">
+          <b>{{ c.author.get_full_name|default:c.author.username }}</b>
+          <time>{{ c.created_at|date:"j M, H:i" }}</time>
+        </div>
+        <p>{{ c.text|mentions|linebreaksbr }}
+          {% if c.edited_at %}<span class="cmt-edited">edited</span>{% endif %}</p>
+        {% url 'taqdeer_comment_edit' c.pk as ed %}
+        {% url 'taqdeer_comment_delete' c.pk as dl %}
+        {% include 'includes/_comment_tools.html' with obj=c edit_url=ed delete_url=dl field='text' value=c.text label='comment' dialog=1 %}
+      </div>
+    </article>
+    {% empty %}
+    <div class="po-none">
+      Be the first to say congratulations.
+    </div>
+    {% endfor %}
+  </div>
+
+  <form method="post" action="{% url 'taqdeer_post' kind item.pk %}" class="po-write">
+    {% csrf_token %}
+    {% include 'exchange/_avatar.html' with user=request.user size='sm' %}
+    <span class="po-in">
+      {# data-mentions turns on the shared @autocomplete — see #}
+      {# includes/mentions.html, included by the page that hosts this dialog. #}
+      <input class="tq-in" name="text" required autocomplete="off" data-mentions
+             placeholder="{% if kind == 'certification' %}Congratulate them…{% else %}Add a comment…{% endif %} @ to pull someone in">
+      {# The four celebrations that used to be reaction buttons on the card. #}
+      {# Here they are punctuation rather than a vote: they type into the box, #}
+      {# so "Congrats! 🎉🎉" is one word and two taps. #}
+      <span class="po-emo" role="group" aria-label="Add a celebration">
+        <button type="button" data-emo="🎉" tabindex="-1" aria-label="Add a party popper">🎉</button>
+        <button type="button" data-emo="👏" tabindex="-1" aria-label="Add applause">👏</button>
+        <button type="button" data-emo="🌟" tabindex="-1" aria-label="Add a star">🌟</button>
+        <button type="button" data-emo="❤️" tabindex="-1" aria-label="Add a heart">❤️</button>
+      </span>
+    </span>
+    <button class="btn y sm" type="submit">Post</button>
+  </form>
+    </div>
+  </div>
+</div>

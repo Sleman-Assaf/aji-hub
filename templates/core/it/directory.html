@@ -1,0 +1,82 @@
+{% extends 'core/it/_shell.html' %}
+{% load cms_tags %}
+{% block title %}Directory — IT Portal{% endblock %}
+{% block it_note %}Look people up in Active Directory and bring them into the Hub, or refresh the ones already here.{% endblock %}
+
+{% block it_content %}
+{% if not configured %}
+<div class="it-card">
+  <div class="it-card-h">{% icon "warning" 16 %}<span class="sp">LDAP is not configured</span></div>
+  <div class="it-card-b">
+    <p style="margin:0 0 12px;font-size:13px;color:var(--ink-2);line-height:1.65">
+      The directory needs a server host and a Base DN before it can be searched.
+      Those live with the other credentials in Global Settings.</p>
+    <a class="btn y sm" href="{% url 'it_integrations' %}">Open integrations</a>
+  </div>
+</div>
+{% else %}
+<div class="it-card">
+  <div class="it-card-h">{% icon "identification-badge" 16 %}<span class="sp">Search the directory</span>
+    <span class="it-chip {% if config.enabled %}ok{% else %}warnc{% endif %}">
+      {% if config.enabled %}Sign-in on{% else %}Sign-in off{% endif %}</span></div>
+  <form method="get" class="it-filters">
+    <input type="hidden" name="search" value="1">
+    <input class="it-in" name="q" value="{{ q }}"
+           placeholder="Name, username or email — blank lists everyone">
+    <button class="btn y sm" type="submit">Search directory</button>
+  </form>
+
+  {% if searched %}
+    {% if not ok %}
+    <div class="it-card-b">
+      <p style="margin:0;font-size:13px;color:var(--bad);line-height:1.6">{{ message }}</p>
+    </div>
+    {% else %}
+    <form method="post" action="{% url 'it_directory_import' %}">
+      {% csrf_token %}
+      <div class="it-card-b flush">
+        {% for p in results %}
+        <label class="it-row" style="cursor:pointer">
+          <input type="checkbox" name="usernames" value="{{ p.username }}"
+                 style="accent-color:var(--ink);width:16px;height:16px;flex:none">
+          <span class="it-row-main">
+            <b>{{ p.first }} {{ p.last }}</b>
+            <span class="it-mono">{{ p.username }}{% if p.email %} · {{ p.email }}{% endif %}</span>
+          </span>
+          {% if p.exists %}<span class="it-chip ok">In the Hub</span>
+          {% else %}<span class="it-chip">New</span>{% endif %}
+        </label>
+        {% empty %}
+        <div class="it-none">Nobody in the directory matched that.</div>
+        {% endfor %}
+      </div>
+      {% if results %}
+      <div class="it-bar">
+        <button class="btn y sm" type="submit">Create or refresh selected</button>
+        <span style="font-size:12px;color:var(--muted)">
+          Names and email come from the directory. Roles and everything else in
+          the Hub are left exactly as they are.
+        </span>
+      </div>
+      {% endif %}
+    </form>
+    {% endif %}
+  {% else %}
+  <div class="it-none">Search to see who is in the directory.</div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="it-card">
+  <div class="it-card-h">{% icon "info" 16 %}<span class="sp">How accounts arrive</span></div>
+  <div class="it-card-b">
+    <p style="margin:0 0 10px;font-size:13px;color:var(--ink-2);line-height:1.65">
+      An account created here signs in through the directory rather than with a
+      Hub password. Refreshing an existing one updates the name and email only.</p>
+    <p style="margin:0;font-size:13px;color:var(--muted);line-height:1.65">
+      Nothing here deletes anybody. Somebody who has left the directory keeps
+      their Hub account and their history; disable it from
+      <a href="{% url 'it_users' %}">Accounts</a> when that is what you want.</p>
+  </div>
+</div>
+{% endblock %}

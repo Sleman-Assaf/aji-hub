@@ -1,0 +1,134 @@
+{# templates/exchange/thread_edit.html — the author correcting their own post. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}Edit — {{ thread.title }}{% endblock %}
+
+{% block content %}
+
+<a href="{% url 'thread_detail' community.slug thread.pk %}" class="ctx-back" title="{{ thread.title|truncatechars:50 }}"><span class="ctx-back-lab">{{ thread.title|truncatechars:50 }}</span></a>
+
+<div class="page-head rise" style="margin-bottom:6px">
+  <h1>Edit thread</h1>
+  <p>Posted {{ thread.created_at|date:"j M Y, H:i" }}{% if thread.edited_at %} · last edited {{ thread.edited_at|date:"j M Y, H:i" }}{% endif %}</p>
+</div>
+
+{# Two columns, like the rest of Exchange. Editing a thread is the one screen #}
+{# where knowing what the thread already looks like is worth having on screen. #}
+<div class="cx-layout">
+  <div class="cx-main">
+
+<form data-save method="post" enctype="multipart/form-data" class="card rise cx-form">
+  {% csrf_token %}
+
+  <div class="cx-field">
+    <label>Type</label>
+    <div class="cx-vis two" id="typeRow">
+      {% for value, label in thread_types %}
+      <label class="cx-vis-opt{% if thread.thread_type == value %} on{% endif %}">
+        <input type="radio" name="thread_type" value="{{ value }}"
+               {% if thread.thread_type == value %}checked{% endif %}>
+        <span class="cx-vis-ic">
+          {% if value == 'question' %}{% icon "question" 17 %}{% else %}{% icon "chat-circle-text" 17 %}{% endif %}
+        </span>
+        <span class="cx-vis-txt"><b>{{ label }}</b></span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="cx-field">
+    <label for="thTitle">Title <span class="req">*</span></label>
+    <input id="thTitle" type="text" name="title" maxlength="300" required value="{{ thread.title }}">
+  </div>
+
+  <div class="cx-field">
+    <label for="thBody">Content <span class="req">*</span></label>
+    <textarea id="thBody" name="body" rows="12" required>{{ thread.body }}</textarea>
+  </div>
+
+  {% if attachments %}
+  <div class="cx-field">
+    <label>Files already on this thread</label>
+    <div class="cx-docs tight">
+      {% for att in attachments %}
+      <label class="cx-doc removable">
+        <input type="checkbox" name="remove_attachment" value="{{ att.pk }}">
+        <span class="cx-doc-ic">
+          {% if att.attach_type == 'image' %}{% icon "image" 16 %}
+          {% elif att.attach_type == 'video' %}{% icon "video" 16 %}
+          {% else %}{% icon "file" 16 %}{% endif %}
+        </span>
+        <span class="cx-doc-txt"><b>{{ att.name }}</b>
+          <span class="cx-doc-meta">{{ att.filesize }}</span></span>
+        <span class="cx-doc-rm">Remove</span>
+      </label>
+      {% endfor %}
+    </div>
+    <div class="cx-hint">Ticked files are removed when you save.</div>
+  </div>
+  {% endif %}
+
+  <div class="cx-field" data-filefield>
+    <label for="thFiles">Add more files</label>
+    <div class="ff">
+      <input type="file" name="attachments" id="thFiles" multiple>
+      <label for="thFiles" class="ff-label">
+        {% icon "paperclip" 15 %}
+        <span><b>Choose files</b> or drag them here — up to {{ max_mb }} MB each</span>
+      </label>
+      <div class="ff-list" data-filelist></div>
+    </div>
+  </div>
+
+  <div class="cx-actions">
+    <button type="submit" class="btn y">Save changes</button>
+    <a href="{% url 'thread_detail' community.slug thread.pk %}" class="btn ghost">Cancel</a>
+  </div>
+</form>
+
+  </div>
+
+  <aside class="cx-side">
+    <div class="cx-side-card cx-about">
+      <a class="cx-about-top" href="{% url 'thread_detail' community.slug thread.pk %}">
+        <span class="cx-about-ic">{% icon "chat-circle-text" 16 %}</span>
+        <span class="cx-about-txt">
+          <b>{{ thread.title }}</b>
+          <i>{{ thread.reply_count }} repl{{ thread.reply_count|pluralize:"y,ies" }} · {{ community.name }}</i>
+        </span>
+      </a>
+      <div class="cx-side-note">
+        Editing does not notify anyone again, and replies already posted stay
+        where they are.
+      </div>
+    </div>
+
+    {% if recent_threads %}
+    <div class="cx-side-card">
+      <div class="cx-side-head">{% icon "chat-circle-text" 15 %}<span>More in this community</span></div>
+      {% for t in recent_threads %}
+      <a class="cx-more-row" href="{% url 'thread_detail' community.slug t.pk %}">
+        <span class="cx-more-title">{{ t.title }}</span>
+        <span class="cx-more-meta">
+          {% if t.thread_type == 'question' %}<span class="cx-more-kind q">Question</span>
+          {% else %}<span class="cx-more-kind">Discussion</span>{% endif %}
+          <span>{{ t.created_at|date:"j M" }}</span>
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </aside>
+</div>
+
+{% include 'exchange/_exchange_js.html' %}
+<script>
+document.querySelectorAll('#typeRow input').forEach(function (r) {
+  r.addEventListener('change', function () {
+    document.querySelectorAll('#typeRow .cx-vis-opt').forEach(function (o) {
+      o.classList.toggle('on', o.querySelector('input').checked);
+    });
+  });
+});
+</script>
+{% endblock %}

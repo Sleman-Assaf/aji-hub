@@ -1,0 +1,39 @@
+{# templates/includes/comment_tools_js.html — the edit toggle. #}
+{# Delegated from the document, so it works for comments that arrive with a #}
+{# fetched dialog as well as ones that were in the page at load. #}
+<script>
+(function () {
+  if (window.__ajiCommentTools) return;
+  window.__ajiCommentTools = true;
+
+  function shell(el) { return el.closest('.cx-msg, .po-c'); }
+
+  document.addEventListener('click', function (e) {
+    var open = e.target.closest('[data-cmt-edit]');
+    if (open) {
+      var box = shell(open);
+      if (!box) return;
+      box.classList.add('cmt-editing');
+      var form = box.querySelector('.cmt-edit');
+      if (!form) return;
+      form.hidden = false;
+      var area = form.querySelector('textarea');
+      if (area) {
+        area.focus();
+        /* Caret at the end rather than the start: an edit is nearly always a
+           correction to what is already there, not a rewrite from the front. */
+        area.setSelectionRange(area.value.length, area.value.length);
+      }
+      return;
+    }
+    var cancel = e.target.closest('[data-cmt-cancel]');
+    if (cancel) {
+      var b = shell(cancel);
+      if (!b) return;
+      b.classList.remove('cmt-editing');
+      var f = b.querySelector('.cmt-edit');
+      if (f) { f.hidden = true; f.reset(); }
+    }
+  });
+})();
+</script>

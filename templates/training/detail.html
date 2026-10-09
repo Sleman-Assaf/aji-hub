@@ -1,0 +1,219 @@
+{# templates/training/detail.html — status, decisions, timeline and actions. #}
+{% extends 'base.html' %}
+{% block title %}{{ req.course_name }} — Training request{% endblock %}
+
+{% block extra_head %}
+<style>
+.td-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;align-items:start}
+.td-grid>*{min-width:0}
+.td-kv{display:grid;grid-template-columns:150px 1fr;gap:9px 14px;font-size:13.5px}
+.td-kv dt{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--muted);padding-top:2px}
+.td-kv dd{margin:0;color:var(--ink-2);line-height:1.6}
+.td-step{display:flex;gap:12px;padding-bottom:16px}
+.td-step:last-child{padding-bottom:0}
+.td-dot{flex:none;display:flex;flex-direction:column;align-items:center}
+.td-dot i{width:11px;height:11px;background:var(--yellow);margin-top:4px;display:block;color:var(--on-yellow)}
+.td-dot span{flex:1;width:1px;background:var(--line);margin-top:5px}
+.td-when{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.td-act{font-weight:700;font-size:13.5px;margin-top:2px}
+.td-note{font-size:13px;color:var(--muted);line-height:1.55;margin-top:3px}
+.td-in{width:100%;border:1px solid var(--line-2);padding:9px 11px;font-family:inherit;
+  font-size:13.5px;outline:none;background:var(--paper-2)}
+.td-flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:10.5px;
+  font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
+.td-flow b{color:var(--ink)}
+.td-flow .on{color:var(--ink)}
+@media(max-width:940px){.td-grid{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="{% url 'training_list' %}" class="ctx-back" title="Training requests"><span class="ctx-back-lab">Training requests</span></a>
+
+<div class="page-head rise" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div>
+    <div class="eyebrow">Training &amp; Development</div>
+    <h1>{{ req.course_name }}</h1>
+    <p>{{ req.employee.get_full_name|default:req.employee.username }}
+       · submitted {{ req.created_at|date:"j F Y" }}</p>
+  </div>
+  <span class="pill {{ req.pill_class }}" style="flex:none">{{ req.get_stage_display }}</span>
+</div>
+
+<div class="td-grid rise">
+  <div>
+    <div class="card">
+      <div class="td-flow">
+        <b class="{% if req.stage == 'pending_manager' %}on{% endif %}">You</b> →
+        <b class="{% if req.stage == 'pending_manager' %}on{% endif %}">Manager</b> →
+        <b class="{% if req.stage == 'pending_hr' %}on{% endif %}">HR</b> →
+        <b class="{% if req.stage == 'completed' %}on{% endif %}">Completed</b>
+      </div>
+
+      <dl class="td-kv">
+        {% if req.provider %}<dt>Provider</dt><dd>{{ req.provider }}</dd>{% endif %}
+        <dt>Business need</dt><dd>{{ req.business_need|linebreaksbr }}</dd>
+        <dt>Justification</dt><dd>{{ req.justification|linebreaksbr }}</dd>
+        {% if req.expected_benefits %}<dt>Expected benefits</dt><dd>{{ req.expected_benefits|linebreaksbr }}</dd>{% endif %}
+        {% if req.comments %}<dt>Comments</dt><dd>{{ req.comments|linebreaksbr }}</dd>{% endif %}
+        {% if req.estimated_cost %}<dt>Estimated cost</dt><dd>{{ req.estimated_cost }} {{ req.currency }}</dd>{% endif %}
+        {% if req.preferred_from or req.preferred_to %}
+        <dt>Preferred dates</dt>
+        <dd>{{ req.preferred_from|date:"j M Y"|default:"—" }} → {{ req.preferred_to|date:"j M Y"|default:"—" }}</dd>
+        {% endif %}
+        {% if req.budget_amount %}<dt>Approved budget</dt><dd>{{ req.budget_amount }} {{ req.currency }}</dd>{% endif %}
+        {% if req.scheduled_on %}<dt>Scheduled</dt><dd>{{ req.scheduled_on|date:"j F Y" }}</dd>{% endif %}
+        {% if req.completed_on %}<dt>Completed</dt><dd>{{ req.completed_on|date:"j F Y" }}</dd>{% endif %}
+      </dl>
+    </div>
+
+    {% if attachments %}
+    <div class="sec-head" style="margin-top:26px"><h2>Attachments</h2></div>
+    <div class="card">
+      {% for a in attachments %}
+      <div style="display:flex;align-items:center;gap:11px;padding:10px 0;{% if not forloop.last %}border-bottom:1px solid var(--line){% endif %}">
+        <span style="flex:1;min-width:0;font-size:13.5px;font-weight:600">{{ a.caption|default:a.filename }}</span>
+        <span class="pill mut">{{ a.get_kind_display }}</span>
+        <a href="{{ a.file.url }}" class="btn ghost sm" download>Download</a>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ── decisions and actions ── #}
+    {% if is_manager %}
+    <div class="sec-head" style="margin-top:26px"><h2>Your decision</h2></div>
+    <div class="card">
+      <p class="muted" style="font-size:13px;margin-bottom:12px">
+        Approving sends this to HR. Returning it lets {{ req.employee.first_name|default:"the employee" }} amend and resubmit.
+      </p>
+      <form data-save="reload" method="post" action="{% url 'training_action' req.pk 'approve' %}">
+        {% csrf_token %}
+        <textarea name="note" rows="2" class="td-in" placeholder="Comment (optional)"></textarea>
+        <div style="display:flex;gap:9px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn y">Approve</button>
+          <button formaction="{% url 'training_action' req.pk 'return' %}" class="btn ghost">Return for changes</button>
+          <button formaction="{% url 'training_action' req.pk 'reject' %}" class="btn ghost"
+                  onclick="return confirm('Reject this request? The employee is notified and the workflow ends.')">Reject</button>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+
+    {% if is_hr %}
+    <div class="sec-head" style="margin-top:26px"><h2>HR decision</h2></div>
+    <div class="card">
+      <form data-save="reload" method="post" action="{% url 'training_action' req.pk 'hr_approve' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:11px">
+          <div style="flex:1;min-width:150px">
+            <label style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:5px">Budget</label>
+            <input name="budget" class="td-in" inputmode="decimal"
+                   value="{{ req.budget_amount|default_if_none:'' }}" placeholder="Optional">
+          </div>
+          <div style="flex:1;min-width:150px">
+            <label style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:5px">Date</label>
+            <input type="date" name="on" class="td-in" value="{{ req.scheduled_on|date:'Y-m-d' }}">
+          </div>
+        </div>
+        <textarea name="note" rows="2" class="td-in" placeholder="HR notes (visible to the employee)">{{ req.hr_notes }}</textarea>
+        <div style="display:flex;gap:9px;margin-top:12px;flex-wrap:wrap">
+          {% if req.stage == 'pending_hr' %}
+          <button class="btn y">Approve</button>
+          <button formaction="{% url 'training_action' req.pk 'hr_info' %}" class="btn ghost">Request more information</button>
+          <button formaction="{% url 'training_action' req.pk 'hr_reject' %}" class="btn ghost"
+                  onclick="return confirm('Reject this request?')">Reject</button>
+          {% endif %}
+          {% if req.stage == 'approved' %}
+          <button formaction="{% url 'training_action' req.pk 'scheduled' %}" class="btn y">Mark scheduled</button>
+          {% endif %}
+          {% if req.stage == 'scheduled' %}
+          <button formaction="{% url 'training_action' req.pk 'completed' %}" class="btn y">Mark completed</button>
+          {% endif %}
+        </div>
+      </form>
+      <form data-save="reload" method="post" action="{% url 'training_action' req.pk 'hr_upload' %}"
+            enctype="multipart/form-data" class="f-foot">
+        {% csrf_token %}
+        <input type="file" name="attachments" multiple style="font-size:13px">
+        <button class="btn ghost sm">Attach HR document</button>
+      </form>
+    </div>
+    {% endif %}
+
+    {% if is_owner and req.employee_can_edit %}
+    <div class="sec-head" style="margin-top:26px"><h2>Update and resubmit</h2></div>
+    <div class="card">
+      <p class="muted" style="font-size:13px;margin-bottom:12px">
+        {% if req.stage == 'returned' %}Your manager asked for changes.{% else %}HR asked for more information.{% endif %}
+        Amend below and send it back.
+      </p>
+      <form data-save="reload" method="post" action="{% url 'training_action' req.pk 'resubmit' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input name="course_name" class="td-in" value="{{ req.course_name }}" required
+               style="margin-bottom:10px" maxlength="250">
+        <input name="provider" class="td-in" value="{{ req.provider }}" placeholder="Provider"
+               style="margin-bottom:10px" maxlength="200">
+        <textarea name="business_need" rows="3" class="td-in" required
+                  style="margin-bottom:10px" placeholder="Business need">{{ req.business_need }}</textarea>
+        <textarea name="justification" rows="3" class="td-in" required
+                  style="margin-bottom:10px" placeholder="Justification">{{ req.justification }}</textarea>
+        <textarea name="expected_benefits" rows="2" class="td-in"
+                  style="margin-bottom:10px" placeholder="Expected benefits">{{ req.expected_benefits }}</textarea>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+          <input name="estimated_cost" class="td-in" style="flex:1;min-width:130px"
+                 value="{{ req.estimated_cost|default_if_none:'' }}" placeholder="Estimated cost">
+          <input name="currency" class="td-in" style="flex:1;min-width:100px" value="{{ req.currency }}">
+          <input type="date" name="preferred_from" class="td-in" style="flex:1;min-width:150px"
+                 value="{{ req.preferred_from|date:'Y-m-d' }}">
+          <input type="date" name="preferred_to" class="td-in" style="flex:1;min-width:150px"
+                 value="{{ req.preferred_to|date:'Y-m-d' }}">
+        </div>
+        <textarea name="comments" rows="2" class="td-in" placeholder="Comments">{{ req.comments }}</textarea>
+        <input type="file" name="attachments" multiple style="font-size:13px;margin-top:10px">
+        <div style="margin-top:12px"><button class="btn y">Resubmit</button></div>
+      </form>
+    </div>
+    {% endif %}
+
+    <div class="sec-head" style="margin-top:26px"><h2>Add a comment</h2></div>
+    <div class="card">
+      <form data-save="reload" method="post" action="{% url 'training_action' req.pk 'comment' %}">
+        {% csrf_token %}
+        <textarea name="note" rows="2" class="td-in" placeholder="Visible to the employee, manager and HR"></textarea>
+        <div style="margin-top:11px"><button class="btn ghost sm">Post comment</button></div>
+      </form>
+    </div>
+  </div>
+
+  {# ── timeline ── #}
+  <aside>
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:14px">History</div>
+      {% for e in events %}
+      <div class="td-step">
+        <div class="td-dot"><i></i>{% if not forloop.last %}<span></span>{% endif %}</div>
+        <div style="min-width:0">
+          <div class="td-when">{{ e.created_at|date:"j M Y · H:i" }}</div>
+          <div class="td-act">{{ e.label }}</div>
+          {% if e.actor %}<div class="td-note">{{ e.actor.get_full_name|default:e.actor.username }}</div>{% endif %}
+          {% if e.note %}<div class="td-note">{{ e.note }}</div>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="eyebrow" style="margin-bottom:12px">Status</div>
+      <dl class="td-kv" style="grid-template-columns:1fr;gap:10px">
+        <div><dt>Waiting on</dt><dd>{{ req.awaiting }}</dd></div>
+        <div><dt>Manager</dt><dd>{{ req.manager.get_full_name|default:"Not on record" }}</dd></div>
+        {% if req.manager_comment %}<div><dt>Manager comment</dt><dd>{{ req.manager_comment }}</dd></div>{% endif %}
+        {% if req.hr_owner %}<div><dt>HR owner</dt><dd>{{ req.hr_owner.get_full_name }}</dd></div>{% endif %}
+        {% if req.hr_notes %}<div><dt>HR notes</dt><dd>{{ req.hr_notes }}</dd></div>{% endif %}
+      </dl>
+    </div>
+  </aside>
+</div>
+{% endblock %}

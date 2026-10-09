@@ -1,0 +1,36 @@
+{# templates/includes/_comment_tools.html — edit and delete your own comment. #}
+{# One partial for all three surfaces: news comments, Exchange replies and the #}
+{# recognition thread. Parameters: #}
+{#   obj         the comment #}
+{#   edit_url    where a save posts #}
+{#   delete_url  where a delete posts #}
+{#   field       the text field's name — 'text' or 'body' #}
+{#   value       its current contents #}
+{#   label       what to call it in the confirmation #}
+{#   dialog      set when the surface is the fetched post dialog, so the forms #}
+{#               are answered with fresh HTML instead of a redirect #}
+{% load cms_tags hub_extras %}
+{% if obj|may_edit:request.user or obj|may_delete:request.user %}
+<div class="cmt-tools">
+  {% if obj|may_edit:request.user %}
+  <button type="button" class="cmt-tool" data-cmt-edit>{% icon "pencil" 11 %} Edit</button>
+  {% endif %}
+  {% if obj|may_delete:request.user %}
+  <form method="post" action="{{ delete_url }}" class="cmt-del"{% if dialog %} data-po-form{% endif %}
+        data-confirm="Delete this {{ label|default:'comment' }}? It cannot be brought back.">
+    {% csrf_token %}
+    <button type="submit" class="cmt-tool danger">{% icon "trash" 11 %} Delete</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+{% if obj|may_edit:request.user %}
+<form method="post" action="{{ edit_url }}" class="cmt-edit" hidden{% if dialog %} data-po-form{% endif %}>
+  {% csrf_token %}
+  <textarea name="{{ field }}" rows="2" data-mentions required>{{ value }}</textarea>
+  <div class="cmt-edit-f">
+    <button type="button" class="btn ghost sm" data-cmt-cancel>Cancel</button>
+    <button type="submit" class="btn y sm">Save changes</button>
+  </div>
+</form>
+{% endif %}

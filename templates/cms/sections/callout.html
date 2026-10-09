@@ -1,0 +1,15 @@
+{# templates/cms/sections/callout.html — a line that needs to stand out. #}
+{# Announcement is a dated notice with its own card; this is a short remark in #}
+{# the flow of a page: a deadline, a caveat, something not to miss. #}
+{% load cms_tags %}
+<aside class="cms-callout tone-{{ section|cfg:"tone"|default:"info" }}">
+  {% if section.icon %}<span class="cms-callout-ic">{% cms_icon section.icon 17 1.7 %}</span>{% endif %}
+  <div class="cms-callout-b">
+    {% if section.title or cms_edit_mode %}
+    <b {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"
+       data-ed-placeholder="Callout heading"{% endif %}>{{ section.title }}</b>
+    {% endif %}
+    <div {% if cms_edit_mode %}data-ed-field="body" data-ed-rich contenteditable="true"
+         data-ed-placeholder="What should the reader know?"{% endif %}>{{ section.body_rendered }}</div>
+  </div>
+</aside>

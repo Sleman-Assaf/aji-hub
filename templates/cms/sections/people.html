@@ -1,0 +1,65 @@
+{# templates/cms/sections/people.html — people cards, "meet the team". #}
+{# Each card is a SectionItem, so people are added, reordered and removed from #}
+{# the editor. Linking a card to a colleague means the name, role, photo and #}
+{# contacts follow the directory instead of being retyped and going stale. #}
+{% load cms_tags %}
+{% include 'cms/_section_head.html' %}
+<div class="team-grid">
+  {% for item in section.visible_items %}
+  {% with p=item.person %}
+  <div class="team-card{% if cms_edit_mode %} ed-item{% endif %}"
+       data-item="{{ item.pk }}" data-owner="{{ section.pk }}"
+       {% if cms_edit_mode %}draggable="true"{% endif %}>
+
+    {% if p.photo %}
+    <img class="team-photo" src="{{ p.photo.url }}" alt="" loading="lazy">
+    {% elif item.image_asset %}
+    <img class="team-photo" src="{{ item.image_asset.file.url }}" alt="" loading="lazy"
+         style="object-position:{{ item.image_asset.focal_css }}">
+    {% else %}
+    {# Spelled out with {% if %} rather than chained |default filters: a filter #}
+    {# argument is resolved strictly, so p.initials raised VariableDoesNotExist #}
+    {# on any card with nobody linked to it. #}
+    <div class="team-photo team-initials">{% if item.badge %}{{ item.badge }}{% elif p %}{{ p.initials }}{% else %}{{ item.title|slice:":2"|upper }}{% endif %}</div>
+    {% endif %}
+
+    {# Also spelled out: when a lookup fails Django drops the whole filter #}
+    {# chain, so p.full_name|default:item.title rendered empty for a card with #}
+    {# nobody linked rather than falling back to the typed name. #}
+    <div class="team-name"
+         {% if cms_edit_mode and not p %}data-ed-item="{{ item.pk }}" data-ed-field="title" contenteditable="true"{% endif %}>{% if p %}{{ p.full_name }}{% else %}{{ item.title }}{% endif %}</div>
+    <div class="team-role"
+         {% if cms_edit_mode and not p %}data-ed-item="{{ item.pk }}" data-ed-field="meta" contenteditable="true"{% endif %}>{% if p and p.role %}{{ p.role }}{% else %}{{ item.meta }}{% endif %}</div>
+
+    <div class="team-actions">
+      {# The directory's email field is often blank, so the account's own #}
+      {# address is the next choice, then anything typed onto the card. #}
+      {# firstof is safe with a null person: it ignores failed lookups. #}
+      {% firstof p.email p.user.email item.url as mail %}
+      {% if mail %}
+      <a class="btn y sm" href="mailto:{{ mail }}">
+        {% cms_icon "mail-open" 14 2 %}
+        Email
+      </a>
+      {% endif %}
+      {# Message, not Teams: it opens the conversation on the Hub itself, so #}
+      {# nobody has to leave to say something. Only shown when the card is #}
+      {# linked to a colleague who has a Hub account, because without one there #}
+      {# is nobody to open a conversation with. #}
+      {% if p.user_id %}
+      <a class="btn ghost sm" href="{% url 'start_conversation' p.user_id %}">
+        {% cms_icon "chat" 14 2 %}
+        Message
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endwith %}
+  {% empty %}
+  {% if cms_edit_mode %}
+  <div class="muted" style="font-size:12.5px;grid-column:1/-1">
+    No people yet — open this block's settings to add a card.
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>

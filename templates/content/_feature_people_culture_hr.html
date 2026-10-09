@@ -1,0 +1,177 @@
+{# _feature_people_culture_hr.html - one section of the people_culture page, as its own block. #}
+{# Split out so it can be moved, retitled or removed on its own, #}
+{# rather than the whole page being one locked lump. Its heading is #}
+{# rendered by the block, which is what makes it editable. #}
+{% load cms_tags %}
+{# "Manage updates" is the block's own heading link, set in its settings with an #}
+{# audience of HR, so it sits on the heading row rather than floating above. #}
+
+{# A slider, not pages. Pagination reloaded the whole page for four cards and #}
+{# then jumped down to an anchor, which is why moving through updates felt like #}
+{# leaving the page. Every live update is rendered once and the track is moved #}
+{# with a transform, so stepping through is instant and animated. #}
+<div class="hrf-slider" id="hrfSlider" data-per-view="4">
+  <div class="hrf-viewport">
+    <div class="hrf-track" id="hrfTrack">
+      {% for ann in announcements %}
+      <a href="{% url 'hr_detail' ann.slug %}" class="hrf-card">
+        {% if ann.image %}
+        <span class="hrf-cover"><img src="{{ ann.image.url }}" alt="" loading="lazy"></span>
+        {% endif %}
+        <span class="hrf-body">
+          <span class="hrf-top">
+            {# Only a real category, never the generic "Update" the badge falls #}
+            {# back to. Every announcement here has no category, so that fallback #}
+            {# put the same meaningless tag on every card. #}
+            {% if ann.category or ann.tag %}<span class="pill info">{{ ann.badge }}</span>{% endif %}
+            {% if ann.pinned %}<span class="pill warn">Pinned</span>{% endif %}
+            <span class="hrf-date">{{ ann.date|date:"j M Y" }}</span>
+          </span>
+          <span class="hrf-title">{{ ann.title }}</span>
+          <span class="hrf-sum">{{ ann.summary }}</span>
+          <span class="hrf-foot">
+            <span>{{ ann.read_minutes }} min read</span>
+            <span class="hrf-more">Read more &rarr;</span>
+          </span>
+        </span>
+      </a>
+      {% empty %}
+      <div class="card hrf-empty">
+        No HR updates published yet.
+        {% if is_hr %}<div style="margin-top:10px"><a href="{% url 'hr_create' %}" class="btn y sm">Post the first update</a></div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# The controls are written by the script once it knows whether the track #}
+  {# actually overflows, so a handful of updates never gets arrows that do #}
+  {# nothing. Hidden from assistive tech: the cards themselves are the content #}
+  {# and they are all in the DOM and reachable by Tab regardless of the slide. #}
+  <button type="button" class="hrf-arrow prev" id="hrfPrev"
+          aria-label="Previous updates" hidden>
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+         stroke-width="2.2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+  </button>
+  <button type="button" class="hrf-arrow next" id="hrfNext"
+          aria-label="More updates" hidden>
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+         stroke-width="2.2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+
+  <div class="hrf-dots" id="hrfDots" role="tablist" aria-label="Update groups" hidden></div>
+</div>
+
+<script>
+/* One slider, no page loads. Everything is measured from the rendered cards
+   rather than assumed, so it stays correct when the grid changes at a
+   breakpoint or the editor adds an update. */
+(function(){
+  const root  = document.getElementById('hrfSlider');
+  if (!root) return;
+  const track = document.getElementById('hrfTrack');
+  const prev  = document.getElementById('hrfPrev');
+  const next  = document.getElementById('hrfNext');
+  const dots  = document.getElementById('hrfDots');
+  const cards = () => [...track.querySelectorAll('.hrf-card')];
+
+  let page = 0;
+
+  /* How many fit at this width, from the real geometry. */
+  function perView(){
+    const list = cards();
+    if (list.length < 2) return Math.max(1, list.length);
+    const first = list[0].getBoundingClientRect();
+    const step  = list[1].getBoundingClientRect().left - first.left;
+    if (step <= 0) return 1;
+    return Math.max(1, Math.round(root.querySelector('.hrf-viewport').clientWidth / step));
+  }
+
+  function pageCount(){
+    return Math.max(1, Math.ceil(cards().length / perView()));
+  }
+
+  function apply(animate){
+    const list = cards();
+    const per  = perView();
+    const total = pageCount();
+    page = Math.max(0, Math.min(page, total - 1));
+
+    /* Offset by the first card of the page, then clamped so the track never
+       travels past the last card. Without the clamp a final part-full page slid
+       the whole way and showed one card beside three empty slots. */
+    const index = Math.min(page * per, Math.max(0, list.length - 1));
+    const wanted = list.length ? list[index].offsetLeft - list[0].offsetLeft : 0;
+    const viewport = root.querySelector('.hrf-viewport');
+    const maxShift = Math.max(0, track.scrollWidth - viewport.clientWidth);
+    const shift = Math.min(wanted, maxShift);
+    /* The transition lives in CSS. Setting it here in the same frame as the
+       transform meant the new value was not in effect yet and the track jumped
+       straight to its destination -- measured moving the full 316px inside 50ms.
+       A class toggles it off instead, for the initial position and for a resize,
+       where animating would look like a glitch. */
+    track.classList.toggle('no-anim', !animate);
+    track.style.transform = 'translate3d(' + (-shift) + 'px,0,0)';
+
+    const many = total > 1;
+    prev.hidden = next.hidden = dots.hidden = !many;
+    prev.disabled = page === 0;
+    next.disabled = page === total - 1;
+
+    if (many && dots.childElementCount !== total){
+      dots.innerHTML = '';
+      for (let i = 0; i < total; i++){
+        const d = document.createElement('button');
+        d.type = 'button';
+        d.className = 'hrf-dot';
+        d.setAttribute('role', 'tab');
+        d.setAttribute('aria-label', 'Updates ' + (i + 1) + ' of ' + total);
+        d.addEventListener('click', () => { page = i; apply(true); });
+        dots.appendChild(d);
+      }
+    }
+    [...dots.children].forEach((d, i) => {
+      d.classList.toggle('on', i === page);
+      d.setAttribute('aria-selected', i === page ? 'true' : 'false');
+    });
+  }
+
+  prev.addEventListener('click', () => { page--; apply(true); });
+  next.addEventListener('click', () => { page++; apply(true); });
+
+  /* Arrow keys when the slider has focus, so it is not mouse-only. */
+  root.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight'){ e.preventDefault(); page++; apply(true); }
+    if (e.key === 'ArrowLeft'){  e.preventDefault(); page--; apply(true); }
+  });
+
+  /* Swipe. A horizontal drag pages; a vertical one is left alone so the page
+     still scrolls normally under a thumb. */
+  let x0 = null, y0 = null;
+  track.addEventListener('touchstart', e => {
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+  }, {passive: true});
+  track.addEventListener('touchend', e => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    const dy = e.changedTouches[0].clientY - y0;
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)){
+      page += dx < 0 ? 1 : -1;
+      apply(true);
+    }
+    x0 = y0 = null;
+  }, {passive: true});
+
+  /* A resize changes how many fit, so the offset has to be recomputed. */
+  let t;
+  window.addEventListener('resize', () => {
+    clearTimeout(t);
+    t = setTimeout(() => apply(false), 120);
+  });
+
+  /* Images arriving late change the card heights, not the widths, but the
+     first measurement can still land before layout settles. */
+  window.addEventListener('load', () => apply(false));
+  apply(false);
+})();
+</script>

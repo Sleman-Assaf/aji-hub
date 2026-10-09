@@ -1,0 +1,45 @@
+{% load cms_tags %}
+{# The panel down the right-hand third: what the community owner wants read #}
+{# first. Threads and documents together, because "the induction pack" and #}
+{# "the thread explaining the induction pack" are the same kind of thing to #}
+{# whoever is looking for them. #}
+<aside class="cx-side">
+  <div class="cx-side-card">
+    <div class="cx-side-head">
+      {% icon "star" 15 %}
+      <span>Starred Threads / Documents</span>
+    </div>
+
+    {% if starred_threads or starred_docs %}
+      {% for t in starred_threads %}
+      <a class="cx-star-row" href="{% url 'thread_detail' community.slug t.pk %}">
+        <span class="cx-star-ic">{% icon "chat-circle-text" 14 %}</span>
+        <span class="cx-star-txt">
+          <b>{{ t.title }}</b>
+          <i>{{ t.author.get_full_name|default:t.author.username }} · {{ t.created_at|date:"j M Y" }}</i>
+        </span>
+      </a>
+      {% endfor %}
+
+      {% for d in starred_docs %}
+      <a class="cx-star-row" {% if d.file %}href="{{ d.file.url }}" download{% elif d.url %}href="{{ d.url }}" target="_blank" rel="noopener"{% else %}href="{% url 'community_detail' community.slug %}?tab=docs"{% endif %}>
+        <span class="cx-star-ic">
+          {% if d.attach_type == 'image' %}{% icon "image" 14 %}
+          {% elif d.attach_type == 'video' %}{% icon "video" 14 %}
+          {% elif d.attach_type == 'link' %}{% icon "link-simple" 14 %}
+          {% else %}{% icon "file" 14 %}{% endif %}
+        </span>
+        <span class="cx-star-txt">
+          <b>{{ d.name }}</b>
+          <i>{% if d.filesize %}{{ d.filesize }} · {% endif %}{{ d.created_at|date:"j M Y" }}</i>
+        </span>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="cx-side-empty">
+        Nothing starred yet.
+        {% if is_admin %}Use the star on a thread or a document to pin it here.{% endif %}
+      </div>
+    {% endif %}
+  </div>
+</aside>

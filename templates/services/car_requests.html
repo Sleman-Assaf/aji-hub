@@ -1,0 +1,92 @@
+{# templates/services/car_requests.html #}
+{% extends 'base.html' %}
+{% block title %}Car Requests — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+.cr-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.cr-tab{padding:9px 15px;border:1px solid var(--line-2);background:var(--paper-2);
+  font-size:13px;font-weight:600;color:var(--ink);text-decoration:none}
+.cr-tab.active{background:var(--raised);border-color:var(--raised);color:var(--raised-fg)}
+.cr-card{border:1px solid var(--line);background:var(--paper);padding:16px 18px;margin-bottom:12px}
+.cr-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.cr-route{font-size:13.5px;margin-top:8px}
+.cr-route .arrow{color:var(--muted);margin:0 7px}
+.cr-meta{font-size:12.5px;color:var(--muted);margin-top:6px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow"><a href="{% url 'services:car_booking' %}" style="color:inherit">Car Booking</a> / Requests</div>
+    <h1>Car Requests</h1>
+    <p>Approve a trip, move it, swap the car, or assign a driver.</p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a href="{% url 'services:car_schedule' %}" class="btn">Schedule</a>
+    <a href="{% url 'services:car_log' %}" class="btn">Log</a>
+    <a href="{% url 'services:fleet_console' %}" class="btn">Fleet</a>
+    <a href="{% url 'services:fleet_approvers' %}" class="btn">Approvers</a>
+  </div>
+</div>
+
+<div class="cr-tabs rise">
+  <a class="cr-tab {% if show == 'pending' %}active{% endif %}" href="?show=pending">
+    Waiting{% if counts.pending %} · {{ counts.pending }}{% endif %}</a>
+  <a class="cr-tab {% if show == 'upcoming' %}active{% endif %}" href="?show=upcoming">
+    Upcoming{% if counts.upcoming %} · {{ counts.upcoming }}{% endif %}</a>
+  <a class="cr-tab {% if show == 'past' %}active{% endif %}" href="?show=past">Past</a>
+  <a class="cr-tab {% if show == 'all' %}active{% endif %}" href="?show=all">Everything</a>
+  <form method="get" style="margin-left:auto;display:flex;gap:6px">
+    <input type="hidden" name="show" value="{{ show }}">
+    <input type="text" name="q" value="{{ q }}" placeholder="Name or place…"
+           style="padding:8px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+    <button class="btn btn-sm">Search</button>
+  </form>
+</div>
+
+{% for b in bookings %}
+<div class="cr-card rise">
+  <div class="cr-head">
+    {% if b.status == 'approved' %}<span class="pill ok">Approved</span>
+    {% elif b.status == 'pending' %}<span class="pill warn">Waiting</span>
+    {% elif b.status == 'rejected' %}<span class="pill bad">Declined</span>
+    {% else %}<span class="pill mut">Cancelled</span>{% endif %}
+    <b>{{ b.date|date:"D, d M Y" }} · {{ b.departure_time|time:"H:i" }}–{{ b.return_time|time:"H:i" }}</b>
+    <span class="pill mut" style="font-size:10px">{{ b.entity.code }}</span>
+    <span class="muted" style="font-size:12.5px">
+      {{ b.booked_by.get_full_name|default:b.booked_by.username }}</span>
+    {% if b.is_over_capacity %}
+      <span class="pill bad" style="font-size:10px">
+        {{ b.attendees }} people, {{ b.seats_available }} seats</span>
+    {% endif %}
+  </div>
+
+  <div class="cr-route">{{ b.from_address }}<span class="arrow">&rarr;</span>{{ b.to_address }}</div>
+
+  <div class="cr-meta">
+    {{ b.cars_label }} · {{ b.attendees }} travelling
+    {% if b.driver_required %} · <b>driver requested</b>{% endif %}
+    {% if b.purpose %} · {{ b.purpose }}{% endif %}
+    {% for a in b.assignments.all %}{% if a.driver %} · {{ a.vehicle.make }} driven by {{ a.driver.full_name }}{% endif %}{% endfor %}
+  </div>
+  {% if b.review_comment %}
+    <div class="cr-meta">Note: “{{ b.review_comment }}”</div>
+  {% endif %}
+
+  <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+    <a href="{% url 'services:car_request_detail' b.pk %}" class="btn btn-sm btn-primary">Open</a>
+    {% if b.map_url %}
+      <a href="{{ b.map_url }}" target="_blank" rel="noopener" class="btn btn-sm">Route</a>
+    {% endif %}
+  </div>
+</div>
+{% empty %}
+  <div class="card rise" style="padding:20px">
+    <b>Nothing here.</b>
+    <p class="muted" style="margin:6px 0 0;font-size:13px">
+      {% if show == 'pending' %}No requests are waiting.{% else %}Nothing matches.{% endif %}</p>
+  </div>
+{% endfor %}
+{% endblock %}

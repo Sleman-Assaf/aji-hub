@@ -1,0 +1,82 @@
+{# templates/services/room_requests.html #}
+{% extends 'base.html' %}
+{% block title %}Booking Requests — AJi Hub{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow"><a href="{% url 'services:room_booking' %}" style="color:inherit">Meeting Room Booking</a> / Requests</div>
+    <h1>Booking Requests</h1>
+    <p>Approve, reject, or modify the room and time before approving. On approval, catering requests are forwarded to the Facility Manager.</p>
+  </div>
+  <a href="{% url 'services:room_booking' %}" class="btn">Room calendar</a>
+</div>
+
+{# ── Pending requests ── #}
+{% for booking in pending %}
+<div class="card rise" style="padding:18px;margin-bottom:14px">
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <span class="pill warn" style="font-size:10.5px">{{ booking.get_status_display }}</span>
+    <b>{{ booking.title|default:"Meeting" }}</b>
+    <span class="pill mut" style="font-size:10px">{{ booking.get_meeting_type_display }}</span>
+    <span class="muted" style="font-size:12.5px">Requested by {{ booking.booked_by.get_full_name|default:booking.booked_by.username }}</span>
+    {% if booking.attendees_count %}<span class="muted" style="font-size:12.5px">· {{ booking.attendees_count }} attendees</span>{% endif %}
+  </div>
+
+  <div class="muted" style="font-size:12.5px;margin-top:8px">
+    Requested: <b>{{ booking.room.name }}</b> · {{ booking.date|date:"D, M d, Y" }} · {{ booking.start_time|time:"H:i" }}–{{ booking.end_time|time:"H:i" }}
+    {% if booking.catering_request %}
+      · Catering: <b>{{ booking.catering_request.package.get_level_display }} — {{ booking.catering_request.package.name }}</b> ({{ booking.catering_request.attendees_count }} p · {{ booking.catering_request.total }} JD, paid by AJi)
+    {% else %}
+      · No catering
+    {% endif %}
+    {% if booking.it_requirements %} · IT: {{ booking.it_requirements }}{% endif %}
+  </div>
+
+  <form data-save="reload" method="post" action="{% url 'services:room_request_review' booking.pk %}"
+        style="display:grid;grid-template-columns:1.4fr 1fr 0.8fr 0.8fr 1.4fr auto auto;gap:10px;align-items:center;margin-top:14px">
+    {% csrf_token %}
+    <select name="room_id" style="padding:8px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+      {% for room in rooms %}
+      <option value="{{ room.pk }}" {% if booking.room_id == room.pk %}selected{% endif %}>{{ room.name }} ({{ room.chairs }} chairs)</option>
+      {% endfor %}
+    </select>
+    <input name="date" type="date" value="{{ booking.date|date:'Y-m-d' }}" required style="padding:8px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+    <select name="start_time" style="padding:8px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+      {% for slot in time_slots %}<option value="{{ slot }}" {% if booking.start_time|time:"H:i" == slot %}selected{% endif %}>{{ slot }}</option>{% endfor %}
+    </select>
+    <select name="end_time" style="padding:8px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+      {% for slot in time_slots %}<option value="{{ slot }}" {% if booking.end_time|time:"H:i" == slot %}selected{% endif %}>{{ slot }}</option>{% endfor %}
+      <option value="17:00" {% if booking.end_time|time:"H:i" == "17:00" %}selected{% endif %}>17:00</option>
+    </select>
+    <input name="comment" placeholder="Comment (optional)" style="padding:8px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+    <button class="btn y" name="action" value="approve" style="padding:8px 16px;font-size:12.5px">Approve</button>
+    <button class="btn" name="action" value="reject" style="padding:8px 16px;font-size:12.5px">Reject</button>
+  </form>
+  <div class="muted" style="font-size:11.5px;margin-top:8px">Change the room, date or time above before approving if needed — the requester is notified either way.</div>
+</div>
+{% empty %}
+<div class="card rise" style="padding:32px;text-align:center;color:var(--muted)">No pending booking requests. 🎉</div>
+{% endfor %}
+
+{# ── Recently reviewed ── #}
+{% if recent %}
+<div class="sec-head rise" style="margin-top:34px"><h2>Recently reviewed</h2></div>
+<div class="card rise" style="padding:0;overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <tbody>
+      {% for booking in recent %}
+      <tr style="border-bottom:1px solid var(--line)">
+        <td style="padding:11px 18px;white-space:nowrap">
+          <span class="pill {% if booking.status == 'approved' %}ok{% else %}bad{% endif %}" style="font-size:10.5px">{{ booking.get_status_display }}</span>
+        </td>
+        <td style="padding:11px 14px"><b>{{ booking.title|default:"Meeting" }}</b> — {{ booking.booked_by.get_full_name|default:booking.booked_by.username }}</td>
+        <td style="padding:11px 14px;color:var(--muted);white-space:nowrap">{{ booking.room.name }} · {{ booking.date|date:"M d" }} · {{ booking.start_time|time:"H:i" }}–{{ booking.end_time|time:"H:i" }}</td>
+        <td style="padding:11px 14px;color:var(--muted);white-space:nowrap;font-size:12px">{% if booking.reviewed_by %}by {{ booking.reviewed_by.get_full_name|default:booking.reviewed_by.username }}{% endif %}{% if booking.review_comment %} · “{{ booking.review_comment }}”{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,62 @@
+{% load static cms_tags %}
+{# Voice calls and screen sharing. Markup only — the behaviour is in #}
+{# static/js/chat_calls.js. #}
+{# On every page rather than inside the chat shell, and deliberately: a call has #}
+{# to be answerable while somebody is reading the news or booking a desk, and it #}
+{# has to stay on screen when the chat popup is shut. It is also the reason the #}
+{# dock is a floating layer and not a pane — the panes belong to the chat, and #}
+{# the call outlives whichever of them is showing. #}
+
+<div id="callLayer" class="cl" data-state="idle" data-open="0" data-stage="0" data-min="0">
+
+  {# ── somebody is calling ── #}
+  {# Filled in by drawRing(). Empty until the phone rings. #}
+  <div class="cl-ring" hidden></div>
+
+  {# ── the call itself ── #}
+  <div class="cl-dock">
+    <div class="cl-stage" hidden>
+      {# playsinline, so a phone shows the shared screen in place instead of #}
+      {# taking over the display with its own video player. #}
+      <video autoplay playsinline muted></video>
+      <div class="cl-stage-bar">
+        <span class="cl-stage-who"></span>
+        <button type="button" class="cl-sbtn" data-cl-full
+                title="Full screen" aria-label="Full screen">{% icon "arrows-out-simple" 15 %}</button>
+      </div>
+    </div>
+
+    <div class="cl-head">
+      <span class="cl-dot"></span>
+      <span class="cl-clock"></span>
+      <button type="button" class="cl-sbtn" data-cl-min
+              title="Shrink" aria-label="Shrink the call">{% icon "caret-left" 15 %}</button>
+    </div>
+
+    <div class="cl-people"></div>
+
+    {# ── add somebody into the call ── #}
+    {# Any call grows: adding a third person to a direct call makes it a group #}
+    {# call; a group call simply gets bigger. Filled in by drawAdd(). #}
+    <div class="cl-add" hidden>
+      <input class="cl-add-in" type="search" autocomplete="off"
+             placeholder="Add someone to the call…" aria-label="Search people to add">
+      <div class="cl-add-list" role="listbox"></div>
+    </div>
+
+    <div class="cl-bar">
+      <button type="button" class="cl-btn" data-cl-add
+              title="Add someone to the call" aria-label="Add someone to the call">{% icon "users" 18 %}</button>
+      <button type="button" class="cl-btn" data-cl-mute
+              title="Mute" aria-label="Mute">{% icon "microphone" 18 %}</button>
+      <button type="button" class="cl-btn" data-cl-share
+              title="Share your screen" aria-label="Share your screen">{% icon "monitor-arrow-up" 18 %}</button>
+      <button type="button" class="cl-btn no" data-cl-hangup
+              title="Leave the call" aria-label="Leave the call">{% icon "phone-x" 18 %}</button>
+    </div>
+  </div>
+</div>
+
+{# After the chat engine: the call button lives in the chat's header, and the #}
+{# engine has to have drawn it. Deferred like the engine, for the same reason. #}
+<script src="{% static 'js/chat_calls.js' %}?v={{ asset_version }}" defer></script>

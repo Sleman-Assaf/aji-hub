@@ -1,0 +1,35 @@
+{# templates/cms/sections/birthdays.html — today's birthdays, with the wish button. #}
+{# Renders nothing at all when nobody has a birthday, unless edit mode is on — #}
+{# an editor still needs to see and move the block on a quiet day. #}
+{% load cms_tags people_tags %}
+{% if employees or cms_edit_mode %}
+<div class="sec-head">
+  <h2 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title|default:"Birthdays today"|aji }}</h2>
+</div>
+<div class="card" style="padding:18px var(--sp-5)">
+  {% if employees %}
+  <div class="bd-today">
+    {% for emp in employees %}
+    <div class="bd-card">
+      {% emp_avatar emp size=46 classes="bd-av" %}
+      <div class="bd-info">
+        <div class="bd-name">{{ emp.full_name }}</div>
+        <div class="bd-role">{{ emp.role|truncatechars:32 }}</div>
+      </div>
+      {% if emp.user %}
+      <button class="bd-wish" onclick="bdWish({{ emp.user.pk }}, '{{ emp.full_name|escapejs }}')" title="Send birthday wish">🎂</button>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="color:var(--muted);font-size:13px">
+    No birthdays today. This block hides itself on days like this.
+  </div>
+  {% endif %}
+</div>
+{# The dialog these buttons open. Carried by the block rather than by the page, #}
+{# so it still works wherever the block is placed — it used to be written into #}
+{# the homepage template, and pressing a cake anywhere else did nothing. #}
+{% include 'includes/birthday_wish_js.html' %}
+{% endif %}

@@ -1,0 +1,604 @@
+{# templates/core/global_settings.html #}
+{# Rendered inside the IT portal at /it/integrations/. It had its own address #}
+{# and its own page head; going to it from the portal left you with no way #}
+{# back, because it was not part of the portal at all. Now it is a tab. #}
+{% extends 'core/it/_shell.html' %}
+{% block title %}Integrations — IT Portal{% endblock %}
+{% block it_note %}Mail, calendar, sign-in and the API credentials the Hub connects with.{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+/* A single centred column. Every card on this page was max-width:760px and
+   left-aligned inside a shell up to 1600px wide, so two thirds of the screen
+   was blank paper beside a narrow strip of forms. */
+.gs-wrap{max-width:none}
+/* The cards inside carry their own max-width inline; the column decides now. */
+.gs-wrap .card{max-width:none!important}
+
+/* One section, folded. Seven forms of credentials open at once is a page
+   nobody reads; closed, the list of what can be configured fits on a screen. */
+.gs-sec{background:var(--paper-2);border:1px solid var(--line);border-radius:14px;
+  margin-bottom:12px;overflow:hidden}
+.gs-sec[open]{border-color:var(--line-2);
+  box-shadow:0 1px 2px rgba(18,18,16,.04),0 14px 30px -22px rgba(18,18,16,.3)}
+.gs-sum{display:flex;align-items:center;gap:12px;padding:16px 20px;cursor:pointer;
+  font-size:15px;font-weight:700;letter-spacing:-.01em;list-style:none;
+  transition:background .13s}
+.gs-sum::-webkit-details-marker{display:none}
+.gs-sum:hover{background:var(--paper)}
+.gs-sec[open] .gs-sum{border-bottom:1px solid var(--line);background:var(--paper)}
+.gs-sum span{flex:1}
+/* The chevron, drawn rather than iconed so it can rotate with the state. */
+.gs-sum::after{content:'';flex:none;width:9px;height:9px;margin-right:2px;
+  border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);
+  transform:rotate(45deg) translate(-2px,-2px);
+  transition:transform .18s cubic-bezier(.32,.72,0,1)}
+.gs-sec[open] .gs-sum::after{transform:rotate(-135deg) translate(-3px,-3px)}
+.gs-body{padding:20px}
+.gs-body>.card{border:none!important;box-shadow:none!important;border-radius:0!important;
+  padding:0!important}
+.gs-body>p:first-child,.gs-body>.muted:first-child{margin-top:0}
+
+/* ── the form vocabulary ──
+   These were 107 inline styles: every label, field and row carried its own
+   copy, written when each section was a card of its own. Inline styles beat
+   any stylesheet, so the page could not be restyled without lifting them out
+   first. One class each, and the section decides how a field looks. */
+.gs-lab{display:block;font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--muted);margin-bottom:6px}
+.gs-in{width:100%;box-sizing:border-box;border:1px solid var(--line-2);
+  border-radius:9px;padding:10px 12px;font-family:inherit;font-size:13.5px;
+  background:var(--paper-2);color:var(--ink);outline:none;
+  transition:border-color .14s,box-shadow .14s}
+.gs-in:focus{border-color:var(--ink);box-shadow:0 0 0 3px rgba(18,18,16,.07)}
+.gs-in::placeholder{color:var(--muted-2)}
+.gs-in.mono{font-family:var(--mono,monospace);font-size:12.5px}
+.gs-in.gs-grow{flex:1;min-width:220px;width:auto}
+select.gs-in{appearance:none;cursor:pointer;padding-right:34px;
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
+                   linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 17px) 51%,calc(100% - 12px) 51%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+
+/* A field and its label as one unit, so a grid can space them evenly. */
+.gs-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px}
+.gs-3col{display:grid;grid-template-columns:repeat(3,1fr);gap:16px 18px;margin-top:16px}
+.gs-prompt-row{display:grid;grid-template-columns:0.8fr 2fr auto;gap:10px;align-items:center}
+@media(max-width:640px){
+  .gs-2col,.gs-3col,.gs-prompt-row{grid-template-columns:1fr}
+}
+.gs-intro{font-size:12.5px;line-height:1.65;color:var(--muted);margin:0 0 16px;max-width:74ch}
+.gs-row{display:flex;gap:10px;align-items:center;margin-bottom:16px}
+.gs-row.wrap{flex-wrap:wrap;margin-bottom:0}
+.gs-hint{font-size:11.5px;color:var(--muted);line-height:1.55}
+.gs-hr{border:none;border-top:1px solid var(--line);margin:20px 0}
+.gs-callout{font-size:12.5px;line-height:1.65;margin:16px 0;padding:12px 14px;
+  background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--yellow);
+  border-radius:0 9px 9px 0;color:var(--ink-2)}
+.gs-box{width:16px;height:16px;accent-color:var(--ink);flex:none;cursor:pointer}
+.gs-toggle{display:flex;gap:10px;align-items:center;font-weight:650;font-size:13.5px;
+  margin-bottom:18px;cursor:pointer}
+.gs-toggle.sm{font-size:12.5px;margin:18px 0 0}
+
+/* Every Save sat on its own hairline strip, which read as an empty box under
+   the last field. One bar at the foot of the form instead. */
+.gs-foot{display:flex;gap:9px;align-items:center;flex-wrap:wrap;
+  margin:20px -20px -20px;padding:14px 20px;background:var(--paper);
+  border-top:1px solid var(--line)}
+.gs-foot .gs-in{width:auto}
+.gs-foot-field{flex:1;min-width:200px}
+.gs-foot-field .gs-lab{margin-bottom:5px}
+
+@media(prefers-reduced-motion:reduce){.gs-sum::after{transition:none}}
+</style>
+{% endblock %}
+
+{% block it_content %}
+<div class="gs-wrap">
+
+{# ── What the Hub is actually able to send with, said once and plainly, so #}
+{# nobody has to read three sections to find out whether email works. ── #}
+<div class="card rise" style="padding:18px 22px;max-width:760px;margin-bottom:26px
+     {% if not mail_transport %};border-color:var(--yellow-deep);background:var(--warn-bg){% endif %}">
+  <div style="display:flex;gap:11px;align-items:flex-start">
+    <span style="flex:none;margin-top:1px">
+      {% if mail_transport %}{% load cms_tags %}{% icon "check-circle" 17 %}
+      {% else %}{% load cms_tags %}{% icon "warning" 17 %}{% endif %}
+    </span>
+    <div>
+      <b style="font-size:14.5px;display:block;margin-bottom:3px">Email status</b>
+      <span style="font-size:13px;color:var(--ink-2);line-height:1.6">{{ mail_note }}</span>
+    </div>
+  </div>
+</div>
+
+{# ── The site address. Without it every link in every email is dead. ── #}
+{# Opens itself while it is blank: this section is one line of text inside a #}
+{# collapsed panel, which is how it stayed empty while the Hub mailed 1,200 #}
+{# people links that were never drawn. #}
+<details class="gs-sec"{% if not site_url %} open{% endif %}>
+  <summary class="gs-sum"><span>Site address</span>
+    {% if not site_url %}<span class="tq-chip pending">Not set</span>{% endif %}</summary>
+  <div class="gs-body">
+  {% if not site_url %}
+  <div class="tq-err-box" style="margin-bottom:12px">
+    No address is set, so the <b>Open in AJi Hub</b> button is being left out of
+    every email the Hub sends. Type the address staff use — the one in their
+    browser's address bar — and every email from then on carries the link.
+  </div>
+  {% endif %}
+  <p class="muted gs-intro">
+    Where the Hub can be reached from a staff laptop. Emails the Hub sends link
+    back here, so a blank address means an email with no way into it.
+  </p>
+  <form data-save method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="site">
+    <label class="gs-lab" for="siteUrl">Address</label>
+    <input id="siteUrl" type="text" name="site_url" value="{{ site_url }}"
+           placeholder="https://hub.ajigroup.com"
+           class="gs-in">
+    <div class="gs-foot">
+      <button type="submit" class="btn y sm">Save address</button>
+    </div>
+  </form>
+</div>
+</details>
+
+{# ── SMTP, for sites that do not use Microsoft Graph ── #}
+<details class="gs-sec">
+  <summary class="gs-sum"><span>Email — SMTP server</span></summary>
+  <div class="gs-body">
+  <div class="gs-row">
+    {% if smtp.enabled and smtp_configured %}
+      <span class="pill ok gs-hint">Enabled</span>
+    {% elif smtp.enabled %}
+      <span class="pill warn gs-hint">Enabled, incomplete</span>
+    {% else %}
+      <span class="pill mut gs-hint">Disabled</span>
+    {% endif %}
+    <span class="muted gs-hint">
+      An alternative to Microsoft Graph. If both are on, Graph is used.
+    </span>
+  </div>
+  <form data-save method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="smtp">
+    <label class="gs-toggle">
+      <input type="checkbox" name="enabled" {% if smtp.enabled %}checked{% endif %}>
+      Send email through an SMTP server
+    </label>
+    <div class="gs-2col">
+      <div>
+        <label class="gs-lab" for="smtpHost">Host</label>
+        <input class="gs-in" id="smtpHost" type="text" name="host" value="{{ smtp.host }}"
+               placeholder="smtp.office365.com">
+      </div>
+      <div>
+        <label class="gs-lab" for="smtpPort">Port</label>
+        <input class="gs-in" id="smtpPort" type="text" name="port" value="{{ smtp.port }}"
+               placeholder="587">
+      </div>
+      <div>
+        <label class="gs-lab" for="smtpSec">Security</label>
+        <select class="gs-in" id="smtpSec" name="security">
+          <option value="tls" {% if smtp.security == 'tls' %}selected{% endif %}>STARTTLS (usually port 587)</option>
+          <option value="ssl" {% if smtp.security == 'ssl' %}selected{% endif %}>SSL (usually port 465)</option>
+          <option value="" {% if not smtp.security %}selected{% endif %}>None</option>
+        </select>
+      </div>
+      <div>
+        <label class="gs-lab" for="smtpFrom">From address</label>
+        <input class="gs-in" id="smtpFrom" type="text" name="from_address" value="{{ smtp.from }}"
+               placeholder="hub@ajigroup.com">
+      </div>
+      <div>
+        <label class="gs-lab" for="smtpUser">Username</label>
+        <input class="gs-in" id="smtpUser" type="text" name="user" value="{{ smtp.user }}"
+               autocomplete="off">
+      </div>
+      <div>
+        <label class="gs-lab" for="smtpPass">Password</label>
+        <input class="gs-in" id="smtpPass" type="password" name="password" autocomplete="new-password"
+               placeholder="{% if smtp_has_password %}•••••••• (leave blank to keep){% else %}not set{% endif %}">
+      </div>
+    </div>
+    <div class="gs-foot">
+      <button type="submit" class="btn y sm">Save SMTP settings</button>
+    </div>
+  </form>
+  <form method="post" class="gs-foot">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="smtp_test">
+    <div class="gs-foot-field">
+      <label class="gs-lab" for="smtpTestTo">Send a test to</label>
+      <input class="gs-in" id="smtpTestTo" type="email" name="test_to"
+             value="{{ request.user.email }}" placeholder="you@ajigroup.com">
+    </div>
+    <button type="submit" class="btn ghost sm">Send test</button>
+  </form>
+</div>
+</details>
+
+{# ── Microsoft Graph email ── #}
+<details class="gs-sec">
+  <summary class="gs-sum"><span>Email — Microsoft Graph API</span></summary>
+  <div class="gs-body">
+  <div class="gs-row">
+    {% if msgraph.enabled and msgraph_configured %}
+      <span class="pill ok gs-hint">Enabled</span>
+    {% elif msgraph.enabled %}
+      <span class="pill warn gs-hint">Enabled — incomplete configuration</span>
+    {% else %}
+      <span class="pill mut gs-hint">Disabled</span>
+    {% endif %}
+    <span class="muted gs-hint">The system sends its emails through this mailbox using the Graph API.</span>
+  </div>
+
+  <form data-save method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="msgraph">
+
+    <label class="gs-toggle">
+      <input class="gs-box" type="checkbox" name="enabled" {% if msgraph.enabled %}checked{% endif %}>
+      Enable sending emails via Microsoft Graph
+    </label>
+
+    <div class="gs-2col">
+      <div>
+        <label class="gs-lab">Tenant ID (Directory ID)</label>
+        <input class="gs-in mono" name="tenant_id" value="{{ msgraph.tenant_id }}" placeholder="e.g. 72f988bf-86f1-41af-…">
+      </div>
+      <div>
+        <label class="gs-lab">Client ID (Application ID)</label>
+        <input class="gs-in mono" name="client_id" value="{{ msgraph.client_id }}" placeholder="Azure app registration ID">
+      </div>
+      <div>
+        <label class="gs-lab">Client Secret</label>
+        <input class="gs-in mono" name="client_secret" type="password" autocomplete="new-password"
+               placeholder="{% if has_secret %}•••••••••••• (saved — leave blank to keep){% else %}Secret value from Azure{% endif %}">
+      </div>
+      <div>
+        <label class="gs-lab">Sender mailbox (From address)</label>
+        <input class="gs-in" name="sender" type="email" value="{{ msgraph.sender }}" placeholder="e.g. noreply@aji.com">
+      </div>
+    </div>
+
+    <div class="muted gs-callout">
+      <b>Azure setup:</b> create an App Registration in Entra ID (Azure AD), add the <b>application</b> permission
+      <code>Mail.Send</code> under Microsoft Graph, grant <b>admin consent</b>, then create a client secret.
+      The sender mailbox must be a licensed Exchange Online mailbox in your tenant.
+    </div>
+
+    <button class="btn y">Save settings</button>
+  </form>
+
+  <hr class="gs-hr">
+
+  <form class="gs-row wrap" method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="msgraph_test">
+    <b class="gs-hint">Test the integration:</b>
+    <input class="gs-in gs-grow" name="test_to" type="email" placeholder="{{ request.user.email|default:'recipient@aji.com' }}">
+    <button class="btn" {% if not msgraph_configured or not msgraph.enabled %}title="Save a complete, enabled configuration first"{% endif %}>Send test email</button>
+  </form>
+</div>
+</details>
+
+{# ── Outlook calendar sync ── #}
+{# Same app registration as the email section above, one more permission on it, #}
+{# and its own switch: reading every mailbox in the tenant is a bigger thing to #}
+{# turn on than sending mail from one, and should not follow from it by accident. #}
+<details class="gs-sec">
+  <summary class="gs-sum"><span>Calendar — Outlook sync</span></summary>
+  <div class="gs-body">
+  <div class="gs-row wrap">
+    {% if msgraph_calendar_enabled and msgraph_configured %}
+      <span class="pill ok gs-hint">Enabled</span>
+    {% elif msgraph_calendar_enabled %}
+      <span class="pill warn gs-hint">Enabled — incomplete configuration</span>
+    {% else %}
+      <span class="pill mut gs-hint">Disabled</span>
+    {% endif %}
+    <span class="muted gs-hint">
+      Fills “Your workspace” on the homepage with each person’s own Outlook day.
+    </span>
+  </div>
+
+  <form data-save method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="msgraph_calendar">
+
+    <label class="gs-toggle">
+      <input class="gs-box" type="checkbox" name="enabled" {% if msgraph_calendar_enabled %}checked{% endif %}>
+      Show Outlook calendars in “Your workspace”
+    </label>
+
+    <div class="muted gs-intro">
+      Uses the tenant, client ID and secret from the email section above — there is
+      nothing extra to fill in here. Somebody’s calendar is matched to their Hub
+      account by email address, so a person with no email address on their account
+      keeps seeing the Hub calendar. If Outlook cannot be reached, the card falls
+      back to the Hub calendar rather than showing an error.
+    </div>
+
+    <div class="muted gs-callout">
+      <b>Azure setup:</b> on the same App Registration used for email, add the
+      <b>application</b> permission <code>Calendars.Read</code> under Microsoft Graph
+      and grant <b>admin consent</b>. No new secret and no redirect URL are needed.
+      <br><br>
+      <b>Worth knowing before you switch it on:</b> <code>Calendars.Read</code> as an
+      application permission lets the Hub read <i>every</i> mailbox in the tenant, not
+      only the calendar of whoever is looking. If IT would rather scope that down, ask
+      them for an <b>application access policy</b> limiting this app registration to a
+      specific mail-enabled security group.
+    </div>
+
+    <button class="btn y">Save settings</button>
+  </form>
+
+  <hr class="gs-hr">
+
+  <form class="gs-row wrap" method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="msgraph_calendar_test">
+    <b class="gs-hint">Read a calendar:</b>
+    <input class="gs-in gs-grow" name="test_upn" type="email" placeholder="{{ request.user.email|default:'someone@ajigroup.com' }}">
+    <button class="btn" {% if not msgraph_configured or not msgraph_calendar_enabled %}title="Save a complete, enabled configuration first"{% endif %}>Test today’s calendar</button>
+  </form>
+</div>
+</details>
+
+{# ── LDAP / Active Directory login ── #}
+<details class="gs-sec">
+  <summary class="gs-sum"><span>Login — LDAP / Active Directory</span></summary>
+  <div class="gs-body">
+  <div class="gs-row">
+    {% if ldap.enabled and ldap_configured %}
+      <span class="pill ok gs-hint">Enabled</span>
+    {% elif ldap.enabled %}
+      <span class="pill warn gs-hint">Enabled — incomplete configuration</span>
+    {% else %}
+      <span class="pill mut gs-hint">Disabled</span>
+    {% endif %}
+    <span class="muted gs-hint">Employees sign in with their Windows domain credentials. Local accounts keep working as a fallback.</span>
+  </div>
+
+  <form data-save method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="ldap">
+
+    <label class="gs-toggle">
+      <input class="gs-box" type="checkbox" name="enabled" {% if ldap.enabled %}checked{% endif %}>
+      Enable LDAP / Active Directory login
+    </label>
+
+    <div class="gs-3col">
+      <div>
+        <label class="gs-lab">Domain controller host</label>
+        <input class="gs-in mono" name="host" value="{{ ldap.host }}" placeholder="e.g. dc01.aji.local or 172.10.0.5">
+      </div>
+      <div>
+        <label class="gs-lab">Port</label>
+        <input class="gs-in mono" name="port" value="{{ ldap.port }}" placeholder="389 / 636">
+      </div>
+      <label class="gs-toggle sm">
+        <input class="gs-box" type="checkbox" name="use_ssl" {% if ldap.use_ssl %}checked{% endif %}>
+        LDAPS (SSL)
+      </label>
+    </div>
+
+    <div class="gs-2col">
+      <div>
+        <label class="gs-lab">Service account (Bind DN or UPN)</label>
+        <input class="gs-in mono" name="bind_dn" value="{{ ldap.bind_dn }}" placeholder="e.g. svc-hub@aji.local or CN=svc-hub,OU=Service,DC=aji,DC=local">
+      </div>
+      <div>
+        <label class="gs-lab">Service account password</label>
+        <input class="gs-in mono" name="bind_password" type="password" autocomplete="new-password"
+               placeholder="{% if ldap_has_password %}•••••••••••• (saved — leave blank to keep){% else %}Password{% endif %}">
+      </div>
+      <div>
+        <label class="gs-lab">Base DN (user search root)</label>
+        <input class="gs-in mono" name="base_dn" value="{{ ldap.base_dn }}" placeholder="e.g. OU=Employees,DC=aji,DC=local">
+      </div>
+      <div>
+        <label class="gs-lab">User search filter</label>
+        <input class="gs-in mono" name="user_filter" value="{{ ldap.user_filter }}" placeholder="{{ ldap_default_filter }}">
+      </div>
+      <div>
+        <label class="gs-lab">Domain (UPN suffix — used if no service account)</label>
+        <input class="gs-in mono" name="domain" value="{{ ldap.domain }}" placeholder="e.g. aji.local">
+      </div>
+      <label class="gs-toggle sm">
+        <input class="gs-box" type="checkbox" name="auto_create" {% if ldap.auto_create %}checked{% endif %}>
+        Auto-create hub accounts on first login
+      </label>
+    </div>
+
+    <div class="gs-3col">
+      <div>
+        <label class="gs-lab">First name attribute</label>
+        <input class="gs-in mono" name="attr_first" value="{{ ldap.attr_first }}" placeholder="givenName">
+      </div>
+      <div>
+        <label class="gs-lab">Last name attribute</label>
+        <input class="gs-in mono" name="attr_last" value="{{ ldap.attr_last }}" placeholder="sn">
+      </div>
+      <div>
+        <label class="gs-lab">Email attribute</label>
+        <input class="gs-in mono" name="attr_email" value="{{ ldap.attr_email }}" placeholder="mail">
+      </div>
+    </div>
+
+    <div class="muted gs-callout">
+      <b>How it works:</b> with a service account, the hub searches the Base DN for the username
+      (<code>{username}</code> in the filter is replaced with what the employee types) and verifies their
+      password against the domain controller. Without a service account, it binds directly as
+      <code>username@domain</code>. On success the hub account is synced from AD.
+      Requires the <code>ldap3</code> package on the server (<code>pip install ldap3</code>).
+    </div>
+
+    <button class="btn y">Save settings</button>
+  </form>
+
+  <hr class="gs-hr">
+
+  <div class="gs-row wrap">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="section" value="ldap_test">
+      <button class="btn">Test connection</button>
+      <div class="muted gs-hint">Binds with the service account and checks the Base DN.</div>
+    </form>
+    <form method="post" class="gs-row wrap">
+      {% csrf_token %}
+      <input type="hidden" name="section" value="ldap_test_user">
+      <input class="gs-in" name="test_username" placeholder="domain username" autocomplete="off">
+      <input class="gs-in" name="test_password" type="password" placeholder="password" autocomplete="new-password">
+      <button class="btn">Test user login</button>
+    </form>
+  </div>
+
+  <hr class="gs-hr">
+
+  {# ── import everyone from AD and keep in step ── #}
+  <div class="gs-row wrap">
+    <form method="post" class="gs-row wrap">
+      {% csrf_token %}
+      <input type="hidden" name="section" value="ldap_sync">
+      <button class="btn">Import &amp; sync users from AD now</button>
+      <label class="gs-toggle" title="Report what would change without writing anything">
+        <input class="gs-box" type="checkbox" name="dry_run"> Dry run
+      </label>
+      <label class="gs-toggle" title="Deactivate AD-sourced accounts that vanished from the directory. Local accounts and admins are never touched.">
+        <input class="gs-box" type="checkbox" name="deactivate_missing"> Also deactivate leavers
+      </label>
+    </form>
+    <div class="muted gs-hint">
+      Creates a Hub account for every person in the directory and keeps the whole
+      profile following AD: name, email, job title, department, company, manager,
+      phone extension (ipPhone), mobile, office, country, employee ID, photo, and
+      the active flag. Existing People entries are linked by code/email/name, never
+      duplicated, and fields AD leaves empty are never blanked. Needs the service
+      account above.
+      {% if ldap_last_sync %}
+        Last sync {{ ldap_last_sync.ran_at|slice:":16" }} — {{ ldap_last_sync.message }}.
+      {% else %}
+        Not synced yet. For continuous sync, schedule
+        <code>manage.py sync_ad_users --deactivate-missing</code> hourly.
+      {% endif %}
+    </div>
+  </div>
+</div>
+</details>
+
+{# ── WhatsApp messaging ── #}
+<details class="gs-sec">
+  <summary class="gs-sum"><span>Messaging — WhatsApp API</span></summary>
+  <div class="gs-body">
+  <div class="gs-row">
+    {% if wa.enabled and wa_configured %}
+      <span class="pill ok gs-hint">Enabled</span>
+    {% elif wa.enabled %}
+      <span class="pill warn gs-hint">Enabled — incomplete configuration</span>
+    {% else %}
+      <span class="pill mut gs-hint">Disabled</span>
+    {% endif %}
+    <span class="muted gs-hint">The system sends WhatsApp messages through the selected provider.</span>
+  </div>
+
+  <form data-save method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="whatsapp">
+
+    <label class="gs-toggle">
+      <input class="gs-box" type="checkbox" name="enabled" {% if wa.enabled %}checked{% endif %}>
+      Enable sending WhatsApp messages
+    </label>
+
+    <div class="gs-2col">
+      <div>
+        <label class="gs-lab">Provider</label>
+        <select class="gs-in" name="provider">
+          {% for value, label in wa_providers %}
+          <option value="{{ value }}" {% if wa.provider == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="gs-lab">Default country code</label>
+        <input class="gs-in mono" name="country_code" value="{{ wa.country_code }}" placeholder="e.g. 962 — applied to local numbers like 079…">
+      </div>
+      <div>
+        <label class="gs-lab">WaSenderAPI — API Key</label>
+        <input class="gs-in mono" name="wasender_api_key" type="password" autocomplete="new-password"
+               placeholder="{% if wa_has_key %}•••••••••••• (saved — leave blank to keep){% else %}API key from your wasenderapi.com session{% endif %}">
+      </div>
+      <div>
+        <label class="gs-lab">WaSenderAPI — Base URL</label>
+        <input class="gs-in mono" name="wasender_base_url" value="{{ wa.wasender_base_url }}" placeholder="{{ wa_default_base }}">
+      </div>
+    </div>
+
+    <div class="muted gs-callout">
+      <b>WaSenderAPI setup:</b> create a session at <b>wasenderapi.com</b>, connect your WhatsApp number by
+      scanning the QR code, then copy the session's <b>API key</b> here. Messages are sent as that number.
+      Note the server must be able to reach wasenderapi.com. More providers will be added later.
+    </div>
+
+    <button class="btn y">Save settings</button>
+  </form>
+
+  <hr class="gs-hr">
+
+  <form class="gs-row wrap" method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="whatsapp_test">
+    <b class="gs-hint">Test the integration:</b>
+    <input class="gs-in gs-grow" name="test_to" placeholder="e.g. +962790000000 or 0790000000">
+    <button class="btn" {% if not wa_configured or not wa.enabled %}title="Save a complete, enabled configuration first"{% endif %}>Send test message</button>
+  </form>
+</div>
+</details>
+
+{# ── AJiAssist quick prompts ── #}
+<details class="gs-sec">
+  <summary class="gs-sum"><span><span class="kc">AJiAssist</span> — Quick Prompts</span></summary>
+  <div class="gs-body">
+  <div class="muted gs-intro">
+    The chips shown at the bottom of the AJiAssist chat. <b>Label</b> is the button text; <b>Prompt</b> is the question sent when tapped.
+  </div>
+
+  <form data-save method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="assist_prompts">
+
+    <div class="gs-prompt-row">
+      <div class="gs-lab">Label</div>
+      <div class="gs-lab">Prompt sent to AJiAssist</div>
+      <div></div>
+
+      {% for p in assist_prompt_rows %}
+      <input name="label" value="{{ p.label }}" class="gs-in">
+      <input class="gs-in" name="prompt" value="{{ p.prompt }}">
+      <button name="delete" value="{{ forloop.counter0 }}" class="btn" title="Delete this prompt" style="padding:8px 12px;font-size:12px">✕</button>
+      {% endfor %}
+
+      <input name="new_label" placeholder="New label…" class="gs-in">
+      <input name="new_prompt" placeholder="New prompt…" class="gs-in">
+      <div></div>
+    </div>
+
+    <div class="gs-foot">
+      <button class="btn y">Save prompts</button>
+      <button class="btn" name="reset" value="1" onclick="return confirm('Reset the quick prompts to the defaults?')">Reset to defaults</button>
+    </div>
+  </form>
+</div>
+</details>
+
+<div class="muted rise" style="font-size:12px;margin-top:18px">More settings sections will appear here as they are added.</div>
+</div>
+{% endblock %}

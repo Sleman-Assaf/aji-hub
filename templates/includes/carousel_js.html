@@ -1,0 +1,157 @@
+{# templates/includes/carousel_js.html — one carousel, used wherever one is wanted. #}
+{# Loaded once from base.html. A carousel opts in by carrying data-carou; a page #}
+{# with none pays for nothing but the parse. #}
+{# #}
+{# The scrolling is the browser's own: the track is an overflow-x strip with #}
+{# scroll snapping, so it already works by touch, trackpad and keyboard before #}
+{# any of this runs. What this adds is the arrows, their disabled state, and the #}
+{# dots — which is the right split, because a carousel whose script fails should #}
+{# still be a list you can scroll rather than a row with everything after the #}
+{# first item unreachable. #}
+<script>
+if (!window.__ajiCarou) {
+window.__ajiCarou = 1;
+
+/* One slide's worth of travel, gap included. Measured rather than assumed: the
+   article gallery shows one big picture per view and the news strip shows
+   several cards, and both are laid out by CSS that this does not want to know
+   about. */
+function carouStep(track) {
+  const slide = track.querySelector('[data-carou-slide]');
+  if (!slide) return track.clientWidth;
+  const gap = parseFloat(getComputedStyle(track).columnGap) || 0;
+  return slide.getBoundingClientRect().width + gap;
+}
+
+function carouSync(box) {
+  const track = box.querySelector('[data-carou-track]');
+  if (!track) return;
+  /* A pixel of tolerance: sub-pixel widths mean scrollLeft rarely lands exactly
+     on the end, and an arrow that never enables at the last slide is worse than
+     one that enables a pixel early. */
+  const max = track.scrollWidth - track.clientWidth - 1;
+  const atStart = track.scrollLeft <= 1;
+  const atEnd = track.scrollLeft >= max;
+  box.querySelectorAll('[data-carou-go]').forEach(b => {
+    b.disabled = Number(b.dataset.carouGo) < 0 ? atStart : atEnd;
+  });
+  /* Nothing to scroll means nothing to steer. Hiding the whole control rather
+     than leaving two dead arrows: a gallery of one picture is a picture. */
+  box.classList.toggle('one', track.scrollWidth <= track.clientWidth + 1);
+
+  /* Which slide is in view. Counted off the track, not off the dots — the
+     counter was inside the dots guard, so a carousel with a "2 / 5" label and no
+     dots (the article gallery is exactly that) never showed a number at all. */
+  const step = carouStep(track);
+  const slides = track.querySelectorAll('[data-carou-slide]').length;
+  const at = step ? Math.round(track.scrollLeft / step) : 0;
+
+  const dots = box.querySelector('[data-carou-dots]');
+  if (dots) {
+    [...dots.children].forEach((d, i) => d.classList.toggle('on', i === at));
+  }
+  const label = box.querySelector('[data-carou-count]');
+  if (label) { label.textContent = (at + 1) + ' / ' + slides; }
+}
+
+function carouInit(box) {
+  const track = box.querySelector('[data-carou-track]');
+  if (!track || box.dataset.carouReady) return;
+  /* carouAuto is only ever called beside this, so guarding here guards both. */
+  box.dataset.carouReady = '1';
+
+  const dots = box.querySelector('[data-carou-dots]');
+  if (dots && !dots.children.length) {
+    track.querySelectorAll('[data-carou-slide]').forEach((slide, i) => {
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = 'carou-dot';
+      dot.setAttribute('aria-label', 'Go to ' + (i + 1));
+      dot.addEventListener('click', () => {
+        track.scrollTo({left: carouStep(track) * i, behavior: 'smooth'});
+      });
+      dots.appendChild(dot);
+    });
+  }
+  /* Passive: this only reads scrollLeft, and saying so lets the browser keep the
+     scroll on its own thread. */
+  track.addEventListener('scroll', () => carouSync(box), {passive: true});
+  window.addEventListener('resize', () => carouSync(box));
+  carouSync(box);
+}
+
+document.addEventListener('click', e => {
+  const go = e.target.closest('[data-carou-go]');
+  if (!go) return;
+  const box = go.closest('[data-carou]');
+  const track = box && box.querySelector('[data-carou-track]');
+  if (!track) return;
+  track.scrollBy({left: carouStep(track) * Number(go.dataset.carouGo),
+                  behavior: 'smooth'});
+});
+
+/* Arrow keys, but only while the track itself has the focus — otherwise a
+   carousel anywhere on the page would hijack the arrow keys from the page. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const track = e.target.closest && e.target.closest('[data-carou-track]');
+  if (!track) return;
+  e.preventDefault();
+  track.scrollBy({left: carouStep(track) * (e.key === 'ArrowRight' ? 1 : -1),
+                  behavior: 'smooth'});
+});
+
+/* ── the ones that move on their own ──
+   data-carou-auto="<ms>" advances the strip by one slide on a timer and returns
+   to the start at the end. It pauses while the pointer is over it or something
+   in it has the focus, so a card can be read and clicked rather than sliding out
+   from under the cursor — and it does not start at all for a reader who has
+   asked for reduced motion, or while the tab is in the background, where it
+   would only be burning a timer nobody can see. */
+function carouAuto(box) {
+  const ms = Number(box.dataset.carouAuto);
+  const track = box.querySelector('[data-carou-track]');
+  if (!ms || !track) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  let held = 0;
+  const hold = () => { held++; };
+  const release = () => { held = Math.max(0, held - 1); };
+  box.addEventListener('pointerenter', hold);
+  box.addEventListener('pointerleave', release);
+  box.addEventListener('focusin', hold);
+  box.addEventListener('focusout', release);
+
+  setInterval(() => {
+    if (held || document.hidden) return;
+    /* Nothing to move: one card, or a window wide enough to show them all. */
+    const max = track.scrollWidth - track.clientWidth - 1;
+    if (max <= 0) return;
+    const step = carouStep(track);
+    /* Back to the beginning rather than crawling on: duplicating the cards to
+       fake an endless loop would put the same headline on the page twice, which
+       a reader notices long before they notice the seam. */
+    const to = track.scrollLeft >= max ? 0 : track.scrollLeft + step;
+    track.scrollTo({left: to, behavior: 'smooth'});
+  }, ms);
+}
+
+function carouAll() {
+  document.querySelectorAll('[data-carou]').forEach(box => {
+    carouInit(box);
+    carouAuto(box);
+  });
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', carouAll);
+} else {
+  carouAll();
+}
+/* Images change the track's width as they land, so the arrows have to be told
+   again once they have. */
+window.addEventListener('load', () => {
+  document.querySelectorAll('[data-carou]').forEach(carouSync);
+});
+
+}
+</script>

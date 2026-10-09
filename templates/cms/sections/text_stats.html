@@ -1,0 +1,33 @@
+{# templates/cms/sections/text_stats.html — a card of prose with a statistics row. #}
+{# Reproduces the "Regional engineering pioneers" card exactly, but the heading, #}
+{# icon, body and every statistic are records rather than markup. The numbers #}
+{# were a literal Python list in portal/views.py and a second hardcoded copy in #}
+{# the template, so the two could disagree and neither could be edited. #}
+{% load cms_tags %}
+<div class="card">
+  {% if section.title %}
+  <h3>
+    {% if section.icon %}{% cms_icon section.icon 14 %}{% endif %}
+    <span {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title }}</span>
+  </h3>
+  {% endif %}
+
+  {% if section.body %}
+  <div class="muted" {% if cms_edit_mode %}data-ed-field="body" data-ed-rich contenteditable="true"{% endif %}
+       style="font-size:13.5px;line-height:1.7">{{ section.body_rendered }}</div>
+  {% endif %}
+
+  {% page_actions section as stats %}
+  {% if stats %}
+  <div class="stat-row">
+    {% for s in stats %}
+    <div class="stat-item{% if cms_edit_mode %} ed-item{% endif %}"
+         data-item="{{ s.pk }}" data-owner="{{ section.pk }}"
+         {% if cms_edit_mode %}draggable="true"{% endif %}>
+      <div class="n" {% if cms_edit_mode %}data-ed-item="{{ s.pk }}" data-ed-field="title" contenteditable="true"{% endif %}>{{ s.title }}</div>
+      <div class="l" {% if cms_edit_mode %}data-ed-item="{{ s.pk }}" data-ed-field="meta" contenteditable="true"{% endif %}>{{ s.meta }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>

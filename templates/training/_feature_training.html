@@ -1,0 +1,72 @@
+{% load cms_tags %}
+{# training/_feature_training.html — the working part of Training, as a locked feature block. #}
+{# Lifted verbatim from training/list.html when that page became builder-driven, so #}
+{# it renders the same markup with the same context as before. Its styles #}
+{# travel with it, which is what lets the feature be placed in a column. #}
+
+<a href="{% url 'people_culture' %}" class="ctx-back" title="People &amp; Culture"><span class="ctx-back-lab">People &amp; Culture</span></a>
+
+
+
+{% if to_approve %}
+<div class="rise" style="max-width:940px">
+  <div class="sec-head"><h2>Awaiting your approval</h2><span class="lk" style="cursor:default">{{ to_approve|length }}</span></div>
+  {% for r in to_approve %}
+  <a href="{{ r.get_absolute_url }}" class="tl-row">
+    <div class="tl-main">
+      <div class="tl-t">{{ r.course_name }}</div>
+      <div class="tl-m">
+        <span>{{ r.employee.get_full_name|default:r.employee.username }}</span><span>·</span>
+        <span>submitted {{ r.created_at|date:"j M Y" }}</span>
+        {% if r.estimated_cost %}<span>·</span><span>{{ r.estimated_cost }} {{ r.currency }}</span>{% endif %}
+      </div>
+    </div>
+    <span class="pill warn">Needs your decision</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if is_hr and hr_queue %}
+<div class="rise" style="max-width:940px;margin-top:26px">
+  <div class="sec-head"><h2>HR queue</h2><span class="lk" style="cursor:default">{{ hr_queue|length }}</span></div>
+  {% for r in hr_queue %}
+  <a href="{{ r.get_absolute_url }}" class="tl-row">
+    <div class="tl-main">
+      <div class="tl-t">{{ r.course_name }}</div>
+      <div class="tl-m">
+        <span>{{ r.employee.get_full_name|default:r.employee.username }}</span><span>·</span>
+        <span>{{ r.awaiting }}</span>
+        {% if r.budget_amount %}<span>·</span><span>budget {{ r.budget_amount }} {{ r.currency }}</span>{% endif %}
+      </div>
+    </div>
+    <span class="pill {{ r.pill_class }}">{{ r.get_stage_display }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="rise" style="max-width:940px;margin-top:26px">
+  <div class="sec-head">
+    <h2>My requests</h2>
+    <a href="{% url 'people_culture' %}" class="lk">+ New request</a>
+  </div>
+  {% for r in mine %}
+  <a href="{{ r.get_absolute_url }}" class="tl-row">
+    <div class="tl-main">
+      <div class="tl-t">{{ r.course_name }}</div>
+      <div class="tl-m">
+        <span>submitted {{ r.created_at|date:"j M Y" }}</span><span>·</span>
+        <span>waiting on {{ r.awaiting }}</span>
+      </div>
+    </div>
+    <span class="pill {{ r.pill_class }}">{{ r.get_stage_display }}</span>
+  </a>
+  {% empty %}
+  <div class="card" style="text-align:center;padding:40px;color:var(--muted);font-size:13.5px">
+    You haven't submitted a training request yet.
+    <div style="margin-top:13px"><a href="{% url 'people_culture' %}" class="btn y sm">Start one</a></div>
+  </div>
+  {% endfor %}
+</div>
+

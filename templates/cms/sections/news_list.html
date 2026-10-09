@@ -1,0 +1,68 @@
+{# templates/cms/sections/news_list.html — the news card. #}
+{#                                                                            #}
+{# A lead story with its photograph, and the rest as three small ones under it. #}
+{# It was four equal rows, each a pill, a title, two lines of summary and a #}
+{# 46px thumbnail — which gave the top story exactly as much weight as the #}
+{# fourth, and gave the photographs too little to be worth loading. A newspaper #}
+{# front page has one lead for a reason. #}
+{#                                                                            #}
+{# There is deliberately no "+N more" link at the foot: "All news" in the header #}
+{# goes to the same place, and one card does not need two ways to it. #}
+{% load cms_tags hub_extras %}
+<div class="sec-head">
+  <h2 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title|default:"Latest news"|aji }}</h2>
+  <a href="{{ section|cfg:"link_url"|default:"/news/" }}" class="lk">{{ section|cfg:"link_label"|default:"All news" }} &rarr;</a>
+</div>
+
+{% if articles %}
+<div class="nfeed">
+  {% with lead=articles.0 %}
+  <a class="nlead" href="/news/{{ lead.slug }}/">
+    {# Only when the article actually has one. A placeholder would be a grey #}
+    {# rectangle pretending to be a picture. #}
+    {% if lead.image %}
+    <span class="nlead-ph" style="background-image:url('{{ lead.image.url|css_url }}')"></span>
+    {% endif %}
+    <span class="nlead-b">
+      {% if lead.category %}<span class="news-pill">{{ lead.category.name }}</span>{% endif %}
+      <span class="nlead-t">{{ lead.title }}</span>
+      {% if lead.summary %}
+      <span class="nlead-x">{{ lead.summary|truncatechars:165 }}</span>
+      {% endif %}
+      <span class="nlead-m">{{ lead.category.name|default:"News" }} &middot; {{ lead.date|date:"j M Y" }}</span>
+    </span>
+  </a>
+  {% endwith %}
+
+  {# ── the rest, as a strip that moves on its own ────────────────────────── #}
+  {# The row under the lead used to be exactly three, and story number five did #}
+  {# not exist until you went to /news/. Same cards, same size — the strip just #}
+  {# carries on, three at a time, and advances by itself. #}
+  {# No arrows and no dots: on a homepage card they are furniture, and a dot per #}
+  {# card counts items rather than pages. It pauses while the pointer is on it, #}
+  {# so a card can be read and clicked. #}
+  {% if articles|length > 1 %}
+  <div class="carou minis" data-carou data-carou-auto="4500">
+    <div class="carou-track" data-carou-track>
+      {% for a in articles|slice:"1:" %}
+      <div class="carou-slide" data-carou-slide>
+        <a class="nmini" href="/news/{{ a.slug }}/">
+          {% if a.image %}
+          <span class="nmini-ph" style="background-image:url('{{ a.image.url|css_url }}')"></span>
+          {% else %}
+          <span class="nmini-ph noimg"></span>
+          {% endif %}
+          <span class="nmini-t">{{ a.title }}</span>
+          <span class="nmini-m">{{ a.category.name|default:"News" }} &middot; {{ a.date|date:"j M Y" }}</span>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="nfeed">
+  <div style="padding:var(--sp-5) 0;color:var(--muted);font-size:13px">No news published yet.</div>
+</div>
+{% endif %}

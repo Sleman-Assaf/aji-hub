@@ -1,0 +1,45 @@
+{% load cms_tags %}
+{# _feature_onboarding_ceo.html - one section of the onboarding page, as its own block. #}
+{# Split out so it can be moved, retitled or removed on its own, #}
+{# rather than the whole page being one locked lump. Its heading is #}
+{# rendered by the block, which is what makes it editable. #}
+{# ── CEO LETTER ── #}
+<div class="card rise ceo-card" style="animation-delay:.04s">
+  <h3>
+    {% icon "megaphone-small" 14 2 %}
+    {% feature_text section "heading" %}
+  </h3>
+  <div class="ceo-body">
+    <figure class="ceo-fig">
+      {% if ceo_letter.photo %}
+      <img src="{{ ceo_letter.photo.url }}" alt="{{ ceo_letter.name }}" >
+      {% else %}
+      <div style="background:linear-gradient(160deg,var(--ink),#2a2a28);display:flex;align-items:center;justify-content:center">
+        {% icon "user-round" 64 1 %}
+      </div>
+      {% endif %}
+      <figcaption>
+        <span class="ceo-name" {% if cms_edit_mode %}data-ed-url="{% url 'ceo_inline_save' %}"
+              data-ed-field="name" contenteditable="true"{% endif %}>{{ ceo_letter.name }}</span>
+        <span {% if cms_edit_mode %}data-ed-url="{% url 'ceo_inline_save' %}"
+              data-ed-field="title" contenteditable="true"{% endif %}>{{ ceo_letter.title }}</span>
+      </figcaption>
+    </figure>
+    <div class="ceo-letter">
+      {# The whole letter is one editable field. It used to be split into #}
+      {# paragraphs for display only, with nothing to write back to. #}
+      <div {% if cms_edit_mode %}data-ed-url="{% url 'ceo_inline_save' %}"
+           data-ed-field="body" data-ed-rich contenteditable="true"{% endif %}>
+        {% for para in ceo_letter.paragraphs %}
+        <p>{{ para|linebreaksbr }}</p>
+        {% endfor %}
+      </div>
+      <div class="ceo-sig">
+        <span class="ceo-off" {% if cms_edit_mode %}data-ed-url="{% url 'ceo_inline_save' %}"
+              data-ed-field="sign_off" contenteditable="true"{% endif %}>{{ ceo_letter.sign_off }}</span>
+        <span>{{ ceo_letter.title }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+

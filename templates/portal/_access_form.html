@@ -1,0 +1,63 @@
+{% load cms_tags %}
+{# Who can see one thing on Brand Files. #}
+{# #}
+{# Used by the page, by each section and by each tile, so the three read the #}
+{# same and cannot drift. Parameters: #}
+{#   obj          the thing being restricted (has .access, .allowed_groups, #}
+{#                .allowed_users) #}
+{#   action       where to post #}
+{#   all_groups   every role, for the tick list #}
+{#   inherit      show a "same as the section" option #}
+{#   inherit_label what to call it #}
+{#   search_url   where the people picker looks #}
+<form method="post" action="{{ action }}" class="ba-form" data-save="reload">
+  {% csrf_token %}
+
+  <div class="ba-choices">
+    {% if inherit %}
+    <label class="ba-choice{% if obj.access == 'inherit' %} on{% endif %}">
+      <input type="radio" name="access" value="inherit"
+             {% if obj.access == 'inherit' %}checked{% endif %}>
+      <span><b>{{ inherit_label|default:'Same as the section' }}</b>
+        <i>Follows whatever the section above allows.</i></span>
+    </label>
+    {% endif %}
+    <label class="ba-choice{% if obj.access == 'everyone' %} on{% endif %}">
+      <input type="radio" name="access" value="everyone"
+             {% if obj.access == 'everyone' %}checked{% endif %}>
+      <span><b>Everyone at AJi</b>
+        <i>Anyone signed in can see it.</i></span>
+    </label>
+    <label class="ba-choice{% if obj.access == 'restricted' %} on{% endif %}">
+      <input type="radio" name="access" value="restricted"
+             {% if obj.access == 'restricted' %}checked{% endif %}>
+      <span><b>Only chosen people</b>
+        <i>Pick roles, named colleagues, or both.</i></span>
+    </label>
+  </div>
+
+  {# Always in the markup, hidden until "Only chosen people" is picked, so a #}
+  {# half-made choice is not lost when the box appears. #}
+  <div class="ba-who" data-ba-who{% if obj.access != 'restricted' %} hidden{% endif %}>
+    <div class="ba-groups">
+      <span class="ba-label">Roles</span>
+      <div class="ba-group-list">
+        {% for g in all_groups %}
+        <label class="ba-tick">
+          <input type="checkbox" name="groups" value="{{ g.pk }}"
+                 {% if g in obj.allowed_groups.all %}checked{% endif %}>
+          <span>{{ g.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="ba-people">
+      <span class="ba-label">Named colleagues</span>
+      {% include 'exchange/_people_picker.html' with search_url=search_url field='people' preset=obj.allowed_users.all placeholder='Search colleagues by name…' note='They see it whichever roles they hold.' %}
+    </div>
+  </div>
+
+  <div class="ba-actions">
+    <button type="submit" class="btn y sm">Save</button>
+  </div>
+</form>

@@ -1,0 +1,30 @@
+{# _feature_people_culture_links.html - one section of the people_culture page, as its own block. #}
+{# Split out so it can be moved, retitled or removed on its own, #}
+{# rather than the whole page being one locked lump. Its heading is #}
+{# rendered by the block, which is what makes it editable. #}
+{% load cms_tags %}
+{# These few selectors are styled differently by another page, so they #}
+{# stay scoped here rather than being hoisted into the stylesheet. #}
+<style>
+.tile{border:1px solid var(--line);background:var(--paper-2);padding:22px 20px;cursor:pointer;transition:box-shadow .16s,border-color .16s;display:flex;flex-direction:column;gap:10px}
+.tile:hover{box-shadow:0 8px 22px rgba(18,18,16,.07);border-color:var(--line-2)}
+.tile .ic{width:42px;height:42px;background:var(--paper-2);display:flex;align-items:center;justify-content:center}
+.tile h4{font-weight:700;font-size:15px;margin:0}
+.tile p{font-size:13px;color:var(--muted);margin:0}
+</style>
+{# ── QUICK BUTTONS ── #}
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+  <a href="/onboarding/" class="btn ghost sm">
+    {% icon "book-open" 15 1.7 %}
+    Onboarding Module
+  </a>
+  <a href="?tab=voice" class="btn ghost sm">
+    {% icon "megaphone-wide" 15 1.7 %}
+    CEO Hotline
+  </a>
+  <a href="/onboarding/" class="btn ghost sm">
+    {% icon "arrow-left-circle" 15 1.7 %}
+    About AJi
+  </a>
+</div>
+

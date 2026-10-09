@@ -1,0 +1,184 @@
+{# people/_feature_directory.html — the working part of Employee Directory, as a locked feature block. #}
+{# Lifted verbatim from people/directory.html when that page became builder-driven, so #}
+{# it renders the same markup with the same context as before. Its styles #}
+{# travel with it, which is what lets the feature be placed in a column. #}
+{% load cms_tags people_tags %}
+
+
+
+
+
+<!-- Filters -->
+<div class="card rise" style="margin-bottom:18px">
+  <form method="get" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div class="field" style="flex:1;min-width:200px;margin:0">
+      <label>Search</label>
+      <input type="text" name="q" id="dirSearchQ" value="{{ q }}"
+             placeholder="Name, role…" autofocus autocomplete="off">
+    </div>
+    <div class="field" style="min-width:180px;margin:0">
+      <label>Entity</label>
+      <select name="entity" id="dirEntitySel">
+        <option value="">All entities</option>
+        {% for e in entities %}
+        <option value="{{ e.code }}" {% if selected_entity == e.code %}selected{% endif %}>{{ e.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn y">Search</button>
+    {% if q or selected_entity %}<a href="/people/" class="btn ghost">Clear</a>{% endif %}
+  </form>
+</div>
+
+<!-- Count + org chart link -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+  {# `total`, not `employees|length` — the page holds the first ten, and the #}
+  {# count is of everybody who matches. #}
+  <span class="muted" style="font-size:13px" id="dirCount">{{ total }} employee{{ total|pluralize }}</span>
+  <a href="/people/org/" class="btn ghost sm">View org chart</a>
+</div>
+
+<!-- Grid -->
+<div id="dirGrid">
+  <div class="grid rise" id="dirCards" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+    {% for emp in employees %}
+    <div class="card" style="padding:20px;cursor:pointer;transition:.15s"
+         onclick="openProfile({{ emp.pk }})"
+         onmouseover="this.style.boxShadow='4px 4px 0 var(--yellow)'"
+         onmouseout="this.style.boxShadow=''">
+      <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">
+        {% emp_avatar emp size=52 %}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ emp.full_name }}</div>
+          <div class="muted" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ emp.role|default:"—" }}</div>
+          {% if emp.entity %}<div style="font-size:11px;color:var(--muted);margin-top:2px">{{ emp.entity.name }}</div>{% endif %}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        {% if emp.email %}
+        <a href="mailto:{{ emp.email }}" class="btn ghost sm" onclick="event.stopPropagation()">Email</a>
+        {% endif %}
+        {% if emp.extension %}
+        <span class="pill mut">Ext {{ emp.extension }}</span>
+        {% endif %}
+        <button class="btn ghost sm" onclick="event.stopPropagation();if({{ emp.user.pk|default:0 }})chatOpenWith({{ emp.user.pk|default:0 }},'{{ emp.full_name|escapejs }}','{% if emp.photo %}{{ emp.photo.url }}{% endif %}')">Message</button>
+      </div>
+    </div>
+    {% empty %}
+    <div class="card" style="grid-column:1/-1;text-align:center;color:var(--muted);padding:40px">
+      No employees found{% if q %} matching "{{ q }}"{% endif %}.
+    </div>
+    {% endfor %}
+  </div>
+
+  {# The rest of the directory, on request. Ten arrive with the page; this #}
+  {# fetches fifty at a time and appends, so nobody waits on 1,256 cards they #}
+  {# were never going to read. #}
+  <div class="dir-more" id="dirMore"{% if not has_more %} hidden{% endif %}>
+    <button type="button" class="btn ghost" id="dirMoreBtn"
+            data-offset="{{ next_offset }}" data-limit="{{ more_page }}">
+      Show {{ more_page }} more
+    </button>
+    <span class="muted" id="dirShown">Showing {{ employees|length }} of {{ total }}</span>
+  </div>
+</div>{# /dirGrid #}
+
+<!-- Profile modal -->
+<script>
+async function openProfile(pk){
+  const r = await fetch('/people/'+pk+'/modal/');
+  const html = await r.text();
+  openModal(html);
+}
+
+/* ── Live directory search, and paging ──
+   One request shape serves both: a search resets the offset to zero and
+   replaces the grid, "show more" keeps the offset and appends to it. The two
+   used to be different things, which is why searching could not page. */
+document.addEventListener('DOMContentLoaded', function() {
+  var input     = document.getElementById('dirSearchQ');
+  var entitySel = document.getElementById('dirEntitySel');
+  var cards     = document.getElementById('dirCards');
+  var countEl   = document.getElementById('dirCount');
+  var moreWrap  = document.getElementById('dirMore');
+  var moreBtn   = document.getElementById('dirMoreBtn');
+  var shownEl   = document.getElementById('dirShown');
+  var timer     = null;
+  var shown     = cards.querySelectorAll('.card').length;
+
+  function cardHtml(emp) {
+    var av = emp.photo
+      ? '<div style="width:52px;height:52px;border-radius:50%;overflow:hidden;flex:none"><img src="'+emp.photo+'" style="width:100%;height:100%;object-fit:cover;display:block"></div>'
+      : '<div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--ink),#3a3a38);color:var(--yellow);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex:none">'+emp.initials+'</div>';
+    var email = emp.email ? '<a href="mailto:'+emp.email+'" class="btn ghost sm" onclick="event.stopPropagation()">Email</a>' : '';
+    var ext   = emp.ext   ? '<span class="pill mut">Ext '+emp.ext+'</span>' : '';
+    var msg   = emp.user_pk ? '<button class="btn ghost sm" onclick="event.stopPropagation();chatOpenWith('+emp.user_pk+',\''+emp.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')"  >Message</button>' : '';
+    return '<div class="card" style="padding:20px;cursor:pointer;transition:.15s" onclick="openProfile('+emp.pk+')" onmouseover="this.style.boxShadow=\'4px 4px 0 var(--yellow)\'" onmouseout="this.style.boxShadow=\'\'">'
+      +'<div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">'+av
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+emp.name+'</div>'
+      +'<div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">'+emp.role+'</div>'
+      +(emp.entity ? '<div style="font-size:11px;color:var(--muted);margin-top:1px">'+emp.entity+'</div>' : '')
+      +'</div></div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap">'+email+ext+msg+'</div></div>';
+  }
+
+  function load(offset, append) {
+    var url = '/people/?q=' + encodeURIComponent(input.value.trim())
+            + '&entity=' + encodeURIComponent(entitySel.value)
+            + '&offset=' + offset
+            + '&limit=' + (append ? moreBtn.dataset.limit : {{ more_page }});
+    moreBtn.disabled = true;
+    var was = moreBtn.textContent;
+    if (append) moreBtn.textContent = 'Loading…';
+
+    return fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var emps = d.employees || [];
+        var html = emps.map(cardHtml).join('');
+
+        if (append) {
+          cards.insertAdjacentHTML('beforeend', html);
+          shown += emps.length;
+        } else {
+          cards.innerHTML = html || '<div class="card" style="grid-column:1/-1;text-align:center;color:var(--muted);padding:40px">No employees found.</div>';
+          shown = emps.length;
+        }
+
+        countEl.textContent = d.total + ' employee' + (d.total !== 1 ? 's' : '');
+        shownEl.textContent = 'Showing ' + shown + ' of ' + d.total;
+        moreBtn.dataset.offset = d.next_offset;
+        moreWrap.hidden = !d.has_more;
+        moreBtn.disabled = false;
+        moreBtn.textContent = was;
+      })
+      .catch(function() {
+        moreBtn.disabled = false;
+        moreBtn.textContent = was;
+      });
+  }
+
+  moreBtn.addEventListener('click', function() {
+    load(parseInt(moreBtn.dataset.offset, 10) || 0, true);
+  });
+
+  function doSearch() {
+    /* Back to the top of the results — appending a new search onto the old one
+       would leave people on screen who no longer match it. */
+    load(0, false).then(function() { input.focus(); });
+  }
+
+  input.addEventListener('input', function() {
+    clearTimeout(timer);
+    var q = input.value.trim();
+    if (q.length >= 3 || q.length === 0) {
+      timer = setTimeout(doSearch, 350);
+    }
+  });
+
+  entitySel.addEventListener('change', doSearch);
+});
+</script>
+
+

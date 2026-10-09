@@ -1,0 +1,89 @@
+{% extends 'core/it/_shell.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}IT Portal — AJi Hub{% endblock %}
+{% block it_note %}Where the Hub stands right now, and what has been changed lately.{% endblock %}
+
+{% block it_content %}
+<div class="it-stats">
+  <div class="it-stat"><b>{{ n_active }}</b><span>Active accounts</span></div>
+  <div class="it-stat{% if n_disabled %} warn{% endif %}"><b>{{ n_disabled }}</b><span>Disabled</span></div>
+  <div class="it-stat"><b>{{ n_roles }}</b><span>Roles</span></div>
+  <div class="it-stat"><b>{{ n_privileged }}</b><span>Administrators</span></div>
+  <div class="it-stat"><b>{{ n_never }}</b><span>Never signed in</span></div>
+</div>
+
+<div class="it-grid2">
+  <div class="it-card">
+    <div class="it-card-h">{% icon "plug" 16 %}<span class="sp">Integrations</span>
+      <a class="it-chip" href="{% url 'it_integrations' %}">Configure</a></div>
+    <div class="it-card-b flush">
+      {% for name, ok, note in integrations %}
+      <div class="it-row">
+        <span class="it-chip {% if ok %}ok{% else %}bad{% endif %}">{% if ok %}On{% else %}Off{% endif %}</span>
+        <span class="it-row-main"><b>{{ name }}</b><span>{{ note }}</span></span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="it-card">
+    <div class="it-card-h">{% icon "lock" 16 %}<span class="sp">Security</span>
+      {% if security_count %}<span class="it-chip warnc">{{ security_count }} to review</span>
+      {% else %}<span class="it-chip ok">All clear</span>{% endif %}</div>
+    <div class="it-card-b">
+      <p style="margin:0 0 12px;font-size:13px;color:var(--muted);line-height:1.6">
+        Checks run against the database each time this page opens, not from a
+        document that goes out of date.</p>
+      <a class="btn ghost sm" href="{% url 'it_security' %}">Open the review</a>
+    </div>
+  </div>
+</div>
+
+<div class="it-grid2">
+  <div class="it-card">
+    <div class="it-card-h">{% icon "download-tray" 16 %}<span class="sp">Last backup</span></div>
+    <div class="it-card-b">
+      {% if last_backup %}
+        <p style="margin:0 0 4px;font-size:14px"><b>{{ last_backup.created_at|date:"j M Y, H:i" }}</b></p>
+        <p style="margin:0 0 12px;font-size:12.5px;color:var(--muted)">
+          {{ last_backup.filename }} · {{ last_backup.size_display }}
+          {% if last_backup.taken_by %} · by {{ last_backup.taken_by.get_full_name|default:last_backup.taken_by.username }}{% endif %}
+        </p>
+      {% else %}
+        <p style="margin:0 0 12px;font-size:13px;color:var(--muted)">No backup has been taken yet.</p>
+      {% endif %}
+      <a class="btn ghost sm" href="{% url 'it_backups' %}">Backups</a>
+    </div>
+  </div>
+
+  <div class="it-card">
+    <div class="it-card-h">{% icon "clipboard-text" 16 %}<span class="sp">Recent activity</span>
+      <a class="it-chip" href="{% url 'it_logs' %}">All</a></div>
+    <div class="it-card-b flush">
+      {% for row in recent %}
+      <div class="it-row">
+        <span class="it-row-main">
+          <b>{{ row.summary }}</b>
+          <span>{{ row.created_at|date:"j M, H:i" }}{% if row.actor %} · {{ row.actor.get_full_name|default:row.actor.username }}{% endif %}</span>
+        </span>
+      </div>
+      {% empty %}
+      <div class="it-none">Nothing has been changed through the portal yet.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="it-card">
+  <div class="it-card-h">{% icon "shield" 16 %}<span class="sp">Roles</span>
+    <a class="it-chip" href="{% url 'it_roles' %}">Manage</a></div>
+  <div class="it-card-b flush">
+    {% for g in roles %}
+    <a class="it-row" href="{% url 'it_role_detail' g.pk %}">
+      <span class="it-row-main"><b>{{ g.name }}</b></span>
+      <span class="it-chip{% if not g.n %} bad{% endif %}">{{ g.n }} member{{ g.n|pluralize }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

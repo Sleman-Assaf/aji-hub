@@ -1,0 +1,23 @@
+{# templates/content/news_confirm_delete.html #}
+{% extends 'base.html' %}
+{% block title %}Delete article — AJi News{% endblock %}
+{% block content %}
+<a href="{% url 'news_detail' article.slug %}" class="ctx-back" title="Back to article"><span class="ctx-back-lab">Back to article</span></a>
+
+<div class="card rise" style="max-width:560px">
+  <h1 style="font-size:22px;letter-spacing:-.02em;margin-bottom:10px">Delete this article?</h1>
+  <p style="font-size:14px;margin-bottom:6px"><b>{{ article.title }}</b></p>
+  <p class="muted" style="font-size:13px">
+    {{ article.date|date:"j F Y" }}{% if article.author_name %} · {{ article.author_name }}{% endif %}
+  </p>
+  <p style="font-size:13.5px;margin-top:14px">
+    This also removes its {{ article.comments.count }} comment{{ article.comments.count|pluralize }} and
+    {{ article.attachments.count }} attachment{{ article.attachments.count|pluralize }}. This cannot be undone.
+  </p>
+  <form method="post" class="f-foot">
+    {% csrf_token %}
+    <button type="submit" class="btn y">Yes, delete it</button>
+    <a href="{% url 'news_detail' article.slug %}" class="btn ghost">Cancel</a>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{# portal/_file_field.html — a file input that looks like the rest of the Hub. #}
+{# #}
+{# The browser's own control cannot be styled: "Choose File" and the filename #}
+{# beside it are drawn by the operating system, in its font, at its size, and #}
+{# the name is truncated in the middle so "Cyber Security Policy 2026.pdf" comes #}
+{# out as "Cyb...pdf" with no way to widen it. #}
+{# #}
+{# So the real input is hidden and a label stands in for it. A <label> wrapping #}
+{# the input is what makes this work without JavaScript for the click — the #}
+{# script below only writes the chosen filename back, and if it never ran the #}
+{# field would still open and still submit. #}
+{# #}
+{# Usage: {% include 'portal/_file_field.html' with name='file' %} #}
+{#        add current='…' to show what is already attached. #}
+{# Loaded here rather than relying on the including template: an include has its #}
+{# own tag library, so this has to ask for its own. #}
+{% load cms_tags %}
+<label class="ff-field">
+  <input type="file" name="{{ name|default:'file' }}" data-ff>
+  <span class="ff-btn">{% icon "paperclip" 13 1.8 %} Choose file</span>
+  <span class="ff-name" data-ff-name>{{ current|default:'No file chosen' }}</span>
+</label>

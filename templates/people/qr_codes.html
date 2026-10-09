@@ -1,0 +1,21 @@
+{# people/qr_codes.html — now built from blocks. #}
+{# The heading and the cards were typed into this template, so neither could be #}
+{# changed without a code change, and the codes themselves were emoji. The body #}
+{# is people/_feature_qr.html now, rendered by a block on this page, so the #}
+{# words around it are editable and the pictures come from records. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}QR Codes — AJi Hub{% endblock %}
+
+{% block content %}
+{% cms_page_body %}
+
+{% if cms_can_edit and not cms_bound_page %}
+<div class="card" style="text-align:center;padding:40px">
+  <b style="display:block;font-size:14.5px;margin-bottom:5px">This page has no blocks yet</b>
+  <span class="muted" style="font-size:12.5px">
+    Run <code>manage.py convert_qr_page</code> to build it from the original layout.
+  </span>
+</div>
+{% endif %}
+{% endblock %}

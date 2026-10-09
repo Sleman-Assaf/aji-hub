@@ -1,0 +1,31 @@
+{# templates/cms/partials/_page_row.html — one page on the index. #}
+{# Shared by both groups so "in the menu" and "not in the menu" cannot drift #}
+{# into looking like two different things. #}
+<div class="pi-row">
+  <div class="pi-main">
+    <div class="pi-title">
+      {{ r.page.title }}
+      {% if not r.page.is_published %}<span class="pill mut">Unpublished</span>{% endif %}
+      {% if r.has_draft %}<span class="pill warn">Draft open</span>{% endif %}
+    </div>
+    <div class="pi-meta">
+      <span>{{ r.page.get_absolute_url }}</span>
+      <span>·</span>
+      <span>{{ r.blocks }} block{{ r.blocks|pluralize }}</span>
+      {% if r.page.audience != 'everyone' %}
+      <span>·</span><span>{{ r.page.get_audience_display }}</span>{% endif %}
+      {% if r.in_nav and r.nav_item.parent %}
+      <span>·</span><span>under {{ r.nav_item.parent.label }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="pi-acts">
+    <a href="{{ r.page.get_absolute_url }}?edit=1" class="btn ghost sm">Edit</a>
+    <a href="{% url 'cms_page_manage' r.page.slug %}" data-frag class="btn ghost sm">Blocks</a>
+    {% if can_publish %}
+    <button type="button" class="btn ghost sm{% if r.in_nav %} pi-out{% endif %}"
+            onclick="piToggleNav('{{ r.page.slug }}', '{{ r.page.title|escapejs }}', {{ r.in_nav|yesno:'true,false' }})">
+      {% if r.in_nav %}Remove from menu{% else %}Add to menu{% endif %}
+    </button>
+    {% endif %}
+  </div>
+</div>

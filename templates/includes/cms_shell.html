@@ -1,0 +1,473 @@
+{# templates/includes/cms_shell.html — the editing sidebar. #}
+{# One panel instead of a palette, a drawer, a floating toolbar and seven #}
+{# management screens. Three tabs: what the page is, what is on it, and the #}
+{# properties of whatever is selected. #}
+{# #}
+{# It reuses the endpoints the canvas already uses, so every action has one #}
+{# implementation rather than two that can drift apart: /settings/ fills #}
+{# Properties, /update/ saves it, /<action>/ duplicates, hides, deletes and #}
+{# moves, /block/new/ inserts, and /layers/ describes the tree. #}
+{% load cms_tags %}
+{% if cms_edit_mode and cms_shell_page %}
+{# data-slug is the draft: every block endpoint should act on the copy. #}
+{# data-live-slug is the page it came from, because publishing, #}
+{# discarding and asking about the draft are all about that page -- and #}
+{# the draft's own slug stops resolving the moment one of them succeeds. #}
+<div class="csh" id="csh" data-slug="{{ cms_shell_page.slug }}"
+     data-live-slug="{{ cms_live_page.slug }}">
+
+  <button type="button" class="csh-grip" id="cshGrip" aria-label="Widen or narrow the panel"></button>
+
+  <header class="csh-top">
+    <div class="csh-where">
+      <span class="csh-page">{{ cms_live_page.title }}</span>
+      {# Editing works on a draft copy, so this says what the *reader* is #}
+      {# currently getting, not what is on screen in front of the editor. #}
+      <span class="csh-state {% if cms_live_page.is_published %}live{% else %}draft{% endif %}">
+        {% if cms_live_page.is_published %}Live{% else %}Unpublished{% endif %}
+      </span>
+    </div>
+    <div class="csh-top-acts">
+      <button type="button" class="csh-icon" id="cshUndo" title="Undo (Ctrl+Z)" disabled>
+        {% icon "arrow-left-circle" 15 %}
+      </button>
+      <a href="{{ cms_live_page.get_absolute_url }}" class="csh-done">Close</a>
+    </div>
+  </header>
+
+  {# ── The draft bar ─────────────────────────────────────────────────────── #}
+  {# Every edit used to be live the moment it was typed. Now it goes to a copy, #}
+  {# and this is where that copy is looked at, published or thrown away. #}
+  <div class="csh-draft" id="cshDraft">
+    <div class="csh-draft-t">
+      <span id="cshDraftCount">Working on a draft</span>
+      <span class="muted" id="cshDraftWho"></span>
+    </div>
+    <div class="csh-draft-acts">
+      <a class="btn ghost sm" id="cshPreview"
+         href="{{ cms_live_page.get_absolute_url }}?preview=1" target="_blank" rel="noopener">Preview</a>
+      {% if cms_can_publish %}
+      <button type="button" class="btn y sm" id="cshSave">Save</button>
+      {% else %}
+      <span class="csh-nopub" title="Ask a publisher to put this live">Needs a publisher</span>
+      {% endif %}
+      <button type="button" class="btn ghost sm csh-discard" id="cshDiscard">Discard</button>
+    </div>
+  </div>
+
+  <nav class="csh-tabs" role="tablist">
+    <button type="button" class="csh-tab on" data-tab="insert" role="tab" aria-selected="true">Insert</button>
+    <button type="button" class="csh-tab" data-tab="layers" role="tab" aria-selected="false">Layers</button>
+    <button type="button" class="csh-tab" data-tab="props" role="tab" aria-selected="false">Properties</button>
+    <button type="button" class="csh-tab" data-tab="page" role="tab" aria-selected="false">Page</button>
+  </nav>
+
+  {# ── Insert ───────────────────────────────────────────────────────────── #}
+  <section class="csh-pane on" data-pane="insert">
+    <div class="csh-search">
+      {% icon "search" 14 %}
+      <input type="text" id="cshFind" placeholder="Search components" autocomplete="off"
+             aria-label="Search components">
+    </div>
+    <p class="csh-note">
+      Click a component to add it to the end of the page, or drag it where you
+      want it.
+    </p>
+    {# Ready-made layouts first. Getting two columns of text used to take five #}
+    {# interactions -- add a Columns block, pick a split, then find and fill each #}
+    {# empty column. One of these does the whole thing in one insert. #}
+    <div class="csh-group" data-group="presets">
+      <h3>Start with a layout</h3>
+      <div class="csh-comps">
+        {% for p in cms_presets %}
+        <button type="button" class="csh-comp is-preset" data-preset="{{ p.key }}"
+                data-search="{{ p.search }}" title="{{ p.hint }}">
+          <span class="csh-wf wf">{{ p.shape|safe }}</span>
+          <span class="csh-comp-n">{{ p.label }}</span>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# cms_palette_groups is (key, heading); the blocks live in cms_palette #}
+    {# under that key, so the heading reads properly and the order is the one #}
+    {# the context processor chose. #}
+    {% for key, heading in cms_palette_groups %}
+    {% with blocks=cms_palette|dictget:key %}
+    <div class="csh-group" data-group="{{ key }}">
+      <h3>{{ heading }}</h3>
+      <div class="csh-comps">
+        {% for b in blocks %}
+        <button type="button" class="csh-comp" data-type="{{ b.value }}"
+                data-search="{{ b.search }}" draggable="true"
+                title="{{ b.hint }}">
+          <span class="csh-wf wf">{{ b.shape|safe }}</span>
+          <span class="csh-comp-n">{{ b.label }}</span>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+    <p class="csh-empty" id="cshFindNone" hidden>Nothing matches that.</p>
+  </section>
+
+  {# ── Layers ───────────────────────────────────────────────────────────── #}
+  <section class="csh-pane" data-pane="layers">
+    <p class="csh-note">
+      Everything on this page. Click to select it, drag to move it.
+    </p>
+    <div class="csh-tree" id="cshTree" role="tree"></div>
+  </section>
+
+  {# ── Properties ───────────────────────────────────────────────────────── #}
+  <section class="csh-pane" data-pane="props">
+    <div id="cshProps">
+      <p class="csh-empty">
+        Select something on the page, or in Layers, to see its properties here.
+      </p>
+    </div>
+  </section>
+
+  {# ── Page ─────────────────────────────────────────────────────────────── #}
+  <section class="csh-pane" data-pane="page">
+    <p class="csh-note">
+      Settings for the whole page — its title, who can see it, and whether it is
+      published.
+    </p>
+    <iframe id="cshPage" title="Page settings"
+            src="{% url 'cms_page_settings' cms_shell_page.slug %}?embed=1"></iframe>
+  </section>
+</div>
+
+<script>
+/* ── the editing sidebar ────────────────────────────────────────────────────
+   One panel, four tabs. It owns no editing logic of its own: every action calls
+   the endpoint the canvas already calls, so there is a single implementation of
+   inserting, duplicating, hiding, deleting and reordering. */
+(function(){
+  const shell = document.getElementById('csh');
+  if (!shell) return;
+  const SLUG = shell.dataset.slug;            /* the draft */
+  const LIVE = shell.dataset.liveSlug || SLUG;  /* the page it belongs to */
+  const tree = document.getElementById('cshTree');
+  const props = document.getElementById('cshProps');
+
+  const csrf = () => (document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/) || [])[1] || '';
+
+  async function post(url, body){
+    const fd = new FormData();
+    Object.entries(body || {}).forEach(([k, v]) => fd.append(k, v));
+    let d = {};
+    try {
+      const r = await fetch(url, {method: 'POST',
+        headers: {'X-CSRFToken': decodeURIComponent(csrf())}, body: fd});
+      d = await r.json();
+      if (!r.ok || d.error){ say(d.error || 'That did not save.', true); return null; }
+    } catch (e){ say('Could not reach the server.', true); return null; }
+    if (d.message) say(d.message);
+    /* The bar counts what is unsaved, so it has to be told when that changes. */
+    if (window.cshDraftStatus && !url.endsWith('/publish/')
+        && !url.endsWith('/discard/')) setTimeout(cshDraftStatus, 60);
+    return d;
+  }
+
+  function say(msg, bad){
+    if (window.edStatus) return edStatus(msg, bad);
+    if (window.showToast) return showToast(msg);
+  }
+
+  /* ── tabs ─────────────────────────────────────────────────────────────── */
+  function show(name){
+    shell.querySelectorAll('.csh-tab').forEach(t => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle('on', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    shell.querySelectorAll('.csh-pane').forEach(p =>
+      p.classList.toggle('on', p.dataset.pane === name));
+    if (name === 'layers') loadTree();
+  }
+  shell.querySelectorAll('.csh-tab').forEach(t =>
+    t.addEventListener('click', () => show(t.dataset.tab)));
+
+  /* ── the component list ───────────────────────────────────────────────── */
+  const find = document.getElementById('cshFind');
+  find.addEventListener('input', () => {
+    const q = find.value.trim().toLowerCase();
+    let hits = 0;
+    shell.querySelectorAll('.csh-comp').forEach(b => {
+      const match = !q || (b.dataset.search || '').toLowerCase().includes(q);
+      b.hidden = !match;
+      if (match) hits++;
+    });
+    /* A group with nothing left in it is noise, so it goes too. */
+    shell.querySelectorAll('.csh-group').forEach(g =>
+      g.hidden = ![...g.querySelectorAll('.csh-comp')].some(b => !b.hidden));
+    document.getElementById('cshFindNone').hidden = hits > 0;
+  });
+
+  /* Clicking inserts and then selects, so properties are already open on the
+     thing that was just added. The old flow inserted, closed, and left you to
+     find it and open its settings yourself. */
+  shell.querySelectorAll('.csh-comp').forEach(btn => {
+    btn.addEventListener('click', () => {
+      /* A preset builds a row and its contents together; a component is one
+         block. Different endpoints, same result on screen. */
+      if (btn.dataset.preset) return insertPreset(btn.dataset.preset);
+      insert(btn.dataset.type);
+    });
+    btn.addEventListener('dragstart', e => {
+      /* A preset is a row: it belongs at the top level, not inside a column, so
+         it is not draggable into one. */
+      if (btn.dataset.preset){ e.preventDefault(); return; }
+      e.dataTransfer.setData('text/cms-component', btn.dataset.type);
+      e.dataTransfer.effectAllowed = 'copy';
+    });
+  });
+
+  async function insert(type, parent, column, before){
+    const body = {type: type};
+    if (parent != null){ body.parent = parent; body.column = column; }
+    if (before) body.before = before;
+    const d = await post(`/p/edit/${SLUG}/block/new/`, body);
+    if (!d) return;
+    if (d.reload_page){ location.reload(); return; }
+    if (d.html && d.pk) placeBlock(d.pk, d.html);
+    await select(d.pk);
+    loadTree();
+  }
+
+  async function insertPreset(key){
+    const d = await post(`/p/edit/${SLUG}/preset/new/`, {preset: key});
+    if (!d) return;
+    /* A full-width layout is a stack of blocks rather than one row, so it comes
+       back as a list. Placing only the first would have left the rest invisible
+       until a reload. */
+    const made = d.blocks || (d.pk ? [{pk: d.pk, html: d.html}] : []);
+    made.forEach(b => b.html && placeBlock(b.pk, b.html));
+    if (made.length) await select(made[0].pk);
+    loadTree();
+  }
+
+  /* A new block's markup is put on the canvas without a reload. */
+  function placeBlock(pk, html){
+    const canvas = document.getElementById('cmsPage');
+    if (!canvas) { location.reload(); return; }
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    const node = wrap.firstElementChild;
+    const addBtn = canvas.querySelector(':scope > .ed-add');
+    if (addBtn) addBtn.before(node); else canvas.append(node);
+    node.scrollIntoView({block: 'center', behavior: 'smooth'});
+    if (window.mpWire) mpWire(node);
+  }
+
+  /* ── selection ────────────────────────────────────────────────────────── */
+  let current = null;
+
+  async function select(pk){
+    current = pk;
+    document.querySelectorAll('.cms-block.csh-sel').forEach(b =>
+      b.classList.remove('csh-sel'));
+    const node = document.querySelector(`[data-block="${pk}"]`);
+    if (node){
+      node.classList.add('csh-sel');
+      node.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    }
+    tree.querySelectorAll('.csh-row').forEach(r =>
+      r.classList.toggle('on', r.dataset.pk === String(pk)));
+
+    show('props');
+    props.innerHTML = '<p class="csh-empty">Loading…</p>';
+    try {
+      const r = await fetch(`/p/edit/block/${pk}/settings/`);
+      const d = await r.json();
+      props.innerHTML = d.html || '<p class="csh-empty">Nothing to set here.</p>';
+      if (window.ipWire) ipWire(props);
+      if (window.mpWire) mpWire(props);
+    } catch (e){
+      props.innerHTML = '<p class="csh-empty">Those properties could not be loaded.</p>';
+    }
+  }
+  window.cshSelect = select;
+  /* The touch drag engine inserts through this, so a component dropped
+     with a finger takes exactly the path a mouse drop takes. */
+  window.cshInsert = insert;
+
+  /* Clicking a block on the canvas selects it, which is what makes the canvas
+     and the panel one thing rather than two. Not on a link, a button or text
+     being edited -- those still do what they say. */
+  document.addEventListener('click', e => {
+    if (e.target.closest('#csh')) return;
+    if (e.target.closest('a, button, input, textarea, select, [contenteditable="true"]')) return;
+    const block = e.target.closest('.cms-block[data-block]');
+    if (block) select(block.dataset.block);
+  });
+
+  /* ── the tree ─────────────────────────────────────────────────────────── */
+  async function loadTree(){
+    tree.innerHTML = '<p class="csh-empty">Loading…</p>';
+    try {
+      const d = await (await fetch(`/p/${SLUG}/layers/`)).json();
+      tree.innerHTML = '';
+      if (!d.tree.length){
+        tree.innerHTML = '<p class="csh-empty">This page has no content yet. '
+                       + 'Add something from Insert.</p>';
+        return;
+      }
+      d.tree.forEach(n => tree.append(row(n, 0)));
+    } catch (e){
+      tree.innerHTML = '<p class="csh-empty">The structure could not be loaded.</p>';
+    }
+  }
+  window.cshRefreshTree = loadTree;
+
+  function row(node, depth){
+    const wrap = document.createElement('div');
+    if (node.kind === 'column'){
+      const head = document.createElement('div');
+      head.className = 'csh-row col';
+      head.style.setProperty('--d', depth);
+      head.textContent = node.label;
+      wrap.append(head);
+      (node.children || []).forEach(k => wrap.append(row(k, depth + 1)));
+      return wrap;
+    }
+
+    const r = document.createElement('div');
+    r.className = 'csh-row' + (node.hidden ? ' off' : '') + (node.locked ? ' locked' : '');
+    r.dataset.pk = node.pk;
+    r.style.setProperty('--d', depth);
+    r.setAttribute('role', 'treeitem');
+    r.draggable = true;
+
+    r.innerHTML =
+      `<span class="csh-row-n"></span>` +
+      `<span class="csh-row-t"></span>` +
+      `<span class="csh-row-acts">` +
+        `<button type="button" data-a="toggle" title="${node.hidden ? 'Show' : 'Hide'}">${node.hidden ? '◌' : '●'}</button>` +
+        `<button type="button" data-a="duplicate" title="Duplicate">⧉</button>` +
+        `<button type="button" data-a="delete" title="Remove">✕</button>` +
+      `</span>`;
+    r.querySelector('.csh-row-n').textContent = node.label;
+    r.querySelector('.csh-row-t').textContent =
+      node.item_count ? `${node.type_label} · ${node.item_count}` : node.type_label;
+
+    r.addEventListener('click', e => {
+      if (e.target.closest('[data-a]')) return;
+      select(node.pk);
+    });
+    r.querySelectorAll('[data-a]').forEach(b =>
+      b.addEventListener('click', async e => {
+        e.stopPropagation();
+        const action = b.dataset.a;
+        if (action === 'delete' &&
+            !confirm(`Remove “${node.label}”? You can undo this.`)) return;
+        const d = await post(`/p/edit/block/${node.pk}/${action}/`, {});
+        if (!d) return;
+        if (d.reload_page) { location.reload(); return; }
+        if (d.html && d.pk) swap(d.pk, d.html);
+        if (action === 'delete') document.querySelector(`[data-block="${node.pk}"]`)?.remove();
+        loadTree();
+      }));
+
+    wrap.append(r);
+    (node.children || []).forEach(k => wrap.append(row(k, depth + 1)));
+    return wrap;
+  }
+
+  function swap(pk, html){
+    const node = document.querySelector(`[data-block="${pk}"]`);
+    if (!node) return;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    node.replaceWith(wrap.firstElementChild);
+  }
+
+  /* Dropping a component from Insert onto the canvas, into a column when one is
+     under the pointer. */
+  document.addEventListener('dragover', e => {
+    if (![...e.dataTransfer.types].includes('text/cms-component')) return;
+    if (!e.target.closest('.cms-col, #cmsPage')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+  document.addEventListener('drop', e => {
+    const type = e.dataTransfer.getData('text/cms-component');
+    if (!type) return;
+    const zone = e.target.closest('.cms-col, #cmsPage');
+    if (!zone) return;
+    e.preventDefault();
+    if (zone.classList.contains('cms-col')) insert(type, zone.dataset.rowId, zone.dataset.col);
+    else insert(type);
+  });
+
+  /* ── the panel's own width ────────────────────────────────────────────── */
+  const grip = document.getElementById('cshGrip');
+  let dragging = false;
+  grip.addEventListener('mousedown', e => { dragging = true; e.preventDefault(); });
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const w = Math.max(280, Math.min(560, window.innerWidth - e.clientX));
+    document.documentElement.style.setProperty('--csh-w', w + 'px');
+  });
+  window.addEventListener('mouseup', () => { dragging = false; });
+
+  /* Undo is the editor's own; the button just drives it so there is one history
+     rather than a second one that disagrees. */
+  const undo = document.getElementById('cshUndo');
+  undo.addEventListener('click', () => window.edUndo && edUndo());
+  const watchUndo = () => {
+    if (!window.ED) return;
+    undo.disabled = !(window.ED.undo && ED.undo.length);
+  };
+  setInterval(watchUndo, 600);
+
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === '/' ){
+      e.preventDefault(); show('insert'); find.focus();
+    }
+  });
+
+  /* ── the draft ────────────────────────────────────────────────────────── */
+  /* SLUG is the draft's slug while editing, so every block endpoint already
+     acts on the copy. Publishing and discarding act on the page it came from,
+     which the server resolves from either. */
+  let statusSeq = 0;
+  async function draftStatus(){
+    /* Two saves in quick succession fire two of these, and the slower reply can
+       land last carrying the older count -- which showed "nothing changed yet"
+       just after something had. */
+    const mine = ++statusSeq;
+    try {
+      const d = await (await fetch(`/p/${LIVE}/draft/`)).json();
+      if (mine !== statusSeq) return;
+      const count = document.getElementById('cshDraftCount');
+      if (!d.draft){ count.textContent = 'No unsaved changes'; return; }
+      count.textContent = d.changes
+        ? `${d.changes} unsaved change${d.changes === 1 ? '' : 's'}`
+        : 'Draft open, nothing changed yet';
+      const who = document.getElementById('cshDraftWho');
+      if (d.started_by) who.textContent = `· started by ${d.started_by}`;
+    } catch (e){ /* the bar simply keeps its default wording */ }
+  }
+  window.cshDraftStatus = draftStatus;
+
+  document.getElementById('cshSave')?.addEventListener('click', async () => {
+    const d = await post(`/p/${LIVE}/publish/`, {});
+    if (d && d.redirect) location.href = d.redirect;
+  });
+
+  document.getElementById('cshDiscard')?.addEventListener('click', async () => {
+    if (!confirm('Throw away every change since you started editing? '
+               + 'What readers see now is unaffected.')) return;
+    const d = await post(`/p/${LIVE}/discard/`, {});
+    if (d && d.redirect) location.href = d.redirect;
+  });
+
+  draftStatus();
+  show('insert');
+})();
+</script>
+{% endif %}

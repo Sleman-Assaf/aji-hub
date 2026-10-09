@@ -1,0 +1,305 @@
+{# portal/_feature_policies.html — the working part of Policies & SOPs, as a locked feature block. #}
+{# Lifted verbatim from portal/policies.html when that page became builder-driven, so #}
+{# it renders the same markup with the same context as before. Its styles #}
+{# travel with it, which is what lets the feature be placed in a column. #}
+{# The CMS sections that used to be appended here are now blocks on this page itself, #}
+{# so the tag was removed: rendering it inside a feature block recursed forever. #}
+{% load cms_tags %}
+{# These few selectors are styled differently by another page, so they #}
+{# stay scoped here rather than being hoisted into the stylesheet. #}
+<style>
+.tile{border:1px solid var(--line);background:var(--paper-2);padding:18px;cursor:pointer;transition:border-color .15s,box-shadow .15s;text-decoration:none;display:block;color:inherit}
+.tile:hover{border-color:var(--ink);box-shadow:4px 4px 0 var(--yellow)}
+.tile .ic{width:42px;height:42px;background:var(--paper-3);display:flex;align-items:center;justify-content:center;margin-bottom:13px;transition:background .15s}
+.tile h4{font-size:14.5px;font-weight:700;margin:0 0 3px;line-height:1.3}
+.tile p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.45}
+/* A library that is listed but shut. It keeps the shape of a tile so the grid
+   reads evenly, and loses the pointer and the hover, because there is nothing
+   behind it to open yet. */
+.tile-shut{cursor:default}
+.tile-shut:hover{border-color:var(--line);box-shadow:none}
+.tile-shut .ic{background:var(--paper-3);color:var(--muted);margin-bottom:0}
+/* The icon and the way in, on one line. The row takes the margin the icon used
+   to carry, so a closed tile is exactly as tall as an open one. */
+.tile-top{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-bottom:13px}
+.tile-top form{margin:0}
+.pol-ask{display:inline-flex;align-items:center;gap:5px;
+  padding:5px 10px;font-family:inherit;font-size:11px;font-weight:700;
+  border:1px solid var(--ink);background:var(--paper-2);color:var(--ink);
+  white-space:nowrap;cursor:pointer;transition:background .13s,color .13s}
+.pol-ask svg{color:inherit}
+.pol-ask:hover{background:var(--yellow);border-color:var(--yellow);
+  color:var(--on-yellow)}
+.pol-ask.waiting{border-style:dashed;border-color:var(--line-2);
+  color:var(--muted);cursor:default}
+</style>
+
+{% if selected_cat %}
+{# ── Category detail: list of documents ── #}
+{# The same round chevron every other page goes back with — .ctx-back is on #}
+{# forty-one of them, draws its own arrow from a CSS mask, and keeps its label #}
+{# in the accessibility tree rather than on screen. This was the one page with #}
+{# a bare text link, and the only place the section's name was a string in #}
+{# markup instead of the row in the database that the heading and the nav use. #}
+<a href="{% url 'policies' %}" class="ctx-back rise"
+   title="{{ section_name }}"><span class="ctx-back-lab">{{ section_name }}</span></a>
+
+<div class="pol-cat-head rise" style="justify-content:space-between">
+  <div style="display:flex;align-items:center;gap:14px">
+    <div class="pol-cat-ic">
+      {# The same mark as the tile you clicked to get here. #}
+      {% icon selected_cat.icon|default:"shield" 16 1.7 %}
+    </div>
+    <div>
+      {# The "Governance" label was here and in the page heading above, so the #}
+      {# same word appeared twice on one screen. The breadcrumb and the back link #}
+      {# already say which section this belongs to. #}
+      <h1 style="margin:0">{{ selected_cat.name }}</h1>
+      {% if selected_cat.description %}<p style="margin:4px 0 0;color:var(--muted)">{{ selected_cat.description }}</p>{% endif %}
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex:none;flex-wrap:wrap">
+    {# One way through to running the library, not two. Settings, folders, #}
+    {# uploads and who may open it are all one screen now; this page is what a #}
+    {# reader sees, and a manager who wants to change something goes there. #}
+    {% if can_manage_library %}
+    <a href="{% url 'library_workspace' selected_cat.pk %}" class="btn ghost sm">
+      {% icon "sliders" 13 1.7 %} Manage this library
+    </a>
+    {% endif %}
+    {% if is_policies_member %}
+    <a href="{% url 'libraries_home' %}" class="btn ghost sm">All libraries</a>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Where you are, and the way back up ───────────────────────────────────── #}
+{# Only drawn once you are inside a folder: at the top of a library the heading #}
+{# above already says where you are, and a one-item breadcrumb is furniture. #}
+{% if crumbs %}
+<nav class="pol-crumbs rise" aria-label="Folder trail">
+  <a href="?cat={{ selected_cat.pk }}">{% icon "folder" 13 %} {{ selected_cat.name }}</a>
+  {% for f in crumbs %}
+  <span class="pol-crumb-sep">/</span>
+  {% if forloop.last %}
+  <b>{{ f.name }}</b>
+  {% else %}
+  <a href="?cat={{ selected_cat.pk }}&folder={{ f.pk }}">{{ f.name }}</a>
+  {% endif %}
+  {% endfor %}
+</nav>
+{% endif %}
+
+{# ── What is in here ──────────────────────────────────────────────────────── #}
+{# Folders and documents in one list, folders first — the way a file browser #}
+{# does it. They used to be two separate boxes with the documents box carrying #}
+{# its own "no documents yet" card, so a folder full of folders announced that #}
+{# it was empty directly underneath the folders it was showing. #}
+{% if subfolders or cat_policies %}
+<div class="pol-list rise">
+
+  {% for f in subfolders %}
+  <a class="pol-row pol-row-folder" href="?cat={{ selected_cat.pk }}&folder={{ f.pk }}">
+    <span class="pol-row-ic">{% icon "folder" 17 1.7 %}</span>
+    <span class="pol-row-id">
+      <b>{{ f.name }}</b>
+      <i>
+        {% if f.n_subs %}{{ f.n_subs }} folder{{ f.n_subs|pluralize }}{% endif %}
+        {% if f.n_subs and f.n_docs %} · {% endif %}
+        {% if f.n_docs %}{{ f.n_docs }} document{{ f.n_docs|pluralize }}{% endif %}
+        {% if not f.n_subs and not f.n_docs %}Empty{% endif %}
+      </i>
+    </span>
+    <span class="pol-row-go">{% icon "chevron-right" 14 2 %}</span>
+  </a>
+  {% endfor %}
+
+  {% for p in cat_policies %}
+  {# The file's own format, as the mark on the left and as a label under the #}
+  {# name. Every document used to draw the same blank page, so a workbook, a #}
+  {# Word form and a PDF were indistinguishable until you opened one. #}
+  {% with fmt=p.file.name|doc_format %}
+  <div class="pol-row">
+    <span class="pol-row-ic pol-ic-{{ fmt.icon }}" title="{{ fmt.label }}">
+      {% icon fmt.icon 17 1.7 %}
+    </span>
+    <span class="pol-row-id">
+      <b>
+        {{ p.title }}
+        {# The type used to live in the title as free text, so it could not be #}
+        {# filtered or reported on. Now it is a field and reads as a label. #}
+        {% if p.doc_type != 'policy' %}
+        <span class="pill mut" style="font-size:9.5px;margin-left:6px;vertical-align:1px">{{ p.get_doc_type_display }}</span>
+        {% endif %}
+      </b>
+      <i class="pol-row-meta">
+        {% if p.file %}
+        <span class="fmt-tag" title="{{ fmt.label }}">{{ fmt.ext }}</span>
+        {% if not fmt.previewable %}
+        {# Said here rather than discovered by pressing Read and being told no. #}
+        <span class="fmt-note" title="This format cannot be shown in the Hub">no preview</span>
+        {% endif %}
+        {% elif p.external_url %}
+        <span class="fmt-tag">LINK</span>
+        {% endif %}
+        {% if p.description %}<span class="fmt-desc">{{ p.description|truncatechars:110 }}</span>{% endif %}
+      </i>
+    </span>
+    {% if p.updated_date %}<span class="pol-row-when">{{ p.updated_date|date:"j M Y" }}</span>{% endif %}
+    <span class="pol-row-acts">
+      {# Read opens the Hub's own viewer. The file's /media/ address is never #}
+      {# put on the page: that path is served with no permission check, so #}
+      {# printing it here would hand the document to anyone who saw the link. #}
+      {% if p.file %}
+      <button type="button" class="btn ghost sm" data-doc="{% url 'policy_document' p.pk %}">
+        {% icon "eye" 13 2 %}
+        Read
+      </button>
+      {% if p.can_download %}
+      <a href="{% url 'policy_doc_file' p.pk %}" class="btn ghost sm" download>
+        {% icon "download-tray" 13 2 %}
+        Download
+      </a>
+      {% else %}
+      <span class="pol-viewonly" title="This document can be read in the Hub but not saved">View only</span>
+      {% endif %}
+      {% endif %}
+      {% if p.external_url %}
+      <a href="{{ p.external_url }}" class="btn ghost sm" target="_blank" rel="noopener">
+        {% icon "external-link" 13 2 %}
+        Open
+      </a>
+      {% endif %}
+    </span>
+  </div>
+  {% endwith %}
+  {% endfor %}
+
+</div>
+{% else %}
+{# Reached only when there is genuinely nothing here — no folders either. #}
+<div class="pol-nothing rise">
+  {% icon "folder-open" 26 1.4 %}
+  {% feature_text section "cat_empty" "p" %}
+</div>
+{% endif %}
+
+{% else %}
+{# ── Category tiles grid ── #}
+{# The content actions here are rows on the page heading block, editable in the #}
+{# CMS. Running a library is not one of them: it has to be reachable whether or #}
+{# not somebody has configured a button, and it was previously only reachable #}
+{# by opening a library first — so there was no way to reach the list of your #}
+{# own libraries, and no way at all to create one. #}
+{% if is_policies_member %}
+<div class="pol-manage-bar rise">
+  <span>
+    {% icon "sliders" 14 1.7 %}
+    You can create and run document libraries.
+  </span>
+  <span class="pol-manage-go">
+    <a href="{% url 'library_new' %}" class="btn y sm">{% icon "plus" 13 2.2 %} New document library</a>
+    <a href="{% url 'libraries_home' %}" class="btn ghost sm">My libraries</a>
+  </span>
+</div>
+{% endif %}
+{% if categories %}
+<div class="tiles rise">
+  {% for cat in categories %}
+  {# ask_state is set by the view: '' for a library this reader can open, and #}
+  {# 'open' / 'pending' / 'declined' for a listed one they cannot. A tile they #}
+  {# cannot open is not a link — pressing it would land on an empty library and #}
+  {# read as broken — so it is a plain box carrying the way in instead. #}
+  {% if cat.ask_state %}
+  <div class="tile tile-shut">
+    {# The way in sits on the icon's line, not under the description. Below #}
+    {# it, the button added its own height to one tile and the grid stretched #}
+    {# every other tile to match — so one closed library made a whole row tall. #}
+    <div class="tile-top">
+      <div class="ic">{% icon "lock-simple" 16 1.7 %}</div>
+      {% if cat.ask_state == 'pending' %}
+        <span class="pol-ask waiting" title="The owner has not answered yet">
+          {% icon "clock" 12 %} Waiting
+        </span>
+      {% else %}
+        {# The reason travels in the confirmation dialog rather than an #}
+        {# extra field on the tile: a textarea on every closed tile is a lot #}
+        {# of page for something most people will leave blank. #}
+        <form method="post" action="{% url 'policy_access_request' cat.pk %}"
+              data-confirm="{{ cat.name }} is not open to everyone. Asking sends a note to whoever runs it, and you will hear when it is answered."
+              data-confirm-title="Ask for access"
+              data-confirm-ok="Send the request"
+              data-confirm-note="Why you need it — optional"
+              data-confirm-note-name="message"
+              data-confirm-note-placeholder="e.g. I am preparing the site audit and need the QC checklists.">
+          {% csrf_token %}
+          {% if cat.ask_state == 'declined' %}
+          <button type="submit" class="pol-ask" title="Ask again">
+            {% icon "arrow-counter-clockwise" 12 %} Ask again
+          </button>
+          {% else %}
+          <button type="submit" class="pol-ask" title="Request access">
+            {% icon "user-plus" 12 %} Request
+          </button>
+          {% endif %}
+        </form>
+      {% endif %}
+    </div>
+    <h4>{{ cat.name }}</h4>
+    {% if cat.description %}<p>{{ cat.description }}</p>{% endif %}
+  </div>
+  {% else %}
+  <a href="?cat={{ cat.pk }}" class="tile">
+    <div class="ic">
+      {# The category's own mark, chosen at /policies/manage/. Blank falls back #}
+      {# to the shield every tile used to carry, so a category nobody has picked #}
+      {# an icon for yet still looks finished. #}
+      {% icon cat.icon|default:"shield" 16 1.7 %}
+    </div>
+    <h4>{{ cat.name }}</h4>
+    {% if cat.description %}<p>{{ cat.description }}</p>{% endif %}
+  </a>
+  {% endif %}
+  {% endfor %}
+</div>
+{% else %}
+{# No categories set up yet — show flat list #}
+<div class="card rise">
+  {% for p in uncategorised %}
+  <div class="pol-doc-row">
+    <div class="pol-doc-ic">
+      {% icon "file-blank" 16 1.7 %}
+    </div>
+    <div style="flex:1;min-width:0">
+      <div class="pol-doc-title">
+        {{ p.title }}
+        {# The type used to live in the title as free text, so it could not be #}
+        {# filtered or reported on. Now it is a field and reads as a label. #}
+        {% if p.doc_type != 'policy' %}
+        <span class="pill mut" style="font-size:9.5px;margin-left:6px;vertical-align:1px">{{ p.get_doc_type_display }}</span>
+        {% endif %}
+      </div>
+      {% if p.description %}<div class="pol-doc-desc">{{ p.description|truncatechars:120 }}</div>{% endif %}
+    </div>
+    {% if p.file %}
+    <button type="button" class="btn ghost sm" data-doc="{% url 'policy_document' p.pk %}">Read</button>
+    {% if p.can_download %}
+    <a href="{% url 'policy_doc_file' p.pk %}" class="btn ghost sm" download>Download</a>
+    {% else %}
+    <span class="pol-viewonly" title="This document can be read in the Hub but not saved">View only</span>
+    {% endif %}
+    {% endif %}
+    {% if p.external_url %}<a href="{{ p.external_url }}" class="btn ghost sm" target="_blank">Open</a>{% endif %}
+  </div>
+  {% empty %}
+  <div style="text-align:center;color:var(--muted);padding:48px">
+    {% feature_text section "empty" %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endif %}
+
+{# Sections added through the edit toolbar render here. #}

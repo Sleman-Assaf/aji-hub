@@ -1,0 +1,31 @@
+{% load cms_tags %}
+{# exchange/_feature_exchange.html — the working part of AJi Exchange, as a feature block. #}
+{# The cards used to be an <a> with a <form> inside it, which is invalid and made #}
+{# the Join button a coin toss between joining and following the link. The card is #}
+{# a container now: the name is the link, stretched over the card by ::after, and #}
+{# the footer controls sit above it. #}
+
+{% if my_communities %}
+<div class="sec-head rise">{% feature_text section "mine_head" "h2" %}</div>
+<div class="cx-grid rise">
+  {% for c in my_communities %}
+  {% include 'exchange/_community_card.html' with c=c mine=1 %}
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="sec-head rise">{% if my_communities %}{% feature_text section "discover_head" "h2" %}{% else %}{% feature_text section "discover_head_alone" "h2" %}{% endif %}</div>
+<div class="cx-grid rise">
+  {% for c in disc_communities %}
+  {% include 'exchange/_community_card.html' with c=c mine=0 %}
+  {% empty %}
+  <div class="cx-card empty">{% feature_text section "empty" %}</div>
+  {% endfor %}
+</div>
+
+{% if can_restore and deleted_count %}
+<div class="cx-bin-link rise">
+  {% icon "clock-counter-clockwise" 14 %}
+  <a href="{% url 'community_bin' %}">{{ deleted_count }} removed communit{{ deleted_count|pluralize:"y,ies" }} can be restored</a>
+</div>
+{% endif %}

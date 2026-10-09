@@ -1,0 +1,49 @@
+{# templates/cms/sections/page_head.html — the standard page header. #}
+{# Title left, primary actions top-right on the same line, description under the #}
+{# title, content immediately below. The actions used to be a row floating #}
+{# beneath the header, which is what made them read as detached. #}
+{# Every part is editable: the label, title and description in place, the actions #}
+{# as rows with their own link, icon and audience. #}
+{% load cms_tags %}
+{% head_hidden section as stand_aside %}
+{% if stand_aside and not cms_edit_mode %}
+  {# The reader has navigated into something; the page leads with that instead. #}
+{% else %}
+{% if stand_aside %}
+<div class="card" style="border-style:dashed;margin-bottom:var(--sp-3);font-size:12px;color:var(--muted)">
+  This heading is hidden on detail views of this page, so the title is not repeated.
+  Shown here because you are editing.
+</div>
+{% endif %}
+<div class="page-head">
+  {% if section|cfg:"eyebrow" or cms_edit_mode %}
+  <div class="eyebrow" {% if cms_edit_mode %}data-ed-field="cfg_eyebrow" contenteditable="true"{% endif %}>
+    {# Some pages use the eyebrow as a breadcrumb, so it can carry a link. #}
+    {% if section|cfg:"eyebrow_url" and not cms_edit_mode %}
+    <a href="{{ section|cfg:"eyebrow_url" }}" style="color:inherit">{{ section|cfg:"eyebrow"|default:"Section" }}</a>
+    {% else %}{{ section|cfg:"eyebrow"|default:"Section" }}{% endif %}
+  </div>
+  {% endif %}
+
+  <h1 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title|aji }}</h1>
+
+  {% if section.subtitle or cms_edit_mode %}
+  <p {% if cms_edit_mode %}data-ed-field="subtitle" contenteditable="true"{% endif %}>{{ section.subtitle }}</p>
+  {% endif %}
+
+  {% page_actions section as actions %}
+  {% if actions %}
+  <div class="page-head-actions">
+    {% for a in actions %}
+    <a href="{{ a.href|default:"#" }}" data-item="{{ a.pk }}" data-owner="{{ section.pk }}"
+       {% if cms_edit_mode %}draggable="true"{% endif %}
+       class="btn {% if a.variant == 'primary' %}y{% else %}ghost{% endif %}{% if cms_edit_mode %} ed-item{% endif %}"
+       {% if a.url|slice:":4" == "http" %}target="_blank" rel="noopener"{% endif %}>
+      {% if a.icon %}{% cms_icon a.icon 15 %}{% endif %}
+      {{ a.button_label|default:a.title }}
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}

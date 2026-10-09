@@ -1,0 +1,27 @@
+{# templates/people/org_node_partial.html #}
+{# `emp_avatar` lives in people_tags and has to be loaded here. A partial is #}
+{# rendered on its own, so it inherits nothing from the page that asked for #}
+{# it — without this line every attempt to expand a branch of the org chart #}
+{# raised TemplateSyntaxError and returned a 500. #}
+{% load people_tags %}
+{% with reports=employee.direct_reports.all %}
+<div class="org-node{% if depth == 0 %} org-root{% endif %}">
+  <div class="org-row" onclick="openProfile({{ employee.pk }})">
+    <div class="org-toggle {% if not reports %}leaf{% endif %}" onclick="event.stopPropagation();toggleNode({{ employee.pk }},this)">
+      {% if reports %}+{% endif %}
+    </div>
+    {% emp_avatar employee size=44 classes="org-av" %}
+    <div class="org-info">
+      <div class="org-nm">{{ employee.full_name }}</div>
+      <div class="org-role">{{ employee.role|default:"" }}</div>
+    </div>
+    {% if reports %}<span class="org-rep">{{ reports.count }} report{{ reports.count|pluralize }}</span>{% endif %}
+    {% if employee.entity %}<span class="org-ent">{{ employee.entity.short_name|default:employee.entity.name }}</span>{% endif %}
+  </div>
+  {% if reports %}
+  <div class="org-children" id="org-children-{{ employee.pk }}">
+    <!-- Loaded on expand via AJAX -->
+  </div>
+  {% endif %}
+</div>
+{% endwith %}

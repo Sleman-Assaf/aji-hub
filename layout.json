@@ -1,0 +1,757 @@
+[
+{
+ "model": "cms.page",
+ "pk": 5,
+ "fields": {
+  "publish_at": null,
+  "archive_at": null,
+  "title": "Home",
+  "slug": "page",
+  "eyebrow": "",
+  "subtitle": "",
+  "is_published": true,
+  "audience": "everyone",
+  "show_in_nav": false,
+  "nav_order": 0,
+  "bound_path": "/",
+  "parent": null,
+  "crumb_label": "Home",
+  "show_crumbs": false,
+  "updated_by": null,
+  "updated_at": "2026-08-04T16:54:43.605",
+  "created_at": "2026-07-27T14:12:15.764",
+  "draft_of": null,
+  "draft_started_by": null,
+  "draft_started_at": null,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.section",
+ "pk": 418,
+ "fields": {
+  "publish_at": null,
+  "archive_at": null,
+  "image_asset": null,
+  "page": 5,
+  "type": "greeting",
+  "title": "",
+  "subtitle": "",
+  "body": "",
+  "icon": "",
+  "image": "",
+  "parent": null,
+  "column": 0,
+  "layout": "full",
+  "equal_height": false,
+  "order": 10,
+  "is_visible": true,
+  "pinned": false,
+  "deleted_at": null,
+  "origin": null,
+  "audience": "everyone",
+  "config": {
+   "columns": 0,
+   "limit": 0,
+   "embed": ""
+  },
+  "html_approved": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.section",
+ "pk": 419,
+ "fields": {
+  "publish_at": null,
+  "archive_at": null,
+  "image_asset": null,
+  "page": 5,
+  "type": "link_tiles",
+  "title": "",
+  "subtitle": "",
+  "body": "",
+  "icon": "",
+  "image": "",
+  "parent": null,
+  "column": 0,
+  "layout": "full",
+  "equal_height": false,
+  "order": 20,
+  "is_visible": true,
+  "pinned": false,
+  "deleted_at": null,
+  "origin": null,
+  "audience": "everyone",
+  "config": {
+   "columns": 6,
+   "hide_icons": false
+  },
+  "html_approved": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.section",
+ "pk": 424,
+ "fields": {
+  "publish_at": null,
+  "archive_at": null,
+  "image_asset": null,
+  "page": 5,
+  "type": "news_list",
+  "title": "Latest from AJi News",
+  "subtitle": "",
+  "body": "",
+  "icon": "",
+  "image": "",
+  "parent": null,
+  "column": 0,
+  "layout": "full",
+  "equal_height": false,
+  "order": 30,
+  "is_visible": true,
+  "pinned": false,
+  "deleted_at": null,
+  "origin": null,
+  "audience": "everyone",
+  "config": {
+   "columns": 0,
+   "limit": 10,
+   "embed": ""
+  },
+  "html_approved": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.section",
+ "pk": 423,
+ "fields": {
+  "publish_at": null,
+  "archive_at": null,
+  "image_asset": null,
+  "page": 5,
+  "type": "community",
+  "title": "From your communities",
+  "subtitle": "",
+  "body": "",
+  "icon": "",
+  "image": "",
+  "parent": null,
+  "column": 0,
+  "layout": "full",
+  "equal_height": false,
+  "order": 31,
+  "is_visible": true,
+  "pinned": false,
+  "deleted_at": null,
+  "origin": null,
+  "audience": "everyone",
+  "config": {
+   "limit": 6,
+   "link_url": "/exchange/",
+   "link_label": "AJi Exchange"
+  },
+  "html_approved": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.section",
+ "pk": 3471,
+ "fields": {
+  "publish_at": null,
+  "archive_at": null,
+  "image_asset": null,
+  "page": 5,
+  "type": "taqdeer",
+  "title": "Recognition",
+  "subtitle": "",
+  "body": "",
+  "icon": "",
+  "image": "",
+  "parent": null,
+  "column": 0,
+  "layout": "full",
+  "equal_height": false,
+  "order": 32,
+  "is_visible": true,
+  "pinned": false,
+  "deleted_at": null,
+  "origin": null,
+  "audience": "everyone",
+  "config": {
+   "limit": 6,
+   "link_label": "Taqdeer"
+  },
+  "html_approved": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.section",
+ "pk": 427,
+ "fields": {
+  "publish_at": null,
+  "archive_at": null,
+  "image_asset": null,
+  "page": 5,
+  "type": "project_reel",
+  "title": "New projects at AJi",
+  "subtitle": "",
+  "body": "",
+  "icon": "",
+  "image": "",
+  "parent": null,
+  "column": 0,
+  "layout": "full",
+  "equal_height": false,
+  "order": 33,
+  "is_visible": true,
+  "pinned": false,
+  "deleted_at": null,
+  "origin": null,
+  "audience": "everyone",
+  "config": {
+   "limit": 3,
+   "link_url": "/portfolio/",
+   "link_label": "View portfolio"
+  },
+  "html_approved": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.section",
+ "pk": 3469,
+ "fields": {
+  "publish_at": null,
+  "archive_at": null,
+  "image_asset": null,
+  "page": 5,
+  "type": "booth_reel",
+  "title": "From AJi Booth",
+  "subtitle": "",
+  "body": "",
+  "icon": "",
+  "image": "",
+  "parent": null,
+  "column": 0,
+  "layout": "full",
+  "equal_height": false,
+  "order": 50,
+  "is_visible": true,
+  "pinned": false,
+  "deleted_at": null,
+  "origin": null,
+  "audience": "everyone",
+  "config": {
+   "limit": 8,
+   "link_url": "/booth/",
+   "link_label": "All albums"
+  },
+  "html_approved": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.section",
+ "pk": 426,
+ "fields": {
+  "publish_at": null,
+  "archive_at": null,
+  "image_asset": null,
+  "page": 5,
+  "type": "agenda",
+  "title": "Today",
+  "subtitle": "",
+  "body": "",
+  "icon": "",
+  "image": "",
+  "parent": null,
+  "column": 1,
+  "layout": "full",
+  "equal_height": false,
+  "order": 900,
+  "is_visible": false,
+  "pinned": false,
+  "deleted_at": null,
+  "origin": null,
+  "audience": "everyone",
+  "config": {
+   "limit": 3,
+   "link_url": "/calendar/",
+   "link_label": "Calendar"
+  },
+  "html_approved": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.section",
+ "pk": 420,
+ "fields": {
+  "publish_at": null,
+  "archive_at": null,
+  "image_asset": null,
+  "page": 5,
+  "type": "row",
+  "title": "",
+  "subtitle": "",
+  "body": "",
+  "icon": "",
+  "image": "",
+  "parent": null,
+  "column": 0,
+  "layout": "thirds-l",
+  "equal_height": false,
+  "order": 940,
+  "is_visible": false,
+  "pinned": false,
+  "deleted_at": null,
+  "origin": null,
+  "audience": "everyone",
+  "config": {},
+  "html_approved": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.section",
+ "pk": 421,
+ "fields": {
+  "publish_at": null,
+  "archive_at": null,
+  "image_asset": null,
+  "page": 5,
+  "type": "row",
+  "title": "",
+  "subtitle": "",
+  "body": "",
+  "icon": "",
+  "image": "",
+  "parent": null,
+  "column": 0,
+  "layout": "full",
+  "equal_height": false,
+  "order": 950,
+  "is_visible": false,
+  "pinned": false,
+  "deleted_at": null,
+  "origin": null,
+  "audience": "everyone",
+  "config": {},
+  "html_approved": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.section",
+ "pk": 3474,
+ "fields": {
+  "publish_at": null,
+  "archive_at": null,
+  "image_asset": null,
+  "page": 5,
+  "type": "row",
+  "title": "",
+  "subtitle": "",
+  "body": "",
+  "icon": "",
+  "image": "",
+  "parent": null,
+  "column": 0,
+  "layout": "66-33",
+  "equal_height": true,
+  "order": 950,
+  "is_visible": false,
+  "pinned": false,
+  "deleted_at": null,
+  "origin": null,
+  "audience": "everyone",
+  "config": {},
+  "html_approved": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.sectionitem",
+ "pk": 3116,
+ "fields": {
+  "image_asset": null,
+  "section": 419,
+  "order": 10,
+  "is_visible": true,
+  "title": "MenaME",
+  "text": "",
+  "meta": "Self-service",
+  "badge": "",
+  "icon": "users",
+  "image": "",
+  "file": "",
+  "url": "https://hrms.menaitechsystems.com/AJGroup/application/hrms/mename/index.php",
+  "button_label": "",
+  "button_icon": "",
+  "variant": "",
+  "person": null,
+  "audience": "everyone",
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.sectionitem",
+ "pk": 3117,
+ "fields": {
+  "image_asset": null,
+  "section": 419,
+  "order": 20,
+  "is_visible": true,
+  "title": "Time Sheets",
+  "text": "",
+  "meta": "Log hours",
+  "badge": "",
+  "icon": "calendar",
+  "image": "",
+  "file": "",
+  "url": "#",
+  "button_label": "",
+  "button_icon": "",
+  "variant": "",
+  "person": null,
+  "audience": "everyone",
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.sectionitem",
+ "pk": 3118,
+ "fields": {
+  "image_asset": null,
+  "section": 419,
+  "order": 30,
+  "is_visible": true,
+  "title": "Servicedesk",
+  "text": "",
+  "meta": "IT & facilities",
+  "badge": "",
+  "icon": "headset",
+  "image": "",
+  "file": "",
+  "url": "https://ajigsdesk/",
+  "button_label": "",
+  "button_icon": "",
+  "variant": "",
+  "person": null,
+  "audience": "everyone",
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.sectionitem",
+ "pk": 3119,
+ "fields": {
+  "image_asset": null,
+  "section": 419,
+  "order": 40,
+  "is_visible": true,
+  "title": "Phone Extensions",
+  "text": "",
+  "meta": "Directory",
+  "badge": "",
+  "icon": "phone",
+  "image": "",
+  "file": "",
+  "url": "/people/extensions/",
+  "button_label": "",
+  "button_icon": "",
+  "variant": "",
+  "person": null,
+  "audience": "everyone",
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.sectionitem",
+ "pk": 3120,
+ "fields": {
+  "image_asset": null,
+  "section": 419,
+  "order": 50,
+  "is_visible": true,
+  "title": "Company Hierarchy",
+  "text": "",
+  "meta": "Org chart",
+  "badge": "",
+  "icon": "building",
+  "image": "",
+  "file": "",
+  "url": "/people/org/",
+  "button_label": "",
+  "button_icon": "",
+  "variant": "",
+  "person": null,
+  "audience": "everyone",
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.sectionitem",
+ "pk": 3121,
+ "fields": {
+  "image_asset": null,
+  "section": 419,
+  "order": 60,
+  "is_visible": true,
+  "title": "Employee Directory",
+  "text": "",
+  "meta": "Find anyone",
+  "badge": "",
+  "icon": "users",
+  "image": "",
+  "file": "",
+  "url": "/people/",
+  "button_label": "",
+  "button_icon": "",
+  "variant": "",
+  "person": null,
+  "audience": "everyone",
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 1,
+ "fields": {
+  "label": "Home",
+  "url": "/",
+  "icon": "",
+  "parent": null,
+  "order": 10,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 2,
+ "fields": {
+  "label": "People & Culture",
+  "url": "",
+  "icon": "",
+  "parent": null,
+  "order": 20,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 3,
+ "fields": {
+  "label": "People & Culture",
+  "url": "/people-culture/",
+  "icon": "heart",
+  "parent": 2,
+  "order": 10,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 6,
+ "fields": {
+  "label": "Directory",
+  "url": "",
+  "icon": "",
+  "parent": null,
+  "order": 30,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 7,
+ "fields": {
+  "label": "Employee Directory",
+  "url": "/people/",
+  "icon": "idcard",
+  "parent": 6,
+  "order": 10,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 4,
+ "fields": {
+  "label": "Onboarding Module",
+  "url": "/onboarding/",
+  "icon": "book",
+  "parent": 2,
+  "order": 20,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 8,
+ "fields": {
+  "label": "AJi Skills",
+  "url": "/people/skills/",
+  "icon": "spark",
+  "parent": 6,
+  "order": 20,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 16,
+ "fields": {
+  "label": "AJi Taqdeer",
+  "url": "/taqdeer/",
+  "icon": "medal",
+  "parent": 2,
+  "order": 25,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 5,
+ "fields": {
+  "label": "AJi Booth",
+  "url": "/booth/",
+  "icon": "camera",
+  "parent": 2,
+  "order": 30,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 9,
+ "fields": {
+  "label": "Phone Extensions",
+  "url": "/people/extensions/",
+  "icon": "phone",
+  "parent": 6,
+  "order": 30,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 10,
+ "fields": {
+  "label": "Org Hierarchy",
+  "url": "/people/org/",
+  "icon": "org",
+  "parent": 6,
+  "order": 40,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 12,
+ "fields": {
+  "label": "AJi Exchange",
+  "url": "/exchange/",
+  "icon": "",
+  "parent": null,
+  "order": 40,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 11,
+ "fields": {
+  "label": "QR Codes",
+  "url": "/people/qr/",
+  "icon": "chat",
+  "parent": 6,
+  "order": 50,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 13,
+ "fields": {
+  "label": "SOPs & Manuals",
+  "url": "/policies/",
+  "icon": "",
+  "parent": null,
+  "order": 51,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.navitem",
+ "pk": 14,
+ "fields": {
+  "label": "Brand Files",
+  "url": "/brand/",
+  "icon": "",
+  "parent": null,
+  "order": 61,
+  "is_visible": true,
+  "audience": "everyone",
+  "new_tab": false,
+  "audience_groups": []
+ }
+},
+{
+ "model": "cms.sitebranding",
+ "pk": 1,
+ "fields": {
+  "logo": "branding/Logo-03_1.png",
+  "favicon": "",
+  "site_name": "AJi Hub",
+  "updated_at": "2026-08-02T12:06:07.053"
+ }
+}
+]

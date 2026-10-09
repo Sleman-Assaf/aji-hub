@@ -1,0 +1,135 @@
+{# templates/core/it/call_settings.html #}
+{% extends 'core/it/_shell.html' %}
+{% load cms_tags %}
+
+{% block it_note %}
+Codecs, transport and limits for voice calls and screen sharing. Saved values
+apply to the next call joined — nobody has to redeploy, and nothing here
+touches a call already running.
+{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+.cs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.cs-field{min-width:0}
+.cs-help{font-size:11.5px;color:var(--muted);margin:4px 0 0;line-height:1.45}
+.cs-check{display:flex;align-items:flex-start;gap:9px;padding:6px 0;font-size:13px}
+.cs-check input{margin-top:3px}
+.cs-restart{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.4px;color:#8a5a00;background:#fff3d6;border:1px solid #f0dca8;
+  border-radius:6px;padding:1px 7px;vertical-align:1px}
+.cs-save{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.cs-ok{color:var(--ok,#1a7f37);font-size:13px;font-weight:600}
+.cs-err{color:#b42318;font-size:13px;font-weight:600}
+textarea.it-in{font-family:ui-monospace,Consolas,monospace;font-size:12px;min-height:110px;resize:vertical}
+</style>
+{% endblock %}
+
+{% block it_content %}
+<form method="post">
+{% csrf_token %}
+
+{% if saved %}<p class="cs-ok">Saved. New calls pick this up immediately; the two settings marked “bridge restart” apply the next time the bridge process starts.</p>{% endif %}
+{% if error %}<p class="cs-err">{{ error }}</p>{% endif %}
+
+<div class="it-card">
+  <div class="it-card-h">{% icon "phone" 16 %} Routing &amp; limits</div>
+  <div class="it-card-b">
+    <label class="cs-check"><input type="checkbox" name="carry_p2p" {% if cfg.routing.carry_p2p %}checked{% endif %}>
+      <span><b>Carry direct (two-person) calls on the media bridge</b>
+      <span class="cs-help">On: every call goes through the server, which works across subnets, VLANs and the VPN. Off: two-person calls go browser-to-browser and the bridge carries only group calls.</span></span></label>
+    <div class="cs-grid" style="margin-top:10px">
+      <div class="cs-field"><label class="it-lab" for="bridge_max">Bridge call limit</label>
+        <input class="it-in" type="number" id="bridge_max" name="bridge_max" min="2" max="128" value="{{ cfg.routing.bridge_max_participants }}">
+        <p class="cs-help">People per call through the bridge. Bounded by this server's CPU — the capacity page measures where that is.</p></div>
+      <div class="cs-field"><label class="it-lab" for="mesh_max">Mesh call limit</label>
+        <input class="it-in" type="number" id="mesh_max" name="mesh_max" min="2" max="8" value="{{ cfg.routing.mesh_max_participants }}">
+        <p class="cs-help">People per call when the bridge is down and browsers connect directly. Eight is a hard ceiling — past it every phone's uplink drowns.</p></div>
+    </div>
+  </div>
+</div>
+
+<div class="it-card">
+  <div class="it-card-h">{% icon "chat-circle" 16 %} Voice</div>
+  <div class="it-card-b">
+    <div class="cs-grid">
+      <div class="cs-field"><label class="it-lab" for="audio_codec">Audio codec</label>
+        <select class="it-in" id="audio_codec" name="audio_codec">
+          {% for c in audio_codecs %}<option value="{{ c }}" {% if cfg.audio.codec == c %}selected{% endif %}>{% if c == 'opus' %}Opus — best quality per kbps (recommended){% elif c == 'PCMU' %}G.711 μ-law (PCMU) — telephony compatibility, 64 kbps{% else %}G.711 A-law (PCMA) — telephony compatibility, 64 kbps{% endif %}</option>{% endfor %}
+        </select>
+        <p class="cs-help">The menu is what both the browser and the bridge speak. Opus unless a specific interop problem says otherwise — G.711 spends 64&nbsp;kbps sounding worse than Opus at 24.</p></div>
+      <div class="cs-field"><label class="it-lab" for="opus_max_kbps">Opus max bitrate (kbps)</label>
+        <input class="it-in" type="number" id="opus_max_kbps" name="opus_max_kbps" min="0" max="510" value="{{ cfg.audio.opus_max_kbps }}">
+        <p class="cs-help">0 lets the browser decide (~32). Set 16–24 to shave bandwidth on thin links; voice stays intelligible down to ~12.</p></div>
+    </div>
+    <label class="cs-check"><input type="checkbox" name="opus_fec" {% if cfg.audio.opus_fec %}checked{% endif %}>
+      <span><b>Forward error correction (FEC)</b><span class="cs-help">Each packet carries a rough copy of the one before it, so a lost packet costs quality instead of a syllable. Cheap; leave on.</span></span></label>
+    <label class="cs-check"><input type="checkbox" name="opus_dtx" {% if cfg.audio.opus_dtx %}checked{% endif %}>
+      <span><b>Silence suppression (DTX)</b><span class="cs-help">Stops sending packets while someone is quiet. Saves uplink in big calls; can clip the first syllable after a pause.</span></span></label>
+    <label class="cs-check"><input type="checkbox" name="echo_cancellation" {% if cfg.audio.echo_cancellation %}checked{% endif %}>
+      <span><b>Echo cancellation</b><span class="cs-help">Off only for rooms with dedicated conference hardware doing its own.</span></span></label>
+    <label class="cs-check"><input type="checkbox" name="noise_suppression" {% if cfg.audio.noise_suppression %}checked{% endif %}>
+      <span><b>Noise suppression</b></span></label>
+    <label class="cs-check"><input type="checkbox" name="auto_gain" {% if cfg.audio.auto_gain %}checked{% endif %}>
+      <span><b>Automatic gain control</b></span></label>
+  </div>
+</div>
+
+<div class="it-card">
+  <div class="it-card-h">{% icon "clipboard-text" 16 %} Screen sharing</div>
+  <div class="it-card-b">
+    <div class="cs-grid">
+      <div class="cs-field"><label class="it-lab" for="screen_codec">Video codec</label>
+        <select class="it-in" id="screen_codec" name="screen_codec">
+          {% for c in screen_codecs %}<option value="{{ c }}" {% if cfg.screen.codec == c %}selected{% endif %}>{% if c == 'auto' %}Auto — browser's choice{% elif c == 'VP8' %}VP8 — safe everywhere, software encode{% else %}H.264 — hardware encode on most laptops, easier on CPUs{% endif %}</option>{% endfor %}
+        </select></div>
+      <div class="cs-field"><label class="it-lab" for="screen_max_kbps">Sender bitrate cap (kbps)</label>
+        <input class="it-in" type="number" id="screen_max_kbps" name="screen_max_kbps" min="0" max="8000" value="{{ cfg.screen.max_kbps }}">
+        <p class="cs-help">0 = browser decides. 1000–1500 is plenty for slides and drawings.</p></div>
+      <div class="cs-field"><label class="it-lab" for="capture_fps">Capture frame rate</label>
+        <input class="it-in" type="number" id="capture_fps" name="capture_fps" min="1" max="30" value="{{ cfg.screen.capture_fps }}"></div>
+      <div class="cs-field"><label class="it-lab" for="capture_width">Capture max width (px)</label>
+        <input class="it-in" type="number" id="capture_width" name="capture_width" min="320" max="3840" value="{{ cfg.screen.capture_width }}"></div>
+      <div class="cs-field"><label class="it-lab" for="bridge_max_width">Bridge relay width (px) <span class="cs-restart">bridge restart</span></label>
+        <input class="it-in" type="number" id="bridge_max_width" name="bridge_max_width" min="320" max="3840" value="{{ cfg.screen.bridge_max_width }}">
+        <p class="cs-help">The size the bridge re-encodes the shared screen at for viewers.</p></div>
+      <div class="cs-field"><label class="it-lab" for="bridge_fps">Bridge relay frame rate <span class="cs-restart">bridge restart</span></label>
+        <input class="it-in" type="number" id="bridge_fps" name="bridge_fps" min="1" max="30" value="{{ cfg.screen.bridge_fps }}"></div>
+    </div>
+  </div>
+</div>
+
+<div class="it-card">
+  <div class="it-card-h">{% icon "download-tray" 16 %} Transport (ICE)</div>
+  <div class="it-card-b">
+    <div class="cs-grid">
+      <div class="cs-field"><label class="it-lab" for="ice_policy">Connection policy</label>
+        <select class="it-in" id="ice_policy" name="ice_policy">
+          <option value="all" {% if cfg.transport.ice_policy == 'all' %}selected{% endif %}>All — direct where possible, relay where not (normal)</option>
+          <option value="relay" {% if cfg.transport.ice_policy == 'relay' %}selected{% endif %}>Relay only — force everything through the TURN server</option>
+        </select>
+        <p class="cs-help">Relay-only needs a TURN server below, or no call connects at all. It is the lever for networks where direct UDP between machines is forbidden.</p></div>
+      <div class="cs-field"><label class="it-lab" for="advertise_ip">Bridge advertised address <span class="cs-restart">bridge restart</span></label>
+        <input class="it-in" type="text" id="advertise_ip" name="advertise_ip" placeholder="e.g. 172.30.0.4" value="{{ cfg.transport.advertise_ip }}">
+        <p class="cs-help">On a server with more than one interface: the one address every subnet reaches (the one staff load the Hub from). Empty advertises all interfaces, which is how cross-subnet audio goes one-way.</p></div>
+    </div>
+    <div class="cs-field" style="margin-top:10px">
+      <label class="it-lab" for="ice_servers">STUN / TURN servers (JSON)</label>
+      <textarea class="it-in" id="ice_servers" name="ice_servers" spellcheck="false" placeholder='[
+  {"urls": "stun:turn.ajigroup.com:3478"},
+  {"urls": "turn:turn.ajigroup.com:3478", "username": "…", "credential": "…"}
+]'>{{ ice_servers_json }}</textarea>
+      <p class="cs-help">Needed for mesh calls that cross the VPN or leave the building; bridge calls only need the server itself to be reachable. Empty falls back to settings.py. WebRTC media is UDP; a TURN entry with <span class="it-mono">?transport=tcp</span> or <span class="it-mono">turns:…:443</span> is the way through networks that allow only TCP out.</p>
+    </div>
+  </div>
+</div>
+
+<div class="cs-save">
+  <button class="it-pg" type="submit">{% icon "download-tray" 14 %} Save settings</button>
+  <button class="it-pg" type="submit" name="reset" value="1"
+          onclick="return confirm('Reset every call setting to the defaults from settings.py?')">Reset to defaults</button>
+  <a class="it-pg" href="{% url 'it_calls' %}">Back to call monitoring</a>
+</div>
+</form>
+{% endblock %}

@@ -1,0 +1,377 @@
+{# content/_feature_people_culture_explore.html #}
+{# Restored from the pre-conversion template. These panels contain template #}
+{# logic — loops over the certifications list, HR-only blocks — which stored #}
+{# markup cannot execute, so they stay a feature until that content is #}
+{# migrated to records of its own rather than pasted in as text. #}
+{% load cms_tags people_tags %}
+{# These few selectors are styled differently by another page, so they #}
+{# stay scoped here rather than being hoisted into the stylesheet. #}
+<style>
+.tile{border:1px solid var(--line);background:var(--paper-2);padding:22px 20px;cursor:pointer;transition:box-shadow .16s,border-color .16s;display:flex;flex-direction:column;gap:10px}
+.tile:hover{box-shadow:0 8px 22px rgba(18,18,16,.07);border-color:var(--line-2)}
+.tile .ic{width:42px;height:42px;background:var(--paper-2);display:flex;align-items:center;justify-content:center}
+.tile h4{font-weight:700;font-size:15px;margin:0}
+.tile p{font-size:13px;color:var(--muted);margin:0}
+</style>
+{# ── EXPLORE PEOPLE & CULTURE ── #}
+<div class="sec-head">
+  {% feature_text section "heading" "h2" %}
+  {% if is_hr and not cms_preview %}<a href="/people-culture/manage/#tabs" class="lk">Manage tabs &rarr;</a>{% endif %}
+</div>
+
+<div class="pc-box">
+  <div class="pc-side">
+    {% for tab in tabs %}
+    <button class="pc-tab {% if current_tab == tab.key %}on{% endif %}"
+            onclick="pcTab('{{ tab.key }}')" data-tab="{{ tab.key }}">
+      {# Whatever icon the tab names, resolved through the library, so an #}
+      {# uploaded image works here as well as a drawn shape. The if/elif chain #}
+      {# this replaces could only ever draw one of three. #}
+      {% cms_icon tab.icon|default:"heart" 16 1.7 %}
+      <span>{{ tab.label }}</span>
+      {% icon "chevron-right" 2 2 "chev" %}
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="pc-content">
+
+    {# ── MY GROWTH ── #}
+    <div class="pc-panel" data-panel="growth">
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card">
+        <h3>
+          {% icon "award-ribbon" 14 1.7 %}
+          {% feature_text section "growth_train" %}
+        </h3>
+        {% feature_rich section "growth_train_list" "div" "pc-list" %}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+          <button type="button" class="btn y sm" onclick="trOpen()">Submit an Expression of Interest</button>
+          <a href="{% url 'training_list' %}" class="btn ghost sm">My requests</a>
+        </div>
+      </div>
+      <div class="card">
+        <h3>
+          {% icon "spark" 14 1.7 %}
+          {% feature_text section "growth_certs" %}
+          {% if is_hr and not cms_preview %}<a href="/people-culture/manage/#certifications" class="pnl-manage">Manage</a>{% endif %}
+        </h3>
+        <p class="muted" style="margin:0 0 12px;font-size:13.5px">{% feature_text section "growth_certs_intro" %}</p>
+        <div class="cert-row" id="certRow">
+          {% for cert in certifications %}
+          <span class="cert-badge" data-cert="{{ cert.pk }}">
+            {% cms_icon cert.icon|default:"award-ribbon" 13 1.7 %}
+            <span class="cert-name"
+                  {% if is_hr and not cms_preview %}data-cert-name="{{ cert.pk }}" contenteditable="true"
+                  title="Click to rename"{% endif %}>{{ cert.name }}</span>
+            {% if is_hr and not cms_preview %}
+            <button type="button" class="cert-x" onclick="certRemove({{ cert.pk }})"
+                    aria-label="Remove {{ cert.name }}">&times;</button>
+            {% endif %}
+          </span>
+          {% endfor %}
+          {% if is_hr and not cms_preview %}
+          <span class="cert-add">
+            <input type="text" id="certNew" placeholder="Add a certification"
+                   maxlength="100" aria-label="New certification"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();certAdd();}">
+            <button type="button" onclick="certAdd()">Add</button>
+          </span>
+          {% endif %}
+        </div>
+
+{% if is_hr and not cms_preview %}
+<script>
+/* Certifications, editable where they are shown. They were already records with
+   a management screen, but reaching it meant leaving the page. */
+function certCsrf(){
+  const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+async function certPost(body){
+  const fd = new FormData();
+  Object.entries(body).forEach(([k, v]) => fd.append(k, v));
+  let d = {};
+  try {
+    const r = await fetch('{% url "certification_inline" %}',
+      {method: 'POST', headers: {'X-CSRFToken': certCsrf()}, body: fd});
+    d = await r.json();
+    if (!r.ok || d.error){ (window.showToast || alert)(d.error || 'That did not save.'); return null; }
+  } catch (e){
+    (window.showToast || alert)('Could not reach the server.');
+    return null;
+  }
+  if (d.message && window.showToast) showToast(d.message);
+  return d;
+}
+
+async function certAdd(){
+  const input = document.getElementById('certNew');
+  const name = input.value.trim();
+  if (!name) return;
+  const d = await certPost({action: 'add', name: name});
+  if (!d) return;
+  input.value = '';
+  /* The new chip is built from the reply rather than reloading the page. */
+  const chip = document.createElement('span');
+  chip.className = 'cert-badge';
+  chip.dataset.cert = d.pk;
+  chip.innerHTML =
+    '<span class="cert-name" data-cert-name="' + d.pk + '" contenteditable="true" ' +
+    'title="Click to rename"></span>' +
+    '<button type="button" class="cert-x" onclick="certRemove(' + d.pk + ')" ' +
+    'aria-label="Remove">&times;</button>';
+  chip.querySelector('.cert-name').textContent = d.name;
+  document.getElementById('certRow').insertBefore(chip, input.closest('.cert-add'));
+  input.focus();
+}
+
+async function certRemove(pk){
+  const chip = document.querySelector('.cert-badge[data-cert="' + pk + '"]');
+  const name = chip?.querySelector('.cert-name')?.textContent.trim() || 'this certification';
+  if (!confirm('Remove ' + name + '?')) return;
+  if (await certPost({action: 'remove', pk: pk})) chip?.remove();
+}
+
+/* Renaming saves when the field loses focus, and Enter commits rather than
+   inserting a line break inside a chip. */
+document.addEventListener('focusin', e => {
+  const el = e.target.closest?.('[data-cert-name]');
+  if (el) el.dataset.was = el.textContent.trim();
+});
+document.addEventListener('focusout', async e => {
+  const el = e.target.closest?.('[data-cert-name]');
+  if (!el) return;
+  const name = el.textContent.trim();
+  if (name === (el.dataset.was || '')) return;
+  const d = await certPost({action: 'rename', pk: el.dataset.certName, name: name});
+  if (d) el.dataset.was = name;
+  else el.textContent = el.dataset.was || '';
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.closest?.('[data-cert-name]')){
+    e.preventDefault();
+    e.target.blur();
+  }
+});
+</script>
+{% endif %}
+      </div>
+    </div>
+    </div>
+
+
+    {# ── WELLNESS ── #}
+    <div class="pc-panel" data-panel="wellness">
+    {% if is_hr and not cms_preview %}<div class="pnl-bar"><a href="/people-culture/manage/#wellness" class="lk">Manage programmes &rarr;</a></div>{% endif %}
+    {% feature_text section "wellness_intro" "p" "muted pc-intro" %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px">
+      {% for item in wellness_items %}
+      <div class="card">
+        {# Each programme's own icon. cms_icon rather than icon, so a name from #}
+        {# the library resolves -- including an uploaded image icon. #}
+        <div class="wl-ic">{% cms_icon item.icon|default:"heart" 18 1.7 %}</div>
+        <div style="font-weight:700;font-size:14.5px;margin-bottom:5px">{{ item.name }}</div>
+        <p class="muted" style="margin:0;font-size:13px">{{ item.description }}</p>
+        {% if item.period %}<div style="margin-top:11px"><span class="pill">{{ item.period }}</span></div>{% endif %}
+      </div>
+      {% empty %}
+      {% feature_text section "wellness_empty" "p" "muted" %}
+      {% endfor %}
+    </div>
+    </div>
+
+
+    {# ── CHILDCARE ── #}
+    <div class="pc-panel" data-panel="childcare">
+    {% feature_text section "childcare_title" "div" "pc-cc-title" %}
+    {% feature_text section "childcare_intro" "p" "muted pc-intro" %}
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px">
+      <div class="card">
+        {% feature_text section "childcare_elig_head" "h3" %}
+        {% feature_rich section "childcare_elig" "div" "pc-bullets" %}
+      </div>
+      <div class="card">
+        {% feature_text section "childcare_how_head" "h3" %}
+        {% feature_rich section "childcare_how" "div" "pc-bullets" %}
+      </div>
+      <div class="card">
+        {% feature_text section "childcare_terms_head" "h3" %}
+        {% feature_rich section "childcare_terms" "div" "pc-bullets" %}
+      </div>
+    </div>
+    {% feature_text section "childcare_partners_head" "h3" "pc-partners-h" %}
+    <div>
+      {% for partner in childcare_partners %}
+      <span class="partner-chip">{{ partner }}</span>
+      {% endfor %}
+    </div>
+    </div>
+
+
+    {# ── MY VOICE ── #}
+    <div class="pc-panel" data-panel="voice">
+    <div class="grid" style="grid-template-columns:1fr 1fr 1fr;gap:16px">
+      <div class="card">
+        <h3>
+          {% icon "megaphone-wide" 14 1.7 %}
+          {% feature_text section "voice_hotline" %}
+        </h3>
+        {% feature_text section "voice_hotline_text" "p" "muted pc-card-p" %}
+        <a class="btn y sm" href="mailto:CEOhotline@ajigroup.com">
+          {% icon "mail-open" 15 2 %}
+          CEOhotline@ajigroup.com
+        </a>
+      </div>
+      <div class="card">
+        <h3>
+          {% icon "spark" 14 1.7 %}
+          {% feature_text section "voice_ideas" %}
+        </h3>
+        {% feature_text section "voice_ideas_text" "p" "muted pc-card-p" %}
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a href="/voice/suggest/" class="btn y sm">Submit an idea</a>
+          {% if is_hr and not cms_preview %}<a href="/voice/suggest/admin/" class="btn ghost sm">HR view</a>{% endif %}
+        </div>
+      </div>
+      <div class="card">
+        <h3>
+          {% icon "check-simple" 14 1.7 %}
+          {% feature_text section "voice_surveys" %}
+        </h3>
+        <p class="muted" style="margin:0 0 12px;font-size:13.5px">{% feature_text section "voice_surveys_intro" %}</p>
+        {% for survey in surveys %}
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--line)">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px">{{ survey.title }}</div>
+            <div class="muted" style="font-size:11px">Closes {{ survey.closes_on|date:"j M Y" }}</div>
+          </div>
+          <a class="btn ghost sm" href="{{ survey.url }}" target="_blank">Open</a>
+        </div>
+        {% empty %}
+        <span class="pill mut">No open surveys</span>
+        {% endfor %}
+        {% if is_hr and not cms_preview %}
+        <a href="/voice/survey/add/" class="btn ghost sm" style="margin-top:12px">+ Add survey</a>
+        {% endif %}
+      </div>
+    </div>
+
+    </div>
+    <div class="pc-panel" data-panel="__none__">
+    <p class="muted">Select a section from the left.</p>
+    </div>
+
+  </div>{# /pc-content #}
+</div>{# /pc-box #}
+
+{# ── INTERNAL COMMUNICATION CHANNELS ── #}
+<div class="sec-head">
+  {% feature_text section "channels_head" "h2" %}
+  {% if is_hr and not cms_preview %}<a href="/people-culture/manage/#whatsapp" class="lk">Manage channels &rarr;</a>{% endif %}
+</div>
+<div class="tiles">
+  {# Opens the QR modal rather than navigating off the Hub. #}
+  <button type="button" class="tile" onclick="waOpen()"
+          style="text-align:left;font-family:inherit;cursor:pointer;color:inherit">
+    <div class="ic">
+      {% icon "chat" 20 1.7 %}
+    </div>
+    {% feature_text section "ch_wa" "h4" %}
+    {% feature_text section "ch_wa_sub" "p" %}
+  </button>
+  <a href="/people/extensions/" class="tile" style="text-decoration:none;color:inherit">
+    <div class="ic">
+      {% icon "phone-call" 20 1.7 %}
+    </div>
+    {% feature_text section "ch_ext" "h4" %}
+    {% feature_text section "ch_ext_sub" "p" %}
+  </a>
+  <a href="#" onclick="event.preventDefault();chatToggle();" class="tile" style="text-decoration:none;color:inherit">
+    <div class="ic">
+      {% icon "send" 20 1.7 %}
+    </div>
+    {% feature_text section "ch_chat" "h4" %}
+    {% feature_text section "ch_chat_sub" "p" %}
+  </a>
+</div>
+
+{# Meet the Team was here. It is a People cards block on the page now, so #}
+{# colleagues are added and removed from the editor rather than by editing a #}
+{# list in the view. #}
+
+<script>
+(function () {
+  // Determine initial tab from URL or Django context
+  var initial = '{{ current_tab }}' || 'growth';
+
+  function pcTab(id) {
+    // Update buttons
+    document.querySelectorAll('.pc-tab').forEach(function(btn) {
+      btn.classList.toggle('on', btn.dataset.tab === id);
+    });
+    // Update panels
+    document.querySelectorAll('.pc-panel').forEach(function(panel) {
+      panel.classList.toggle('active', panel.dataset.panel === id);
+    });
+    // Update URL without reload
+    var url = new URL(window.location.href);
+    url.searchParams.set('tab', id);
+    window.history.replaceState({}, '', url.toString());
+  }
+
+  // Expose globally for onclick handlers
+  window.pcTab = pcTab;
+
+  // Activate initial tab on page load
+  pcTab(initial);
+})();
+</script>
+
+{% include 'training/_submit_modal.html' %}
+
+{# ── WhatsApp channels modal ── #}
+<div class="wa-bg" id="waBg" onclick="waClose()"></div>
+<div class="wa" id="wa" role="dialog" aria-modal="true" aria-labelledby="waHead">
+  <div class="wa-head">
+    <div>
+      <h3 id="waHead">Official WhatsApp channels</h3>
+      <p class="muted" style="font-size:13px;margin:0">Scan a code with your phone to join.</p>
+    </div>
+    <button type="button" class="wa-x" onclick="waClose()" aria-label="Close">&times;</button>
+  </div>
+  <div class="wa-grid">
+    {% for ch in whatsapp_channels %}
+    <div class="wa-ch">
+      <div class="wa-qr">
+        {% if ch.qr_image %}
+        <img src="{{ ch.qr_image.url }}" alt="QR code for {{ ch.title }}">
+        {% else %}
+        <span class="muted" style="font-size:11.5px;padding:12px">QR code not uploaded yet</span>
+        {% endif %}
+      </div>
+      <h4>{{ ch.title }}</h4>
+      {% if ch.description %}<p>{{ ch.description }}</p>{% endif %}
+      {% if ch.join_url %}
+      <a href="{{ ch.join_url }}" target="_blank" rel="noopener" class="btn y sm">Join channel</a>
+      {% endif %}
+    </div>
+    {% empty %}
+    <div class="muted" style="font-size:13px;padding:10px">
+      No channels configured yet.
+      {% if is_hr and not cms_preview %}<br>Add them in Django Admin under “WhatsApp channels”.{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+function waOpen(){document.getElementById('waBg').classList.add('on');document.getElementById('wa').classList.add('on');}
+function waClose(){document.getElementById('waBg').classList.remove('on');document.getElementById('wa').classList.remove('on');}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')waClose();});
+</script>
+
+{# Sections added through the edit toolbar render here. #}
+{# The page renders its own blocks; this tag here would render the page inside itself. #}
+

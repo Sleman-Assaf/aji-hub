@@ -1,0 +1,195 @@
+{# templates/portal/policies_manage.html #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}Policies & SOPs — Manage{% endblock %}
+
+{% block extra_head %}
+<style>
+.pm-section{border:1px solid var(--line);background:#fff;margin-bottom:20px}
+.pm-sec-head{padding:14px 18px;background:var(--ink);color:#fff;display:flex;align-items:center;gap:12px}
+.pm-sec-head h3{margin:0;font-size:15px;font-weight:700;flex:1}
+.pm-doc-row{border-bottom:1px solid var(--line);padding:14px 18px;display:flex;align-items:flex-start;gap:14px}
+.pm-doc-row:last-child{border-bottom:none}
+.pm-doc-info{flex:1;min-width:0}
+.pm-doc-title{font-weight:700;font-size:14px}
+.pm-doc-file{font-size:12px;color:var(--muted);margin-top:2px}
+.pm-edit-form{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.pm-edit-form input[type=text],.pm-edit-form input[type=url],.pm-edit-form input[type=number]{
+  border:1px solid var(--line-2);padding:7px 10px;font-family:inherit;font-size:13px;outline:none;background:#fff
+}
+.pm-edit-form input:focus{border-color:var(--ink)}
+.add-form{padding:16px 18px;background:var(--paper);border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.add-form input,.add-form select{border:1px solid var(--line-2);padding:8px 12px;font-family:inherit;font-size:13px;outline:none;background:#fff;min-width:160px}
+.add-form input:focus{border-color:var(--ink)}
+.del-btn{background:none;border:none;cursor:pointer;color:var(--bad);padding:4px;opacity:.6;transition:opacity .12s;flex:none}
+.del-btn:hover{opacity:1}
+.del-btn svg{width:15px;height:15px}
+/* The category's own row of fields, on the dark section head. */
+.pm-cat-form{display:flex;align-items:center;gap:7px;flex:1;flex-wrap:wrap;min-width:0}
+.pm-cat-form input{border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.1);
+  color:#fff;padding:7px 10px;font-family:inherit;font-size:13px;outline:none;
+  border-radius:8px;min-width:0}
+.pm-cat-form input::placeholder{color:rgba(255,255,255,.5)}
+.pm-cat-form input:focus{border-color:rgba(255,255,255,.5);
+  background:rgba(255,255,255,.16)}
+.pm-cat-name{min-width:170px;font-weight:650}
+.pm-cat-desc{flex:1;min-width:150px}
+.pm-cat-order{width:64px}
+
+/* The icon swatch, on the ink bar. Just the icon — see .pick-only in the site
+   stylesheet — dressed for the dark, because the shared picker builds a white
+   row and forces the input transparent with !important. */
+.pm-cat-form .pick{background:rgba(255,255,255,.1);
+  border-color:rgba(255,255,255,.22)}
+.pm-cat-form .pick:hover{border-color:rgba(255,255,255,.45)}
+.pm-cat-form .pick-prev{background:transparent;color:var(--yellow)}
+.pm-cat-form .pick-prev:hover{background:rgba(255,255,255,.14)}
+.pm-cat-form .pick.is-empty .pick-prev{background:repeating-linear-gradient(45deg,
+  rgba(255,255,255,.06) 0 5px,rgba(255,255,255,.16) 5px 10px)}
+.pm-cat-form .pick.is-empty .pick-prev::after{color:rgba(255,255,255,.65)}
+.pm-cat-form .pick-clear{background:#fff;color:var(--ink)}
+.pm-cat-form .pick-clear:hover{background:var(--bad);color:#fff}
+
+/* .ff-field (the file input) and .pm-add (a form that waits to be asked for)
+   are shared with Brand Files and live in the site stylesheet. */
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-head rise" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
+  <div>
+    <div class="eyebrow">Policies & SOPs</div>
+    <h1>Manage Policies & SOPs</h1>
+    <p>Add categories and documents. Only Policies group members can access this page.</p>
+  </div>
+  <a href="{% url 'policies' %}" class="btn ghost" style="margin-top:10px">← Back to Policies & SOPs</a>
+</div>
+
+{% for cat in categories %}
+<div class="pm-section rise">
+
+  {# The category itself is editable here now — its icon, its name, its subtitle #}
+  {# and its order. policy_category_save has always accepted a pk and updated #}
+  {# rather than created; nothing on this page ever sent one, so a category #}
+  {# could be made and deleted but never changed. #}
+  <div class="pm-sec-head">
+    {# data-save: posts in the background, so changing one category does not #}
+    {# rebuild the page and throw away edits in progress on the others. #}
+    <form method="post" action="{% url 'policy_category_save' %}" class="pm-cat-form" data-save>
+      {% csrf_token %}
+      <input type="hidden" name="pk" value="{{ cat.pk }}">
+      {# data-icon-field is all the picker needs — see includes/icon_picker_js.html. #}
+      <input type="text" name="icon" value="{{ cat.icon }}" data-icon-field data-icon-only
+             title="Choose the tile's icon" aria-label="Icon for {{ cat.name }}">
+      <input type="text" name="name" value="{{ cat.name }}" required
+             placeholder="Category name *" class="pm-cat-name">
+      <input type="text" name="description" value="{{ cat.description }}"
+             placeholder="Subtitle" class="pm-cat-desc">
+      <input type="number" name="order" value="{{ cat.order }}" class="pm-cat-order"
+             aria-label="Order">
+      <button type="submit" class="btn y sm">Save</button>
+    </form>
+    {# Access lives on the library's own page, not in this bar. It needs radio #}
+    {# groups, a group list and a people search — none of which fit in a row, #}
+    {# and all of which were unreadable rendered white-on-white inside it. #}
+    {% if cat.can_manage_now %}
+    <a href="{% url 'policy_library_settings' cat.pk %}" class="pm-cat-settings">
+      {% if cat.is_restricted %}{% icon "lock-simple" 12 %} Restricted{% else %}{% icon "users-three" 12 %} Everyone{% endif %}
+      {% if not cat.downloadable %} · view only{% endif %}
+      <b>Settings</b>
+    </a>
+    {% else %}
+    <span class="pm-cat-settings ro" title="Owned by {{ cat.owner_name|default:'somebody else' }}">
+      {% icon "lock-simple" 12 %} {{ cat.owner_name|default:"Not yours" }}
+    </span>
+    {% endif %}
+    <form method="post" action="{% url 'policy_category_delete' cat.pk %}"
+          onsubmit="return confirm('Delete category {{ cat.name|escapejs }} and all its documents?')">
+      {% csrf_token %}
+      <button type="submit" class="del-btn" style="color:#fff;opacity:.7" title="Delete category">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </button>
+    </form>
+  </div>
+
+  {% for p in cat.policies.all %}
+  <div class="pm-doc-row">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="flex:none;color:var(--muted);margin-top:6px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+    <div class="pm-doc-info">
+      <form method="post" action="{% url 'policy_edit' p.pk %}" enctype="multipart/form-data" class="pm-edit-form" data-save>
+        {% csrf_token %}
+        <select name="doc_type" style="min-width:118px">{% for v,l in doc_types %}<option value="{{ v }}"{% if p.doc_type == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        <input type="text" name="title" value="{{ p.title }}" placeholder="Title *" required style="min-width:200px;flex:1">
+        <input type="text" name="description" value="{{ p.description }}" placeholder="Description" style="min-width:220px;flex:1">
+        <input type="url" name="external_url" value="{{ p.external_url }}" placeholder="External link (optional)" style="min-width:180px">
+        <input type="number" name="order" value="{{ p.order }}" style="width:70px">
+        {% include 'portal/_file_field.html' with name='file' current=p.filename %}
+        {# Through the guarded route, not the media path — an editor copying #}
+        {# this link out of the page would otherwise be copying a public one. #}
+        {% if p.file %}<a href="{% url 'policy_doc_file' p.pk %}" class="btn ghost sm" download>Download</a>{% endif %}
+        <button type="submit" class="btn ghost sm">Save</button>
+      </form>
+    </div>
+    <form method="post" action="{% url 'policy_delete' p.pk %}"
+          onsubmit="return confirm('Delete document {{ p.title|escapejs }}?')" style="margin:0">
+      {% csrf_token %}
+      <button type="submit" class="del-btn" title="Delete document">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </button>
+    </form>
+  </div>
+  {% empty %}
+  <div style="padding:16px 18px;font-size:13px;color:var(--muted)">No documents yet. Add one below.</div>
+  {% endfor %}
+
+  {# Add document to this category. #}
+  {# The fields used to sit here permanently — an empty form under every #}
+  {# category, so a page of three categories showed three blank documents that #}
+  {# did not exist. They are behind the button that asks for them now, which is #}
+  {# also what "+ Add document" always looked like it would do. #}
+  <div class="pm-add" data-add>
+    <button type="button" class="pm-add-open" data-add-open>
+      {% icon "plus" 14 2 %} Add document
+    </button>
+    {# "reload": a new row has to come from the server, so this one does rebuild #}
+    {# the page — but comes back to the same scroll position. #}
+    <form method="post" action="{% url 'policy_save' cat.pk %}"
+          enctype="multipart/form-data" class="add-form" data-save="reload" hidden>
+      {% csrf_token %}
+      <select name="doc_type" style="min-width:118px">{% for v,l in doc_types %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+      <input type="text" name="title" placeholder="Document title *" required style="min-width:200px">
+      <input type="text" name="description" placeholder="Short description">
+      <input type="url" name="external_url" placeholder="External link (SharePoint, etc.)" style="min-width:200px">
+      <input type="number" name="order" placeholder="Order" value="99" style="width:70px">
+      {% include 'portal/_file_field.html' with name='file' %}
+      <button type="submit" class="btn y sm">Add document</button>
+      <button type="button" class="btn ghost sm" data-add-cancel>Cancel</button>
+    </form>
+  </div>
+
+</div>
+{% endfor %}
+
+{# ── Add new category ── #}
+<div class="card rise" style="padding:20px">
+  <h3 style="margin:0 0 14px;font-size:15px">Add new category</h3>
+  <form method="post" action="{% url 'policy_category_save' %}" data-save="reload"
+        style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    {% csrf_token %}
+    <input type="text" name="icon" data-icon-field data-icon-only
+           title="Choose an icon" aria-label="Icon">
+    <input type="text" name="name" placeholder="Category name *" required
+           style="border:1px solid var(--line-2);padding:9px 12px;font-family:inherit;font-size:13.5px;outline:none;min-width:220px">
+    <input type="text" name="description" placeholder="Subtitle (e.g. 'Project & operational risk')"
+           style="border:1px solid var(--line-2);padding:9px 12px;font-family:inherit;font-size:13.5px;outline:none;min-width:280px">
+    <input type="number" name="order" placeholder="Order" value="99"
+           style="border:1px solid var(--line-2);padding:9px 10px;font-family:inherit;font-size:13.5px;outline:none;width:80px">
+    <button type="submit" class="btn y">+ Add category</button>
+  </form>
+</div>
+
+{# access_fields_js is not needed here any more — the access panels live #}
+{# on each library's own settings page, which includes it itself. #}
+
+{% endblock %}

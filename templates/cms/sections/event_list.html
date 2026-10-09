@@ -1,0 +1,27 @@
+{# templates/cms/sections/event_list.html — upcoming events with date blocks. #}
+{% load cms_tags %}
+<div class="sec-head">
+  <h2 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title|default:"Official events"|aji }}</h2>
+  <a href="{{ section|cfg:"link_url"|default:"/calendar/" }}" class="lk">{{ section|cfg:"link_label"|default:"Calendar" }} →</a>
+</div>
+<div class="ev-card">
+  {% for event in events %}
+  <div class="ev">
+    <div class="ev-d {% if forloop.first %}y{% endif %}">
+      <div class="m">{{ event.date|date:"M"|upper }}</div>
+      <div class="n">{{ event.date|date:"j" }}</div>
+    </div>
+    <div>
+      <div class="ev-t">{{ event.title }}</div>
+      {# The whole span, not just the start: "All day", "11:45 – 12:45", or a #}
+      {# date range when the event runs past its own day. See when_display. #}
+      <div class="ev-s">{{ event.location|default:"" }}{% if event.location and event.when_display %} · {% endif %}{{ event.when_display }}</div>
+    </div>
+  </div>
+  {% empty %}
+  <div style="padding:28px 0;text-align:center;color:var(--muted);font-size:13px">No upcoming events scheduled.</div>
+  {% endfor %}
+  {% if more %}
+  <a href="{{ section|cfg:"link_url"|default:"/calendar/" }}" class="card-more">+ {{ more }} more event{{ more|pluralize }} →</a>
+  {% endif %}
+</div>

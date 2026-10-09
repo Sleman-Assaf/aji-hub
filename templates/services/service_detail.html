@@ -1,0 +1,54 @@
+{# templates/services/service_detail.html #}
+{% extends 'base.html' %}
+{% block title %}{{ service.name }} — My AJi{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow"><a href="{% url 'my_aji' %}" style="color:inherit">My <span class="kc">AJi</span></a> / <a href="{% url 'my_aji_category' service.category.pk %}" style="color:inherit">{{ service.category.name }}</a> / {{ service.name }}</div>
+    <h1>{{ service.name }}</h1>
+    {% if service.description %}<p>{{ service.description }}</p>{% endif %}
+  </div>
+  {% if new_url %}
+  <a href="{{ new_url }}" class="btn y">{{ new_label }}</a>
+  {% endif %}
+</div>
+
+{% if coming_soon %}
+<div class="card rise" style="text-align:center;color:var(--muted);padding:40px 20px">
+  This service is coming soon.
+</div>
+{% elif history %}
+<div class="card rise" style="padding:0;overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:var(--paper-2);text-align:left">
+        <th style="padding:12px 18px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Status</th>
+        <th style="padding:12px 18px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Title</th>
+        <th style="padding:12px 18px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Details</th>
+        <th style="padding:12px 18px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in history %}
+      <tr style="cursor:pointer;border-bottom:1px solid var(--line)"
+          onclick="window.location='{{ item.detail_url }}'"
+          onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
+        <td style="padding:13px 18px;white-space:nowrap">
+          <span class="pill {% if item.status_state == 'done' %}ok{% elif item.status_state == 'rejected' %}bad{% else %}warn{% endif %}"
+                style="font-size:10.5px">{{ item.status_label }}</span>
+        </td>
+        <td style="padding:13px 18px;font-weight:700">{{ item.title }}</td>
+        <td style="padding:13px 18px;color:var(--muted)">{{ item.subtitle|default:"—" }}</td>
+        <td style="padding:13px 18px;color:var(--muted);white-space:nowrap;font-size:12px">{{ item.created_at|date:"M d, Y — H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card rise" style="text-align:center;color:var(--muted);padding:40px 20px">
+  You haven't submitted any {{ service.name|lower }} requests yet.
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,67 @@
+{# templates/content/hr_manage.html — HR's publishing dashboard. #}
+{% extends 'base.html' %}
+{% block title %}Manage HR updates — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+.hm-row{display:flex;align-items:center;gap:13px;padding:12px 14px;background:var(--paper-2);
+  border:1px solid var(--line);margin-bottom:8px}
+.hm-thumb{width:64px;aspect-ratio:16/9;object-fit:cover;flex:none;border:1px solid var(--line);background:var(--paper-3)}
+.hm-main{flex:1;min-width:0}
+.hm-t{font-weight:700;font-size:14px}
+.hm-m{font-size:11.5px;color:var(--muted);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap}
+.hm-acts{display:flex;gap:6px;flex-wrap:wrap;flex:none}
+.hm-acts .btn{padding:5px 10px;font-size:11.5px}
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="{% url 'people_culture' %}" class="ctx-back" title="People &amp; Culture"><span class="ctx-back-lab">People &amp; Culture</span></a>
+
+<div class="page-head rise" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div>
+    <div class="eyebrow">People &amp; Culture</div>
+    <h1>HR Information</h1>
+    <p>Draft, schedule, publish, pin and archive updates for the whole company.</p>
+  </div>
+  <a href="{% url 'hr_create' %}" class="btn y" style="flex:none">+ New update</a>
+</div>
+
+<div class="rise" style="max-width:940px">
+  {% for u in updates %}
+  <div class="hm-row">
+    {% if u.image %}<img src="{{ u.image.url }}" alt="" class="hm-thumb">{% else %}<div class="hm-thumb"></div>{% endif %}
+    <div class="hm-main">
+      <div class="hm-t">{{ u.title }}</div>
+      <div class="hm-m">
+        <span>{{ u.badge }}</span><span>·</span>
+        <span>{{ u.date|date:"j M Y" }}</span><span>·</span>
+        <span>{{ u.views }} view{{ u.views|pluralize }}</span>
+        {% if u.attachments.count %}<span>·</span><span>{{ u.attachments.count }} attachment{{ u.attachments.count|pluralize }}</span>{% endif %}
+      </div>
+    </div>
+    {% if u.pinned %}<span class="pill warn">Pinned</span>{% endif %}
+    <span class="pill {% if u.state_label == 'Live' %}ok{% elif u.state_label == 'Draft' %}mut{% else %}info{% endif %}">{{ u.state_label }}</span>
+    <div class="hm-acts">
+      <a href="{% url 'hr_detail' u.slug %}" class="btn ghost sm">View</a>
+      <a href="{% url 'hr_edit' u.pk %}" class="btn ghost sm">Edit</a>
+      {% if u.status != 'published' %}
+      <form data-save="reload" method="post" action="{% url 'hr_action' u.pk 'publish' %}">{% csrf_token %}<button class="btn y sm">Publish</button></form>
+      {% else %}
+      <form data-save="reload" method="post" action="{% url 'hr_action' u.pk 'draft' %}">{% csrf_token %}<button class="btn ghost sm">Unpublish</button></form>
+      {% endif %}
+      <form data-save="reload" method="post" action="{% url 'hr_action' u.pk 'pin' %}">{% csrf_token %}<button class="btn ghost sm">{% if u.pinned %}Unpin{% else %}Pin{% endif %}</button></form>
+      {% if u.status != 'archived' %}
+      <form data-save="reload" method="post" action="{% url 'hr_action' u.pk 'archive' %}">{% csrf_token %}<button class="btn ghost sm">Archive</button></form>
+      {% endif %}
+      <form data-save="reload" method="post" action="{% url 'hr_action' u.pk 'delete' %}" onsubmit="return confirm('Delete this update and its attachments?')">{% csrf_token %}<button class="btn ghost sm">Delete</button></form>
+    </div>
+  </div>
+  {% empty %}
+  <div class="card" style="text-align:center;padding:44px;color:var(--muted);font-size:13.5px">
+    No HR updates yet.
+    <div style="margin-top:14px"><a href="{% url 'hr_create' %}" class="btn y sm">Write the first one</a></div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

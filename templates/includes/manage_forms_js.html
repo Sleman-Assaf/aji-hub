@@ -1,0 +1,250 @@
+{# templates/includes/manage_forms_js.html #}
+{# The two behaviours the management screens share: a form that waits to be #}
+{# asked for, and a file field that reports the name it was given. #}
+{# #}
+{# Written once for Policies, then wanted verbatim for Brand Files, then for #}
+{# every other screen with a Save on it. It is loaded from base.html now, so #}
+{# it reaches all of them; a form opts in by carrying data-save, and a page #}
+{# with no such form pays for nothing but the parse. #}
+{# #}
+{# Delegated throughout, so it covers every row on the page — and anything the #}
+{# server renders later — without a handler per row. #}
+<script>
+/* Loaded once, from base.html. A page that includes it again would register a
+   second submit listener and post everything twice, which is invisible until
+   something is created twice — so it refuses rather than trusting nobody will. */
+if (!window.__ajiSaveForms) {
+window.__ajiSaveForms = 1;
+
+document.addEventListener('click', e => {
+  const open = e.target.closest('[data-add-open]');
+  if (open) {
+    const box = open.closest('[data-add]');
+    box.dataset.open = '1';
+    const form = box.querySelector('form');
+    form.hidden = false;
+    /* The first thing it wants is usually a name; a file upload wants the file.
+       Focusing the wrong one is worse than focusing nothing, so it asks the
+       form which field comes first. */
+    (form.querySelector('input[name="title"], input[name="name"], input[name="label"]')
+      || form.querySelector('input:not([type=hidden]):not([type=file])'))?.focus();
+    return;
+  }
+  const cancel = e.target.closest('[data-add-cancel]');
+  if (cancel) {
+    const box = cancel.closest('[data-add]');
+    const form = box.querySelector('form');
+    form.reset();
+    // The filename readout is ours, so form.reset() does not clear it.
+    form.querySelectorAll('[data-ff]').forEach(showFileName);
+    form.hidden = true;
+    delete box.dataset.open;
+    box.querySelector('[data-add-open]')?.focus();
+  }
+});
+
+/* The chosen filename, written where the operating system used to write it.
+   The <label> around the input is what opens the picker, so with this script
+   broken the field still works — it just keeps saying "No file chosen". */
+function showFileName(input){
+  const box = input.closest('.ff-field');
+  const out = box && box.querySelector('[data-ff-name]');
+  if (!out) return;
+  const picked = input.files && input.files.length
+    ? (input.files.length > 1 ? input.files.length + ' files' : input.files[0].name)
+    : '';
+  /* What was already attached, remembered on the first pass, so cancelling a
+     replacement puts the existing filename back rather than "No file chosen". */
+  if (out.dataset.had === undefined) {
+    const shown = out.textContent.trim();
+    out.dataset.had = shown === 'No file chosen' ? '' : shown;
+  }
+  out.textContent = picked || out.dataset.had || 'No file chosen';
+  box.classList.toggle('has-file', !!(picked || out.dataset.had));
+}
+
+document.addEventListener('change', e => {
+  if (e.target.matches('[data-ff]')) showFileName(e.target);
+});
+document.querySelectorAll('[data-ff]').forEach(showFileName);
+
+/* ── saving in place ──
+   Every form here posts and the view answers with a redirect, so the browser
+   threw the page away and rebuilt it at the top. On a screen of ten tiles that
+   meant: change three, save one, lose the other two and your scroll position.
+
+   A form marked data-save posts in the background instead. Nothing is rebuilt,
+   so nothing else on the page is disturbed — the values on screen are already
+   the ones that were sent.
+
+   Forms that *add* something still reload, because a new row has to come from
+   the server; they mark themselves data-save="reload" and the scroll position is
+   carried across. Progressive: without this script every form submits normally
+   and still works, which is why the markup keeps its action and method. */
+const MF = {toast: null};
+
+/* A form's own properties, reached past its controls.
+
+   `<form>` exposes each of its fields as a named property on itself, so a field
+   named "action", "method" or "submit" hides the form's real one. These screens
+   post `name="action"` to tell the view what to do — upload, delete, set_cover —
+   which is exactly the collision. Taken off the prototype, the answer is the
+   form's, not the field's. */
+const FORM_ACTION = Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'action').get;
+const FORM_METHOD = Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'method').get;
+
+function formAction(form) {
+  // The getter already resolves a missing attribute to the current document,
+  // so there is nothing to fall back to.
+  return FORM_ACTION.call(form) || location.href;
+}
+
+function mfSay(text, bad){
+  /* The site's own notification if it is there — one place decides what a
+     confirmation looks like. Failures went through the fallback below rather
+     than through it, which mattered more than it looks: the fallback painted a
+     div with the class `mf-toast`, and there has never been a rule for
+     `mf-toast` anywhere in the stylesheet. Every error this function has ever
+     reported arrived as unstyled text at the bottom of the document. Both kinds
+     go to the real stack now.
+
+     The fallback is still here because base.html — and so the stack, and the
+     function — is not on every CMS editor screen. It borrows the same classes,
+     so it looks like a notice rather than like nothing. */
+  if (typeof toast === 'function') { toast(text, bad ? 'bad' : ''); return; }
+  clearTimeout(MF.timer);
+  if (!MF.wrap) {
+    MF.wrap = document.querySelector('.tst-wrap');
+    if (!MF.wrap) {
+      MF.wrap = document.createElement('div');
+      MF.wrap.className = 'tst-wrap';
+      document.body.appendChild(MF.wrap);
+    }
+  }
+  if (!MF.toast) {
+    MF.toast = document.createElement('div');
+    MF.wrap.appendChild(MF.toast);
+  }
+  MF.toast.className = 'tst in' + (bad ? ' bad' : '');
+  MF.toast.textContent = text;
+  MF.timer = setTimeout(() => { MF.toast.classList.remove('in'); }, 3000);
+}
+
+document.addEventListener('submit', async e => {
+  const form = e.target;
+  if (!form.matches('form[data-save]')) return;
+  /* Something nearer the form already said no — an onsubmit="return confirm()"
+     on a delete, most often. This listener is on the document, so the event
+     still arrives here after being cancelled; posting anyway would carry out
+     the very thing the person just declined. */
+  if (e.defaultPrevented) return;
+  if (!form.reportValidity()) { e.preventDefault(); return; }
+  e.preventDefault();
+
+  /* A file that has just been chosen changes what the page shows — a new
+     thumbnail, a new attachment in the list — and only the server can draw it.
+     Deciding this from the field rather than from the form means a screen where
+     the picture is optional saves quietly when it is left alone and refreshes
+     when it is not, without the template having to guess which it will be. */
+  const uploading = [...form.querySelectorAll('input[type=file]')]
+    .some(i => i.files && i.files.length);
+  const reload = form.dataset.save === 'reload' || uploading;
+  const btns = [...form.querySelectorAll('button[type=submit]')];
+  const was = btns.map(b => b.textContent);
+  btns.forEach(b => { b.disabled = true; b.textContent = 'Saving…'; });
+
+  try {
+    const headers = {'X-Requested-With': 'XMLHttpRequest'};
+    /* Tell the view not to queue a flash banner for a save that never rebuilds
+       the page: it would go unread, sit in the session, and appear on top of the
+       next full page load referring to something long forgotten. A reloading
+       save does want its banner, so it does not send this. See _tell() in
+       portal/views.py. */
+    if (!reload) headers['X-Quiet-Save'] = '1';
+
+    /* Read the action off the prototype, never off the element.
+       A form's controls become named properties on it, so a field called
+       "action" — which is how half these screens tell the view what to do —
+       shadows the form's own action URL. `form.action` then returns that input,
+       the URL becomes ".../[object HTMLInputElement]", and every upload and
+       delete on those screens answered 404. Same reason submit() is called off
+       the prototype further down. */
+    const r = await fetch(formAction(form), {
+      method: FORM_METHOD.call(form) || 'post',
+      body: new FormData(form),
+      headers,
+      /* The views answer with a redirect. Following it costs a page fetch that
+         is thrown away, but it is also how a permission failure surfaces as a
+         non-ok status rather than an opaque 302. */
+      redirect: 'follow',
+    });
+    /* A handful of views answer XHR with JSON rather than a redirect, and a
+       refusal arrives as a 400 or an ok:false — either way carrying the reason,
+       which is far more use than "that did not save". */
+    const asJson = (r.headers.get('content-type') || '').includes('application/json');
+    const data = asJson ? await r.json().catch(() => null) : null;
+    const refused = data && (data.ok === false || data.error);
+    if (!r.ok || refused) {
+      mfSay((data && (data.error || data.message)) || 'That did not save.', true);
+      return;
+    }
+    /* Past the JSON views, a save that worked ends in a redirect — the rest all
+       follow post/redirect/get. A page body instead means the view would not
+       take the save and is re-rendering the form with its errors on it, and no
+       toast can show which field is wrong. So hand it back to the browser:
+       submitting normally lands on that page and the person reads the actual
+       complaint. The refused post changed nothing, so repeating it is safe.
+
+       Called off the prototype because a field named "submit" shadows the
+       method, and several of these forms post an action by that name. */
+    else if (!asJson && !r.redirected) {
+      HTMLFormElement.prototype.submit.call(form);
+      return;
+    }
+
+    if (reload) {
+      /* Come back to the same place. Stored rather than passed in the URL, so a
+         refresh afterwards does not keep re-applying an old position. */
+      sessionStorage.setItem('mfScroll', String(window.scrollY));
+      location.reload();
+      return;
+    }
+    mfSay('Saved');
+    // A file that has been uploaded is no longer pending in the field.
+    form.querySelectorAll('[data-ff]').forEach(i => {
+      i.value = '';
+      const out = i.closest('.ff-field')?.querySelector('[data-ff-name]');
+      if (out) delete out.dataset.had;
+      showFileName(i);
+    });
+  } catch (err) {
+    mfSay('That did not save. Check your connection and try again.', true);
+  } finally {
+    btns.forEach((b, i) => { b.disabled = false; b.textContent = was[i]; });
+  }
+});
+
+/* Put the page back where it was after one of the reloading saves. */
+(() => {
+  const y = sessionStorage.getItem('mfScroll');
+  if (y === null) return;
+  sessionStorage.removeItem('mfScroll');
+  // After layout, or the page is not yet tall enough to scroll that far.
+  requestAnimationFrame(() => window.scrollTo(0, Number(y) || 0));
+  window.addEventListener('load', () => window.scrollTo(0, Number(y) || 0),
+                          {once: true});
+})();
+
+}
+</script>
+
+<style>
+/* Only used when base.html's toast is not on the page. */
+.mf-toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,14px);
+  background:var(--raised);color:var(--raised-fg);padding:12px 20px;border-radius:10px;
+  font-size:13.5px;font-weight:600;z-index:1500;opacity:0;pointer-events:none;
+  border-left:3px solid var(--yellow);
+  transition:opacity 180ms,transform 180ms cubic-bezier(.23,1,.32,1)}
+.mf-toast.on{opacity:1;transform:translate(-50%,0)}
+.mf-toast.bad{border-left-color:var(--bad)}
+</style>

@@ -1,0 +1,12 @@
+{# templates/includes/birthday_wish_js.html — the birthday wish dialog. #}
+{# #}
+{# There were two ways to send one. The birthdays block opened a dialog you #}
+{# could write in; the header strip sent a fixed sentence the moment you #}
+{# pressed it. Same wish, same person, two behaviours depending on which part #}
+{# of the page you happened to press. This is the one both use now. #}
+{# #}
+{# A file rather than an inline script because more than one block on a page #}
+{# includes it — this way the browser fetches it once and caches it across #}
+{# pages, and the guard inside stops a second tag from wiring it up twice. #}
+{% load static %}
+<script src="{% static 'js/birthday_wish.js' %}?v={{ asset_version }}" defer></script>

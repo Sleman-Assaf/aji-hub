@@ -1,0 +1,165 @@
+{# templates/content/portfolio_manage.html — the projects on the portfolio page. #}
+{# One project was one row: name, location, division, type, year, status, a #}
+{# description textarea, an image picker and Save, all on a single line that #}
+{# scrolled sideways. Every field was three characters wide and the description #}
+{# — the longest thing on the record — was the narrowest box on the screen. #}
+{# Each project is a panel now, opened one at a time. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}Projects — AJi Hub{% endblock %}
+{% block content %}
+
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">Projects</div>
+    <h1>Portfolio content</h1>
+    <p>
+      The projects shown on the portfolio page. Headings and layout are edited on
+      the page itself. <b>Name</b> and <b>location</b> are required.
+    </p>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <a href="{% url 'portfolio' %}" class="btn ghost">&larr; Back to the page</a>
+  </div>
+</div>
+
+{# ── Bulk, by spreadsheet ── #}
+<div class="pjx-bulk rise">
+  <div class="pjx-bulk-txt">
+    <b>Edit them all at once</b>
+    <span>
+      Download the template — it comes filled in with all {{ total }} project{{ total|pluralize }} —
+      change what you need, then upload it back. Rows with a Ref update that project;
+      rows without one are added. You will see exactly what changes before anything is saved.
+    </span>
+  </div>
+  <div class="pjx-bulk-act">
+    <a class="btn ghost" href="{% url 'project_template' %}">Download template</a>
+    <form method="post" action="{% url 'project_bulk_upload' %}" enctype="multipart/form-data"
+          id="pjxUp">
+      {% csrf_token %}
+      <input type="file" name="workbook" id="pjxFile" accept=".xlsx,.xlsm" hidden
+             onchange="document.getElementById('pjxUp').submit()">
+      <button type="button" class="btn y" onclick="document.getElementById('pjxFile').click()">
+        Upload filled template
+      </button>
+    </form>
+  </div>
+</div>
+
+{# ── Add ── #}
+<div class="sec-head rise" style="margin-top:30px"><h2>Add a project</h2></div>
+<form method="post" action="{% url 'project_save' %}" enctype="multipart/form-data"
+      class="pjx-card add rise" data-save="reload">
+  {% csrf_token %}
+  {% include 'content/_project_fields.html' with p=None statuses=statuses divisions=divisions types=types %}
+  <div class="pjx-foot">
+    <button type="submit" class="btn y">Add project</button>
+  </div>
+</form>
+
+{# ── Find ── #}
+{# Search rather than everything at once: a form per project came to 1.5 MB of #}
+{# HTML for 379 of them, which is a slow page and an unusable one. #}
+{# #}
+{# Still a real GET form, so it works with the script broken and a searched URL #}
+{# can be shared. With the script running, the results below are fetched as you #}
+{# type and the Search button never has to be pressed. #}
+<form method="get" class="pjx-find rise" id="pjxFind" style="margin-top:34px">
+  <div class="pjx-find-box">
+    {% icon "search" 15 1.8 %}
+    <input type="text" name="q" value="{{ q }}" autocomplete="off" id="pjxQ"
+           placeholder="Search by name, location, type or division…">
+    <button type="button" class="pjx-find-x" id="pjxClear" aria-label="Clear the search"
+            {% if not q %}hidden{% endif %}>{% icon "x" 13 2 %}</button>
+  </div>
+  <button type="submit" class="btn y" id="pjxGo">Search</button>
+  <span class="pjx-find-spin" id="pjxSpin" hidden aria-hidden="true"></span>
+</form>
+
+<div class="pjx-results rise" id="pjxResults" aria-live="polite">
+  {% include 'content/_portfolio_manage_results.html' %}
+</div>
+
+{# Shared datalists, so every division and type box suggests what is #}
+{# already in use without any of them becoming a fixed list. #}
+<datalist id="pjxDivisions">{% for d in divisions %}<option value="{{ d }}">{% endfor %}</datalist>
+<datalist id="pjxTypes">{% for t in types %}<option value="{{ t }}">{% endfor %}</datalist>
+
+<script>
+/* ── searching as you type ──
+   The form still submits on Enter and still works with this script broken; all
+   this does is ask for the results earlier and put them in place without
+   rebuilding the page around the field being typed into. */
+(function () {
+  var form = document.getElementById('pjxFind');
+  var box  = document.getElementById('pjxQ');
+  var out  = document.getElementById('pjxResults');
+  var spin = document.getElementById('pjxSpin');
+  var clr  = document.getElementById('pjxClear');
+  var go   = document.getElementById('pjxGo');
+  if (!form || !box || !out) return;
+
+  /* The button is only there for the no-script case; once typing searches by
+     itself, a Search button that does nothing new is furniture. */
+  if (go) go.hidden = true;
+
+  var timer = null, inflight = null, applied = box.value.trim();
+
+  function run(term, immediate) {
+    term = term.trim();
+    clr.hidden = !term;
+    if (term === applied) return;
+
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      /* Results can come back in a different order than they were asked for —
+         a one-letter search matches far more and takes longer than the five
+         letters typed after it. Dropping the earlier request means the slow
+         broad answer cannot land on top of the quick specific one. */
+      if (inflight) inflight.abort();
+      var ctl = new AbortController();
+      inflight = ctl;
+      applied = term;
+      spin.hidden = false;
+
+      fetch('{% url "portfolio_manage" %}?q=' + encodeURIComponent(term),
+            {headers: {'X-Requested-With': 'XMLHttpRequest'}, signal: ctl.signal})
+        .then(function (r) {
+          if (!r.ok) throw new Error(r.status);
+          return r.text();
+        })
+        .then(function (html) {
+          out.innerHTML = html;
+          spin.hidden = true;
+          inflight = null;
+          /* Keep the address bar honest, so a refresh or a copied link lands on
+             the same search. replaceState rather than pushState: every keystroke
+             as a separate Back step would bury the page you arrived from. */
+          var url = term ? '?q=' + encodeURIComponent(term) : location.pathname;
+          history.replaceState(null, '', url);
+        })
+        .catch(function (err) {
+          if (err.name === 'AbortError') return;   // superseded, not failed
+          spin.hidden = true;
+          inflight = null;
+          applied = null;                          // let the same term retry
+        });
+    }, immediate ? 0 : 200);
+  }
+
+  box.addEventListener('input', function () { run(box.value); });
+  clr.addEventListener('click', function () {
+    box.value = '';
+    run('', true);
+    box.focus();
+  });
+  /* Enter would otherwise reload the whole page to reach results already on
+     screen. Escape clears, which is what the key does in every other box. */
+  form.addEventListener('submit', function (e) { e.preventDefault(); run(box.value, true); });
+  box.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && box.value) { e.preventDefault(); box.value = ''; run('', true); }
+  });
+})();
+</script>
+{% endblock %}

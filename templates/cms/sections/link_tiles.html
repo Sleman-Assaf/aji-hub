@@ -1,0 +1,43 @@
+{# templates/cms/sections/link_tiles.html — the bordered tile strip. #}
+{# Each tile is a SectionItem, so tiles are added, renamed, re-pointed and #}
+{# reordered from the editor without touching a template. #}
+{% load cms_tags %}
+{% if section.title %}
+<div class="sec-head">
+  <h2 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title|aji }}</h2>
+  {% sec_link_ok section as show_link %}{% if show_link %}<a href="{{ section|cfg:"link_url" }}" class="lk">{{ section|cfg:"link_label"|default:"View all" }} →</a>{% endif %}
+</div>
+{% endif %}
+<nav class="ql" style="--cols:{{ section|cfg:"columns"|default:6 }}">
+  {% for item in section.visible_items %}
+  {# One class attribute, not two: a duplicate is ignored by the browser, so the #}
+  {# drag class has to be part of the first one. #}
+  <a class="ql-tile{% if cms_edit_mode %} ed-item{% endif %}" href="{{ item.href|default:"#" }}"
+     {% if item.url|slice:":4" == "http" %}target="_blank" rel="noopener"{% endif %}
+     data-item="{{ item.pk }}" data-owner="{{ section.pk }}"
+     {% if cms_edit_mode %}draggable="true"{% endif %}>
+    {# The icon is optional. On the homepage the strip is six tiles wide and the #}
+    {# icons were six glyphs competing with the six labels beside them, so it is #}
+    {# turned off there — a tile whose whole content is two words does not need a #}
+    {# picture to say which one it is. Other pages keep them. Still rendered in #}
+    {# edit mode, or an editor could not see the icon they were setting. #}
+    {% if cms_edit_mode or not section|cfg:"hide_icons" %}
+    <span class="ql-ic">{% editable_icon item item.icon|default:"link" 21 1.6 kind="item" %}</span>
+    {% endif %}
+    <span class="ql-t" {% if cms_edit_mode %}data-ed-item="{{ item.pk }}" data-ed-field="title" contenteditable="true"{% endif %}>{{ item.title }}</span>
+    <span class="ql-s" {% if cms_edit_mode %}data-ed-item="{{ item.pk }}" data-ed-field="meta" contenteditable="true"{% endif %}>{{ item.meta }}</span>
+  </a>
+  {% empty %}
+  {% if cms_edit_mode %}
+  <div style="padding:var(--sp-5);color:var(--muted);font-size:12.5px;grid-column:1/-1">
+    No tiles yet — open the settings panel to add one.
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% if cms_edit_mode %}
+  {# Add a tile where the tiles are, rather than from the panel. #}
+  <button type="button" class="ql-tile ed-tile-add" data-ed-add-item="{{ section.pk }}">
+    + Add a tile
+  </button>
+  {% endif %}
+</nav>

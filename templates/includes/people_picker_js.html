@@ -1,0 +1,193 @@
+{# templates/includes/people_picker_js.html — the search-and-choose list. #}
+{# #}
+{# Pairs with exchange/_people_picker.html, which draws the markup. This #}
+{# lived inside exchange/_exchange_js.html, next to the share dialog and the #}
+{# file field; a screen that wanted only the picker had to take all of it. #}
+{# Room booking wants exactly the picker, so it is its own control now. #}
+{# #}
+{# Exposes AJIPicker.init(scope) for pickers that arrive after page load. #}
+<script>
+if (!window.AJIPicker) {
+(function () {
+  'use strict';
+
+  // ── people picker ──────────────────────────────────────────────────────
+  function initPicker(root) {
+    if (root.dataset.pkReady) return;
+    root.dataset.pkReady = '1';
+
+    var chosen  = root.querySelector('[data-pk-chosen]');
+    var input   = root.querySelector('[data-pk-input]');
+    var results = root.querySelector('[data-pk-results]');
+    var field   = root.dataset.field || 'members';
+    var url     = root.dataset.url;
+    var timer   = null;
+    /* How many people this field takes. data-one is the old spelling of
+       data-max="1" and still works; 0 means no limit. */
+    var max     = parseInt(root.dataset.max
+                    || (root.hasAttribute('data-one') ? '1' : '0'), 10) || 0;
+    /* What the list shows before anything has been typed. A prompt, not a
+       directory: enough names to make it obvious the box is a chooser and that
+       clicking a row is how you use it. Typing lifts the cap and searches
+       properly. */
+    var PROMPT  = 5;
+
+    function has(id) { return !!chosen.querySelector('[data-pk-chip="' + id + '"]'); }
+    function count() { return chosen.querySelectorAll('[data-pk-chip]').length; }
+    function full()  { return max > 0 && count() >= max; }
+
+    /* Everything that depends on how many have been chosen, in one place, so
+       the class the stylesheet reads and the state the list checks cannot
+       disagree. */
+    function sync() {
+      root.classList.toggle('pk-full', full());
+      if (full()) {
+        results.hidden = true;
+        results.innerHTML = '';
+        input.value = '';
+      }
+    }
+
+    function add(user) {
+      if (has(user.id)) return;
+      /* At the limit, and more than one is allowed: refuse rather than take a
+         name the form cannot carry. With a limit of one the choice is replaced
+         instead — see below — because that is what a single-person field means:
+         choosing somebody else is changing your mind, not overfilling it. */
+      if (full() && max !== 1) return;
+      /* data-one on the picker means the form is about one person. Choosing
+         somebody else replaces the choice rather than adding to it — a
+         nomination form that quietly accepts a second name is a form that
+         submits the wrong one. */
+      if (root.hasAttribute('data-one')) {
+        chosen.innerHTML = '';
+      }
+      var chip = document.createElement('span');
+      chip.className = 'pk-chip';
+      chip.setAttribute('data-pk-chip', user.id);
+      chip.textContent = user.name;
+      var x = document.createElement('button');
+      x.type = 'button'; x.className = 'pk-x'; x.textContent = '×';
+      x.setAttribute('aria-label', 'Remove ' + user.name);
+      chip.appendChild(x);
+      var hidden = document.createElement('input');
+      hidden.type = 'hidden'; hidden.name = field; hidden.value = user.id;
+      chip.appendChild(hidden);
+      chosen.appendChild(chip);
+      sync();
+      root.dispatchEvent(new CustomEvent('pk:change', {bubbles: true}));
+    }
+
+    chosen.addEventListener('click', function (e) {
+      var x = e.target.closest('.pk-x');
+      if (!x) return;
+      x.closest('.pk-chip').remove();
+      /* Removing somebody makes room again: the search comes back and the list
+         can be opened. */
+      sync();
+      root.dispatchEvent(new CustomEvent('pk:change', {bubbles: true}));
+    });
+
+    function draw(users, cap) {
+      results.innerHTML = '';
+      var fresh = users.filter(function (u) { return !has(u.id); });
+      if (cap) fresh = fresh.slice(0, cap);
+      if (!fresh.length) {
+        results.innerHTML = '<div class="pk-empty">No one else matches that.</div>';
+        results.hidden = false;
+        return;
+      }
+      fresh.forEach(function (u) {
+        var row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'pk-row';
+        row.innerHTML =
+          (u.photo ? '<img src="' + u.photo + '" alt="">'
+                   : '<span class="pk-av">' + initials(u.name) + '</span>') +
+          '<span class="pk-who"><b></b><i></i></span>';
+        row.querySelector('b').textContent = u.name;
+        row.querySelector('i').textContent = u.role || '';
+        row.addEventListener('click', function () {
+          add(u);
+          /* Clear the query and put the list away. Leaving somebody else's name
+             in the box meant adding three people took three deletions, and the
+             person just added stayed on the list as though nothing happened. */
+          input.value = '';
+          results.innerHTML = '';
+          results.hidden = true;
+          input.focus();
+        });
+        results.appendChild(row);
+      });
+      results.hidden = false;
+    }
+
+    function initials(name) {
+      return (name || '?').split(/\s+/).slice(0, 2)
+             .map(function (p) { return p.charAt(0); }).join('').toUpperCase();
+    }
+
+    function search() {
+      if (full()) return;
+      var q = input.value.trim();
+      fetch(url + '?q=' + encodeURIComponent(q), {
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+      })
+        .then(function (r) { return r.json(); })
+        /* No query, so this is the prompt list: the first few names rather than
+           the twenty the endpoint is happy to return. */
+        .then(function (d) { draw(d.users || [], q ? 0 : PROMPT); })
+        .catch(function () { results.hidden = true; });
+    }
+
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(search, 180);
+    });
+    function open_() {
+      /* Nothing to choose and nothing to type: the field is full until somebody
+         is removed. */
+      if (full()) return;
+      /* Always re-asked when the box is empty. The prompt list is "some people
+         you have not chosen yet", and who that is changes as chips come and go,
+         so a cached list would offer somebody already in the field. */
+      if (!results.children.length || !input.value.trim()) search();
+      else results.hidden = false;
+    }
+    input.addEventListener('focus', open_);
+    /* And on click, not only on focus. A click on a box that already has focus
+       fires no focus event, so after Escape put the list away the box looked
+       dead until you typed something. */
+    input.addEventListener('click', open_);
+    // A click anywhere else closes the list, but not a click inside it —
+    // otherwise the list disappears before the row's own handler runs.
+    document.addEventListener('click', function (e) {
+      if (!root.contains(e.target)) results.hidden = true;
+    });
+    /* A picker can be rendered with people already in it — editing a community,
+       or a form coming back with what was submitted — so the full state has to
+       be worked out before anybody touches it, not only after a change. */
+    sync();
+
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { results.hidden = true; }
+      if (e.key === 'Enter') {
+        // Enter in the search box must not submit the surrounding form: the
+        // reader is looking for somebody, not finishing.
+        e.preventDefault();
+        var first = results.querySelector('.pk-row');
+        if (first) first.click();
+      }
+    });
+  }
+
+  function initAll(scope) {
+    (scope || document).querySelectorAll('[data-pick]').forEach(initPicker);
+  }
+
+  window.AJIPicker = {init: initAll};
+  document.addEventListener('DOMContentLoaded', function () { initAll(); });
+  if (document.readyState !== 'loading') initAll();
+})();
+}
+</script>

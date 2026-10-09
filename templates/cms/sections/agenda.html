@@ -1,0 +1,68 @@
+{# templates/cms/sections/agenda.html — today only, times down the left. #}
+{# The "today" rule lives in cms/providers.py and is shared, because the #}
+{# homepage and the calendar previously disagreed about what counts as today. #}
+{% load cms_tags %}
+{# One header, not two. The block used to draw the section heading and then a #}
+{# second bar inside the card carrying the subtitle and the link — "Your #}
+{# workspace" over "Today's agenda" over the rows, two labels for one list. #}
+{# The link moved up beside the heading; the inner bar is only drawn when a #}
+{# subtitle has actually been set, which is what it was ever for. #}
+{% if section.title %}
+<div class="sec-head">
+  <h2 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title|aji }}</h2>
+  {# Which calendar this is. The first question anybody asks of a card claiming #}
+  {# to be their day is whether it is really their Outlook. #}
+  {% if source == 'outlook' %}<span class="ag-src" title="Live from your Outlook calendar">Outlook</span>{% endif %}
+  <a href="{{ section|cfg:"link_url"|default:"/calendar/" }}" class="lk">{{ section|cfg:"link_label"|default:"Calendar" }} →</a>
+</div>
+{% endif %}
+<div class="split one">
+  <div class="split-col">
+    {% if section.subtitle or cms_edit_mode %}
+    <div class="split-head">
+      <span class="split-head-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        <span {% if cms_edit_mode %}data-ed-field="subtitle" contenteditable="true"{% endif %}>{{ section.subtitle }}</span>
+      </span>
+    </div>
+    {% endif %}
+    {% if events %}
+      {% for event in events %}
+      {# `y` is the next one still to come, not the first row: the card can carry #}
+      {# a finished event above a pending one, and only one of those is next. #}
+      <div class="ag{% if event.is_next %} y{% endif %}{% if event.is_over %} done{% endif %}">
+        {# The whole slot, not just the start — "11:45 – 12:45". time_range is #}
+        {# spelled the same on the Hub's own event and on an Outlook one, so #}
+        {# this line does not have to know which calendar answered. #}
+        <div class="ag-t">{{ event.time_range|default:"All day" }}</div>
+        <div class="ag-b">
+          <div class="t">
+            {# The tick says finished. Struck-through text on its own reads as #}
+            {# cancelled, which is the opposite of what has happened. #}
+            {% if event.is_over %}<span class="ag-tick" title="Finished">{% icon "check" 11 %}</span>{% endif %}
+            <span>{{ event.title }}</span>
+          </div>
+          <div class="s">{{ event.location|default:"" }}</div>
+        </div>
+      </div>
+      {% endfor %}
+      {% if all_done %}
+      <div class="ag-clear">Nothing else today.</div>
+      {% endif %}
+      {% if more %}
+      <a href="/calendar/?view=week" class="card-more">+ {{ more }} still to come →</a>
+      {% endif %}
+    {% else %}
+      <div style="padding:var(--sp-5) 0;color:var(--muted);font-size:13px">
+        No events today. <a href="/calendar/?view=week" style="font-weight:700">See the week →</a>
+      </div>
+    {% endif %}
+    {# The week's figure, under the day's rows. A card that shows three events #}
+    {# says nothing about whether the week is busy, and that is the question #}
+    {# somebody glancing at their agenda is actually asking. #}
+    <a class="bignum" href="/calendar/?view=week">
+      <span class="bignum-n">{{ week_count }}</span>
+      <span class="bignum-k">event{{ week_count|pluralize }} this week</span>
+    </a>
+  </div>
+</div>

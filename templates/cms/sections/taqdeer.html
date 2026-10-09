@@ -1,0 +1,137 @@
+{# templates/cms/sections/taqdeer.html — recognition, compactly. #}
+{# Tiles took a third of the first screen to carry four short sentences. This #}
+{# is the same content as rows: one line each, a face, and who thanked whom. #}
+{% load cms_tags hub_extras %}
+<div class="sec-head">
+  <h2 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title|default:"Recognition"|aji }}</h2>
+  <a href="/taqdeer/" class="lk">{{ section|cfg:"link_label"|default:"AJi Taqdeer" }} →</a>
+</div>
+{# One list, newest first, so the three kinds interleave by date. Every row #}
+{# follows the same shape: who it is about, then what happened to them. #}
+{# The name goes in .tqr-t and the rest in its <em>, which the homepage draws #}
+{# as the second line — .tqr-m is a third line and the homepage hides it. A #}
+{# Kudos used to put its subject in the name slot and the two names in that #}
+{# hidden line, so the one row type that needed naming was the one row type #}
+{# that showed no name at all: "MODON", and no clue whose it was. #}
+{# ── the Athar leads ─────────────────────────────────────────────────────── #}
+{# The block is the quarter. One winner gets their citation in full; two or #}
+{# three get a clipped line each; four or more get their names and nothing #}
+{# else, because six citations would be the whole card and the names are the #}
+{# part people scan. The medal is the award's mark, so it appears once in the #}
+{# header — the recipients get their own faces. #}
+{% if athar %}
+<div class="tql">
+  <div class="tql-k">
+    {% icon "medal" 12 %} Athar Award{% if athar|length > 1 %} · {{ athar|length }}{% endif %}
+    <b>{{ athar_cycle.label }}</b>
+  </div>
+
+  {% if athar_solo %}
+  <a class="tql-solo" href="/taqdeer/#athar">
+    {% if athar_solo.recipient.employee.photo %}
+    <img class="tql-face lg" src="{{ athar_solo.recipient.employee.photo.url }}" alt="">
+    {% else %}
+    <span class="tql-face lg">{{ athar_solo.recipient|initials }}</span>
+    {% endif %}
+    <span class="tql-id">
+      <b>{{ athar_solo.recipient_name }}</b>
+      {# Their role, not the citation — the citation is printed in full just #}
+      {# below, and a short one ("Digital Skills") appeared twice, once here #}
+      {# clipped and once there whole. Nothing if the directory has no role. #}
+      {% if athar_solo.recipient.employee.role %}
+      <i>{{ athar_solo.recipient.employee.role }}</i>
+      {% endif %}
+    </span>
+  </a>
+  <div class="tql-cite">{{ athar_solo.citation|truncatechars:150 }}</div>
+
+  {% elif athar_few %}
+  <div class="tql-few">
+    {% for a in athar_few %}
+    <a class="tql-one" href="/taqdeer/#athar">
+      {% if a.recipient.employee.photo %}
+      <img class="tql-face" src="{{ a.recipient.employee.photo.url }}" alt="">
+      {% else %}
+      <span class="tql-face">{{ a.recipient|initials }}</span>
+      {% endif %}
+      <span class="tql-id">
+        <b>{{ a.recipient_name }}</b>
+        <i>{{ a.citation|truncatechars:44 }}</i>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <a class="tql-many" href="/taqdeer/#athar">
+    <span class="tql-faces">
+      {% for a in athar_many|slice:":6" %}
+      {% if a.recipient.employee.photo %}
+      <img class="tql-face sm" src="{{ a.recipient.employee.photo.url }}" alt="">
+      {% else %}
+      <span class="tql-face sm">{{ a.recipient|initials }}</span>
+      {% endif %}
+      {% endfor %}
+    </span>
+    <b class="tql-count">{{ athar_many|length }} colleagues received The Athar Award</b>
+    <i class="tql-names">
+      {% for a in athar_many %}{{ a.recipient_name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+    </i>
+    <span class="tql-go">See all {{ athar_many|length }} &rarr;</span>
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="tqr">
+  {% for it in items %}
+
+  {% if it.kind == 'award' %}
+  {# No dialog to open: only Kudos and certifications are posts in the feed. #}
+  {# An award's own page is its certificate, and that is the recipient's, #}
+  {# their manager's and HR's — a link every reader could press would 404 for #}
+  {# most of them. The results band is where an award is shown to everybody. #}
+  <a class="tqr-row award" href="/taqdeer/#athar">
+    <span class="tqr-av athar">{% icon "medal" 12 %}</span>
+    <span class="tqr-b">
+      <span class="tqr-t">{{ it.obj.recipient_name }} <em>received The Athar Award</em></span>
+      <span class="tqr-m">{{ it.obj.cycle.label }} · {{ it.obj.citation|truncatechars:64 }}</span>
+    </span>
+  </a>
+
+  {% elif it.kind == 'cert' %}
+  {# Straight to the post, not just to the page it sits on. ?post= is read by #}
+  {# taqdeer/home.html, which opens the same dialog a click in the feed does, #}
+  {# so arriving from here and from there end in the same place. #}
+  <a class="tqr-row cert" href="/taqdeer/?post=certification:{{ it.obj.pk }}">
+    <span class="tqr-av cert">{% icon "certificate" 12 %}</span>
+    <span class="tqr-b">
+      {# The directory spelling, not the login account's: the accounts imported #}
+      {# in capitals read as bolder than the properly cased names beside them. #}
+      {# "certified PMP" rather than "obtained PMP": obtained reads as #}
+      {# acquiring something unnamed, and with a badly typed certification #}
+      {# name — one really was stored as a surname — the row became unreadable. #}
+      <span class="tqr-t">{{ it.obj.employee|person }}
+        <em>certified {{ it.obj.name }}</em></span>
+      <span class="tqr-m">{{ it.obj.obtained_on|date:"F Y" }}{% if it.obj.issuer %} · {{ it.obj.issuer }}{% endif %}</span>
+    </span>
+  </a>
+
+  {% else %}
+  <a class="tqr-row" href="/taqdeer/?post=praise:{{ it.obj.pk }}">
+    {% if it.obj.recipient.employee.photo %}
+    <img class="tqr-av" src="{{ it.obj.recipient.employee.photo.url }}" alt="">
+    {% else %}<span class="tqr-av tone">{{ it.obj.recipient|initials }}</span>{% endif %}
+    <span class="tqr-b">
+      {# Four words before reaching the person who sent it, was. #}
+      <span class="tqr-t">{{ it.obj.recipient|person }}
+        <em>thanked by {{ it.obj.giver|person }}</em></span>
+      <span class="tqr-m">{{ it.obj.subject }}</span>
+    </span>
+  </a>
+  {% endif %}
+
+  {% empty %}
+  <div class="tqr-none">Nobody has been thanked yet — <b>send the first Kudos</b>.</div>
+  {% endfor %}
+</div>

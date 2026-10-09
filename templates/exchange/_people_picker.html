@@ -1,0 +1,41 @@
+{% load cms_tags %}
+{# A search-and-choose list of colleagues. #}
+{# Used in three places — creating a community, adding members, and choosing #}
+{# who to share a thread with — so it is one include rather than three #}
+{# near-copies that drift apart. Parameters: #}
+{#   search_url  where to look people up (each caller scopes it differently) #}
+{#   field       the form field name the chosen ids are posted under #}
+{#   preset      users already chosen, as objects with .pk and a name #}
+{#   placeholder prompt text #}
+{#   note        a line under the box explaining the scope of the search #}
+{#   one         when set, only one person can be chosen; picking another #}
+{#               replaces them rather than adding a second #}
+{#   max         a limit other than one. At the limit the search row goes, so #}
+{#               nobody else can be typed or chosen until one is removed. #}
+<div class="pk{% if one %} pk-one{% endif %}" data-pick{% if one %} data-one{% endif %}
+     {% if max %}data-max="{{ max }}"{% endif %}
+     data-url="{{ search_url }}" data-field="{{ field|default:'members' }}">
+  <div class="pk-chosen" data-pk-chosen>
+    {% for u in preset %}
+    <span class="pk-chip" data-pk-chip="{{ u.pk }}">
+      {{ u.get_full_name|default:u.username }}
+      <button type="button" class="pk-x" aria-label="Remove">{% icon "x" 11 %}</button>
+      <input type="hidden" name="{{ field|default:'members' }}" value="{{ u.pk }}">
+    </span>
+    {% endfor %}
+  </div>
+  <div class="pk-search">
+    {% icon "magnifying-glass" 15 %}
+    <input type="text" data-pk-input autocomplete="off"
+           placeholder="{{ placeholder|default:'Search colleagues by name…' }}">
+  </div>
+  <div class="pk-results" data-pk-results hidden></div>
+</div>
+{# The note goes outside the box. Inside it, under the search field, it read as #}
+{# part of the input — a line of small print in a field you were about to type #}
+{# into. #}
+{% if note %}<div class="pk-note">{{ note }}</div>{% endif %}
+{# Searching thousands of colleagues without scripting would mean putting the #}
+{# whole staff list in every page that has a picker. Say so rather than leaving #}
+{# a box that silently does nothing. #}
+<noscript><div class="pk-note">Searching for people needs JavaScript switched on.</div></noscript>

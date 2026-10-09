@@ -1,0 +1,51 @@
+{# people/_feature_qr.html — the QR codes, from records rather than markup. #}
+{# #}
+{# This page used to be two <div>s with a 📱 and a 💬 emoji standing in for the #}
+{# codes, and the titles typed into the template. The WhatsAppChannel records #}
+{# and their uploaded QR images already existed and already drove the channels #}
+{# on People & Culture, so the page was showing placeholders for pictures that #}
+{# were sitting in the database the whole time. #}
+{% load cms_tags %}
+<div class="qr-grid rise">
+  {% for ch in qr_channels %}
+  <div class="card qr-card">
+    <div class="qr-shot">
+      {% if ch.qr_image %}
+      {# Not lazy: a QR code is what the reader came for, and a code that has #}
+      {# not loaded when the phone camera is already pointed at it is useless. #}
+      <img src="{{ ch.qr_image.url }}" alt="QR code to join {{ ch.title }}"
+           width="180" height="180" decoding="async">
+      {% else %}
+      <span class="qr-none">
+        {% icon "qr-code" 34 %}
+        <span>No code uploaded yet</span>
+      </span>
+      {% endif %}
+    </div>
+    <div class="qr-name">{{ ch.title }}</div>
+    {% if ch.description %}<div class="muted qr-desc">{{ ch.description }}</div>{% endif %}
+    {% if ch.join_url %}
+    <a href="{{ ch.join_url }}" class="btn ghost sm qr-join" target="_blank" rel="noopener">
+      {% icon "whatsapp-logo" 14 %}
+      {% feature_text section "join" %}
+    </a>
+    {% endif %}
+  </div>
+  {% empty %}
+  <div class="card qr-empty">
+    {% feature_text section "empty" %}
+    {% if is_hr %}
+    <div class="qr-empty-act">
+      <a href="/people-culture/manage/#whatsapp" class="btn y sm">Add a channel</a>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% if is_hr %}
+<p class="muted qr-note">
+  {% feature_text section "manage_note" %}
+  <a href="/people-culture/manage/#whatsapp">Manage channels and codes &rarr;</a>
+</p>
+{% endif %}

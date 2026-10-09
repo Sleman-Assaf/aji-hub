@@ -1,0 +1,216 @@
+{# templates/taqdeer/athar_period.html — one quarter, in detail. #}
+{# Three things on one screen: where it stands and what it may do next, the #}
+{# numbers, and its configuration. The nominations themselves are listed but #}
+{# reviewed on the review page — this page runs the period, not the awards. #}
+{% extends 'base.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}{{ cycle.label }} — Athar Management{% endblock %}
+
+{% block content %}
+<a href="{% url 'taqdeer_athar_manage' %}" class="ctx-back" title="Athar Management"><span class="ctx-back-lab">Athar Management</span></a>
+
+<div class="tq-nom-head">
+  <div>
+    <div class="eyebrow">HR · Athar period</div>
+    <h1>{{ cycle.label }}</h1>
+  </div>
+  <span class="tq-chip {{ cycle.stage }}">{{ cycle.get_stage_display }}</span>
+</div>
+
+{# ── where it is, and the one step it may take ────────────────────────── #}
+<div class="ap-track">
+  {% for key, label in cycle.Stage.choices %}
+  <span class="ap-step{% if cycle.stage == key %} on{% endif %}">{{ label }}</span>
+  {% endfor %}
+</div>
+
+<div class="tq-round">
+  <div class="tq-round-state">
+    <b>{{ stats.total }} nomination{{ stats.total|pluralize }}</b>
+    <span class="tq-round-when">
+      from {{ stats.submitters }} manager{{ stats.submitters|pluralize }}
+      {% if cycle.closes_on %}· closes {{ cycle.closes_on|date:"j M Y" }}{% endif %}
+    </span>
+  </div>
+  <div class="tq-round-acts">
+    {% for action, stage, label in steps %}
+    <form method="post" style="margin:0"
+          {% if action == 'open' %}data-confirm="Open {{ cycle.label }}? Every eligible manager is notified."{% endif %}>
+      {% csrf_token %}<input type="hidden" name="action" value="{{ action }}">
+      <button class="btn {% if action == 'open' %}y{% else %}ghost{% endif %} sm" type="submit">{{ label }}</button>
+    </form>
+    {% empty %}
+    {% if cycle.stage == 'approved' %}
+    <a class="btn y sm" href="{% url 'taqdeer_release' cycle.pk %}">
+      {% icon "send" 14 %} Review and release</a>
+    {% elif cycle.stage == 'issued' %}
+    <a class="btn ghost sm" href="{% url 'taqdeer_release' cycle.pk %}">Release record</a>
+    {% else %}
+    <span class="tq-hint">Nothing further from here.</span>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+{# ── undo, and delete ─────────────────────────────────────────────────── #}
+{# Every forward step has a way back. Without one, correcting a period opened #}
+{# a quarter early meant deleting it and losing what had been submitted. #}
+<div class="ap-undo">
+  {% for action, stage, label in back_steps %}
+  <form method="post" style="margin:0"
+        {% if action == 'back_approved' %}data-confirm="Undo the release of {{ cycle.label }}? The certificates already issued still exist and the emails have gone — this moves the stage back, nothing else."{% endif %}
+        {% if action == 'back_open' %}data-confirm="Reopen {{ cycle.label }} for nominations? Every eligible manager is notified again, and any other open quarter closes."{% endif %}>
+    {% csrf_token %}<input type="hidden" name="action" value="{{ action }}">
+    <button class="btn ghost sm" type="submit">{% icon "arrow-left" 13 %} {{ label }}</button>
+  </form>
+  {% empty %}
+  <span class="tq-hint">This is the first stage — there is nothing behind it.</span>
+  {% endfor %}
+  {# Delete lives with the period's own settings at the foot of the page now, #}
+  {# next to Edit — not in this row, which is for stepping the stage back. #}
+</div>
+
+{# ── the numbers ──────────────────────────────────────────────────────── #}
+<div class="ap-kpis">
+  <div class="ap-k"><b>{{ stats.total }}</b><span>Nominations</span></div>
+  <div class="ap-k"><b>{{ stats.approved }}</b><span>Approved</span></div>
+  <div class="ap-k{% if stats.pending %} warn{% endif %}"><b>{{ stats.pending }}</b><span>Pending</span></div>
+  <div class="ap-k"><b>{{ stats.returned }}</b><span>Returned</span></div>
+  <div class="ap-k"><b>{{ stats.rejected }}</b><span>Rejected</span></div>
+  <div class="ap-k"><b>{{ stats.submitters }}</b><span>Managers submitted</span></div>
+</div>
+
+<div class="cx-layout" style="margin-top:22px">
+  <div class="cx-main">
+    {# ── configuration ─────────────────────────────────────────────── #}
+    {# Once the nominating phase is over this is a record, not a form: the #}
+    {# dates have passed and the list of who could nominate is settled. It #}
+    {# reads as a summary, and the form is one press away for the times a #}
+    {# correction is genuinely needed. <details> rather than script — the #}
+    {# browser already does this, keyboard and screen reader included. #}
+    {% if setup_locked %}
+    <div class="tq-review ap-setup">
+      <div class="tq-review-h">
+        <b style="flex:1">How this period ran</b>
+        <span class="ap-setup-stage">{{ cycle.get_stage_display }}</span>
+      </div>
+      <dl class="ap-summary">
+        <div><dt>Nominations</dt><dd>
+          {% if cycle.opens_on %}{{ cycle.opens_on|date:"j M Y" }}{% else %}&mdash;{% endif %}
+          &rarr;
+          {% if cycle.closes_on %}{{ cycle.closes_on|date:"j M Y" }}{% else %}&mdash;{% endif %}
+        </dd></div>
+        <div><dt>Planned release</dt><dd>
+          {% if cycle.release_on %}{{ cycle.release_on|date:"j M Y" }}{% else %}Not set{% endif %}
+        </dd></div>
+        <div><dt>Awards per manager</dt><dd>{{ cycle.awards_per_manager }}</dd></div>
+        <div><dt>Who could nominate</dt><dd>
+          {% with n=cycle.authorised_managers.count %}
+          {% if n %}{{ n }} named manager{{ n|pluralize }}{% else %}Anyone the role rules allow{% endif %}
+          {% endwith %}
+        </dd></div>
+        {% if cycle.note %}
+        <div class="wide"><dt>The line managers saw</dt><dd>{{ cycle.note }}</dd></div>
+        {% endif %}
+      </dl>
+      <div class="ap-setup-foot">
+        <details class="ap-edit">
+          <summary class="btn ghost sm">{% icon "settings" 13 %} Edit period</summary>
+          <p class="tq-hint" style="margin:10px 0 0">
+            Changing the dates or the managers now does not re-open nominations
+            or notify anybody — use the stage buttons above for that.
+          </p>
+    {% endif %}
+
+    <form method="post" class="tq-review{% if setup_locked %} ap-nested{% endif %}">
+      {% csrf_token %}<input type="hidden" name="action" value="save">
+      {% if not setup_locked %}
+      <div class="tq-review-h"><b style="flex:1">How this period runs</b></div>
+      {% endif %}
+      <div class="ap-form" style="padding:0 20px">
+        {% with preset=form.people_preset %}
+    {% for f in form %}
+        {% if f.name == 'authorised_managers' %}
+        <div class="tq-field ap-f wide">
+          <label class="tq-lab">{{ f.label }}</label>
+          {% url 'taqdeer_people_all' as ppl %}
+          {% include 'exchange/_people_picker.html' with search_url=ppl field='authorised_managers' preset=preset|lookup:f.name %}
+          {% if f.help_text %}<span class="tq-hint">{{ f.help_text }}</span>{% endif %}
+        </div>
+        {% else %}
+        <div class="tq-field ap-f{% if f.name == 'note' %} wide{% endif %}">
+          <label class="tq-lab" for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<span class="tq-hint">{{ f.help_text }}</span>{% endif %}
+          {% for e in f.errors %}<span class="tq-err">{{ e }}</span>{% endfor %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endwith %}
+      </div>
+      <div class="tq-review-f">
+        <button class="btn y sm" type="submit">Save this period</button>
+      </div>
+    </form>
+    {% if setup_locked %}
+        </details>
+  <form method="post" action="{% url 'taqdeer_athar_delete' cycle.pk %}"
+        class="ap-del-foot"
+        data-confirm-kind="danger"
+        data-confirm-title="Delete {{ cycle.label }} for good?"
+        data-confirm-ok="Delete the period"
+        data-confirm="This is permanent — the period, its nominations {% if stats.total %}({{ stats.total }}){% endif %}, and everything submitted into it are deleted for good. Nobody can nominate again until you create a new period.{% if cycle.stage == 'issued' or cycle.stage == 'closed' %} Its winners leave the archive as well.{% endif %}">
+    {% csrf_token %}
+    <button class="btn ghost sm danger" type="submit">
+      {% icon "trash" 13 %} Delete this period</button>
+  </form>
+      </div>
+    </div>
+    {% else %}
+    {# A draft or an open period can be deleted too — the same control, in the #}
+    {# same place, so it does not move about depending on the stage. #}
+    <div class="ap-setup-foot">
+  <form method="post" action="{% url 'taqdeer_athar_delete' cycle.pk %}"
+        class="ap-del-foot"
+        data-confirm-kind="danger"
+        data-confirm-title="Delete {{ cycle.label }} for good?"
+        data-confirm-ok="Delete the period"
+        data-confirm="This is permanent — the period, its nominations {% if stats.total %}({{ stats.total }}){% endif %}, and everything submitted into it are deleted for good. Nobody can nominate again until you create a new period.{% if cycle.stage == 'issued' or cycle.stage == 'closed' %} Its winners leave the archive as well.{% endif %}">
+    {% csrf_token %}
+    <button class="btn ghost sm danger" type="submit">
+      {% icon "trash" 13 %} Delete this period</button>
+  </form>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── what has come in ───────────────────────────────────────────── #}
+  <aside class="cx-side">
+    <div class="cx-side-card">
+      <div class="cx-side-head">{% icon "users-group" 14 %} Nominations</div>
+      {% for n in noms %}
+      <div class="ap-nom">
+        {% if n.recipient.employee.photo %}
+        <img class="tqr-av" src="{{ n.recipient.employee.photo.url }}" alt="">
+        {% else %}<span class="tqr-av tone">{{ n.recipient|initials }}</span>{% endif %}
+        <span class="ap-nom-b">
+          <b>{{ n.recipient_name }}</b>
+          <span>by {{ n.nominated_by.get_full_name|default:n.nominated_by.username }}</span>
+        </span>
+        <span class="tq-chip {{ n.status }}">{{ n.get_status_display }}</span>
+      </div>
+      {% empty %}
+      <div class="cx-side-empty">
+        Nothing submitted yet.
+        {% if cycle.is_open %}Managers can see the form now.{% endif %}
+      </div>
+      {% endfor %}
+      {% if noms %}
+      <a class="cx-side-all" href="{% url 'taqdeer_manage' %}?cycle={{ cycle.pk }}">
+        Review them {% icon "arrow-right" 13 %}</a>
+      {% endif %}
+    </div>
+  </aside>
+</div>
+{% include 'includes/people_picker_js.html' %}
+{% endblock %}

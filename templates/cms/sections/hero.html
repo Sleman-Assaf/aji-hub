@@ -1,0 +1,28 @@
+{% load cms_tags %}
+{# Hero — the Hub's card with an optional cover, matching news/detail styling. #}
+<div class="card" style="padding:0;overflow:hidden;margin-bottom:4px">
+  {% if section.image %}
+  <img src="{{ section.image.url }}" alt=""
+       style="display:block;width:100%;aspect-ratio:16/6;object-fit:cover">
+  {% endif %}
+  <div style="padding:24px 26px">
+    {% if section.icon %}<span style="display:inline-flex;color:var(--yellow-deep);margin-bottom:8px">{% cms_icon section.icon 24 %}</span>{% endif %}
+    {% if section.title %}<h2 style="font-size:26px;letter-spacing:-.03em;line-height:1.2;margin-bottom:8px">{{ section.title }}</h2>{% endif %}
+    {% if section.subtitle %}<p class="muted" style="font-size:14.5px;line-height:1.6;max-width:70ch">{{ section.subtitle }}</p>{% endif %}
+    {% if section.body or cms_edit_mode %}<div style="font-size:14px;line-height:1.7;color:var(--ink-2);margin-top:10px;max-width:75ch"
+      {% if cms_edit_mode %}data-ed-field="body" data-ed-rich contenteditable="true"{% endif %}>{{ section.body_rendered }}</div>{% endif %}
+    {% with items=section.visible_items %}
+      {% if items %}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+        {% for item in items %}
+        <a href="{{ item.href|default:'#' }}" class="btn {% if forloop.first %}y{% else %}ghost{% endif %}"
+           {% if item.file %}download{% endif %}>
+          {% if item.icon %}{% cms_icon item.icon 15 %}{% endif %}
+          {{ item.button_label|default:item.title }}
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endwith %}
+  </div>
+</div>

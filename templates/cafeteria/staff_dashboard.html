@@ -1,0 +1,215 @@
+{# templates/cafeteria/staff_dashboard.html #}
+{% extends 'base.html' %}
+{% block title %}Cafeteria Dashboard — AJi Hub{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow"><a href="{% url 'cafeteria:home' %}" style="color:inherit">Cafeteria</a> / Staff Dashboard</div>
+    <h1>Cafeteria Dashboard</h1>
+    <p>Manage menu items, employee orders and meeting packages.</p>
+  </div>
+</div>
+
+<div class="rise" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+  <a href="?tab=orders" class="btn" {% if tab == 'orders' %}style="background:var(--ink);color:var(--paper-2)"{% endif %}>Employee orders</a>
+  <a href="?tab=items" class="btn" {% if tab == 'items' %}style="background:var(--ink);color:var(--paper-2)"{% endif %}>Menu items</a>
+  <a href="?tab=packages" class="btn" {% if tab == 'packages' %}style="background:var(--ink);color:var(--paper-2)"{% endif %}>Meeting packages</a>
+  <a href="?tab=package-orders" class="btn" {% if tab == 'package-orders' %}style="background:var(--ink);color:var(--paper-2)"{% endif %}>Package orders</a>
+</div>
+
+{# ─────────── Employee orders ─────────── #}
+{% if tab == 'orders' %}
+<div class="card rise" style="padding:0;overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:var(--paper-2);text-align:left">
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">#</th>
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Employee</th>
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Items</th>
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Location</th>
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Total</th>
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Placed</th>
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in orders %}
+      <tr style="border-bottom:1px solid var(--line)">
+        <td style="padding:12px 14px;font-weight:700">#{{ order.pk }}</td>
+        <td style="padding:12px 14px;white-space:nowrap">{{ order.ordered_by.get_full_name|default:order.ordered_by.username }}</td>
+        <td style="padding:12px 14px">{{ order.summary }}{% if order.notes %}<div class="muted" style="font-size:11.5px;margin-top:2px">“{{ order.notes }}”</div>{% endif %}</td>
+        <td style="padding:12px 14px;color:var(--muted)">{{ order.delivery_location|default:"—" }}</td>
+        <td style="padding:12px 14px;font-weight:700;white-space:nowrap">{{ order.total }} JD</td>
+        <td style="padding:12px 14px;color:var(--muted);white-space:nowrap;font-size:12px">{{ order.created_at|date:"M d — H:i" }}</td>
+        <td style="padding:12px 14px;white-space:nowrap">
+          <form data-save="reload" method="post" action="{% url 'cafeteria:order_set_status' order.pk %}" style="display:flex;gap:6px;align-items:center">
+            {% csrf_token %}
+            <select name="status" style="padding:6px 8px;border:1px solid var(--line);background:var(--paper);font-size:12px">
+              {% for value, label in order_statuses %}
+              <option value="{{ value }}" {% if order.status == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn y" style="padding:6px 12px;font-size:11.5px">Save</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="padding:24px;text-align:center;color:var(--muted)">No orders yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ─────────── Menu items ─────────── #}
+{% if tab == 'items' %}
+<div class="card rise" style="padding:18px;margin-bottom:18px">
+  <div style="font-weight:800;font-size:13px;letter-spacing:.03em;margin-bottom:12px">ADD NEW ITEM</div>
+  <form data-save="reload" method="post" action="{% url 'cafeteria:item_save' %}" enctype="multipart/form-data" style="display:grid;grid-template-columns:2fr 1fr 2.5fr 1fr auto;gap:10px;align-items:center">
+    {% csrf_token %}
+    <input name="name" placeholder="Item name" required style="padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+    <input name="price" type="number" step="0.01" min="0" placeholder="Price (JD)" required style="padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+    <input name="description" placeholder="Description (optional)" style="padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+    <select name="category" required style="padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+      {% for cat in categories %}<option value="{{ cat.pk }}">{{ cat.name }}</option>{% endfor %}
+    </select>
+    <button class="btn y">Add item</button>
+    <label style="grid-column:1/-1;font-size:12px;color:var(--muted);display:flex;gap:10px;align-items:center">
+      Photo: <input type="file" name="image" accept="image/*" style="font-size:12px">
+    </label>
+  </form>
+</div>
+
+{% for cat in categories %}
+<div class="card rise" style="padding:0;overflow-x:auto;margin-bottom:14px">
+  <div style="padding:12px 18px;font-weight:800;font-size:13px;background:var(--paper-2);border-bottom:1px solid var(--line)">{{ cat.name }}</div>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <tbody>
+      {% for item in cat.items.all %}
+      <tr style="border-bottom:1px solid var(--line);{% if not item.is_active %}opacity:.5{% endif %}">
+        <td style="padding:10px 0 10px 18px;width:76px">
+          {% if item.image %}
+          <img src="{{ item.image.url }}" alt="{{ item.name }}" style="width:64px;height:48px;object-fit:cover;border:1px solid var(--line)">
+          {% else %}
+          <div style="width:64px;height:48px;background:var(--paper-2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted)">no photo</div>
+          {% endif %}
+        </td>
+        <td style="padding:10px 18px">
+          <b>{{ item.name }}</b>
+          {% if item.description %}<div class="muted" style="font-size:11.5px">{{ item.description }}</div>{% endif %}
+          <form data-save method="post" action="{% url 'cafeteria:item_save' %}" enctype="multipart/form-data" style="display:flex;gap:6px;align-items:center;margin-top:6px">
+            {% csrf_token %}
+            <input type="hidden" name="pk" value="{{ item.pk }}">
+            <input type="file" name="image" accept="image/*" style="font-size:11px;max-width:190px">
+            <button class="btn" style="padding:4px 10px;font-size:11px">Set photo</button>
+            {% if item.image %}<button class="btn" name="remove_image" value="1" style="padding:4px 10px;font-size:11px">Remove photo</button>{% endif %}
+          </form>
+        </td>
+        <td style="padding:10px 14px;white-space:nowrap">
+          <form data-save method="post" action="{% url 'cafeteria:item_save' %}" style="display:flex;gap:6px;align-items:center">
+            {% csrf_token %}
+            <input type="hidden" name="pk" value="{{ item.pk }}">
+            <input name="price" type="number" step="0.01" min="0" value="{{ item.price }}" style="width:90px;padding:6px 8px;border:1px solid var(--line);background:var(--paper);font-size:12px"> JD
+            <button class="btn" style="padding:6px 12px;font-size:11.5px">Update price</button>
+          </form>
+        </td>
+        <td style="padding:10px 18px;white-space:nowrap;text-align:right">
+          <form data-save="reload" method="post" action="{% url 'cafeteria:item_save' %}" style="display:inline">
+            {% csrf_token %}
+            <input type="hidden" name="pk" value="{{ item.pk }}">
+            <input type="hidden" name="toggle" value="1">
+            <button class="btn" style="padding:6px 12px;font-size:11.5px">{% if item.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+{% endif %}
+
+{# ─────────── Meeting packages ─────────── #}
+{% if tab == 'packages' %}
+<div class="card rise" style="padding:18px;margin-bottom:18px">
+  <div style="font-weight:800;font-size:13px;letter-spacing:.03em;margin-bottom:12px">ADD NEW PACKAGE</div>
+  <form data-save="reload" method="post" action="{% url 'cafeteria:package_save' %}" style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:start">
+    {% csrf_token %}
+    <input name="name" placeholder="Package name" required style="padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+    <select name="level" required style="padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+      {% for value, label in package_levels %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+    </select>
+    <input name="price_per_person" type="number" step="0.01" min="0" placeholder="Price / person (JD)" required style="padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+    <button class="btn y">Add package</button>
+    <textarea name="description" placeholder="What the package includes" rows="2" style="grid-column:1/-1;padding:9px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px"></textarea>
+  </form>
+</div>
+
+{% for package in packages %}
+<div class="card rise" style="padding:18px;margin-bottom:12px;{% if not package.is_active %}opacity:.55{% endif %}">
+  <form data-save method="post" action="{% url 'cafeteria:package_save' %}">
+    {% csrf_token %}
+    <input type="hidden" name="pk" value="{{ package.pk }}">
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto auto;gap:10px;align-items:center">
+      <input name="name" value="{{ package.name }}" style="padding:8px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px;font-weight:700">
+      <select name="level" style="padding:8px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+        {% for value, label in package_levels %}<option value="{{ value }}" {% if package.level == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <input name="price_per_person" type="number" step="0.01" min="0" value="{{ package.price_per_person }}" style="padding:8px 12px;border:1px solid var(--line);background:var(--paper);font-size:13px">
+      <button class="btn y" style="padding:8px 14px;font-size:12px">Save</button>
+      <button class="btn" name="toggle" value="1" style="padding:8px 14px;font-size:12px">{% if package.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+    </div>
+    <textarea name="description" rows="2" style="width:100%;margin-top:10px;padding:8px 12px;border:1px solid var(--line);background:var(--paper);font-size:12.5px">{{ package.description }}</textarea>
+  </form>
+</div>
+{% endfor %}
+{% endif %}
+
+{# ─────────── Package orders ─────────── #}
+{% if tab == 'package-orders' %}
+<div class="card rise" style="padding:0;overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:var(--paper-2);text-align:left">
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Package</th>
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Meeting</th>
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">When / Where</th>
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Attendees</th>
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Total (AJi)</th>
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Ordered by</th>
+        <th style="padding:12px 14px;font-size:11px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in package_orders %}
+      <tr style="border-bottom:1px solid var(--line)">
+        <td style="padding:12px 14px;white-space:nowrap">
+          <span class="pill mut" style="font-size:10px">{{ order.package.get_level_display }}</span>
+          <div style="font-weight:700;margin-top:4px">{{ order.package.name }}</div>
+        </td>
+        <td style="padding:12px 14px">{{ order.meeting_title }}{% if order.notes %}<div class="muted" style="font-size:11.5px;margin-top:2px">“{{ order.notes }}”</div>{% endif %}</td>
+        <td style="padding:12px 14px;white-space:nowrap;font-size:12.5px">{{ order.meeting_date|date:"M d, Y" }} — {{ order.meeting_time|time:"H:i" }}{% if order.meeting_room %}<div class="muted" style="font-size:11.5px">{{ order.meeting_room }}</div>{% endif %}</td>
+        <td style="padding:12px 14px;text-align:center">{{ order.attendees_count }}</td>
+        <td style="padding:12px 14px;font-weight:700;white-space:nowrap">{{ order.total }} JD</td>
+        <td style="padding:12px 14px;white-space:nowrap">{{ order.ordered_by.get_full_name|default:order.ordered_by.username }}</td>
+        <td style="padding:12px 14px;white-space:nowrap">
+          <form data-save="reload" method="post" action="{% url 'cafeteria:package_order_set_status' order.pk %}" style="display:flex;gap:6px;align-items:center">
+            {% csrf_token %}
+            <select name="status" style="padding:6px 8px;border:1px solid var(--line);background:var(--paper);font-size:12px">
+              {% for value, label in package_statuses %}
+              <option value="{{ value }}" {% if order.status == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn y" style="padding:6px 12px;font-size:11.5px">Save</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="padding:24px;text-align:center;color:var(--muted)">No package orders yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,976 @@
+{# templates/includes/cms_editor.html — the on-page editor. #}
+{# Rendered only for users who can edit, and only on a page that is builder- #}
+{# driven. Edit mode is off until it is switched on, so an editor reads the #}
+{# site the way everyone else does until they choose otherwise. #}
+{% load cms_tags %}
+{% if cms_edit_mode %}
+
+<div class="ed-pal" id="edPal" role="dialog" aria-modal="true" aria-labelledby="edPalTitle">
+  <div class="ed-pal-in">
+    <div class="ed-pal-hd">
+      <div>
+        <h3 id="edPalTitle">Add to this page</h3>
+        <p class="ed-pal-sub">Pick a shape. You can change anything about it afterwards.</p>
+      </div>
+      <button type="button" class="btn ghost sm" onclick="edPaletteClose()">Close</button>
+    </div>
+
+    <div class="ed-pal-search">
+      {% icon "search" 15 %}
+      <input type="text" id="edPalQ" placeholder="Search blocks — try &ldquo;cards&rdquo; or &ldquo;table&rdquo;"
+             autocomplete="off" oninput="edPalFilter(this.value)"
+             onkeydown="edPalKey(event)" aria-label="Search blocks">
+      <span class="ed-pal-count" id="edPalCount"></span>
+    </div>
+
+    <div class="ed-pal-gr" id="edPalGrid">
+      {% for group, label in cms_palette_groups %}
+      <div class="ed-pal-sec" data-group="{{ group }}">{{ label }}</div>
+      {% for b in cms_palette|dictget:group %}
+      <button type="button" class="ed-pal-b" data-search="{{ b.search }}"
+              data-group="{{ group }}"
+              onclick="edAdd('{{ b.value }}'{% if b.widget %},'{{ b.widget }}'{% endif %})"
+              title="{{ b.hint }}">
+        <span class="wf">{{ b.shape|safe }}</span>
+        <b>{{ b.label }}</b>
+        <span class="ed-pal-hint">{{ b.hint }}</span>
+      </button>
+      {% endfor %}
+      {% endfor %}
+      <p class="ed-pal-none" id="edPalNone">No blocks match that. Try a shorter word.</p>
+    </div>
+  </div>
+</div>
+
+<aside class="ed-drawer" id="edDrawer" aria-label="Block settings">
+  <div class="ed-dr-hd">
+    <b id="edDrawerTitle">Block</b>
+    <button type="button" class="btn ghost sm" onclick="edClose()">Done</button>
+  </div>
+  <div class="ed-dr-bd" id="edDrawerBody"></div>
+</aside>
+
+<div class="ed-prev" id="edPrev" role="dialog" aria-modal="true" aria-label="Responsive preview">
+  <div class="ed-prev-bar">
+    <span class="ed-prev-widths">
+      <button type="button" data-w="375"  onclick="edPrevSize(375,812)">Phone</button>
+      <button type="button" data-w="768"  onclick="edPrevSize(768,1024)">Tablet</button>
+      <button type="button" data-w="1280" onclick="edPrevSize(1280,800)" class="on">Desktop</button>
+    </span>
+    <button type="button" class="ed-prev-rotate" onclick="edPrevRotate()"
+            title="Swap width and height">Rotate</button>
+    <span class="ed-prev-size" id="edPrevSize">1280 × 800</span>
+    <span class="ed-prev-note">Showing the page as a reader sees it — no editing controls.</span>
+    <button type="button" class="btn y sm" onclick="edPrevClose()">Done</button>
+  </div>
+  <div class="ed-prev-stage" id="edPrevStage">
+    <iframe id="edPrevFrame" title="Page preview" loading="lazy"></iframe>
+  </div>
+</div>
+
+<div class="ed-fmt" id="edFmt" role="toolbar" aria-label="Text formatting">
+  <button type="button" onclick="edFmtDo('bold')" title="Bold (Ctrl+B)"><b>B</b></button>
+  <button type="button" onclick="edFmtDo('italic')" title="Italic (Ctrl+I)"><i>I</i></button>
+  <button type="button" onclick="edFmtLink()" title="Add a link (Ctrl+K)">{% icon "link" 13 %}</button>
+  <span class="ed-fmt-sep"></span>
+  <button type="button" onclick="edFmtDo('insertUnorderedList')" title="Bulleted list">{% icon "list" 13 %}</button>
+  <button type="button" onclick="edFmtDo('insertOrderedList')" title="Numbered list">1.</button>
+  <span class="ed-fmt-sep"></span>
+  <button type="button" onclick="edFmtClear()" title="Remove formatting">{% icon "close" 13 %}</button>
+</div>
+
+<div class="ed-dirty" id="edStatus" role="status" aria-live="polite">
+  <span id="edStatusText">Saved</span>
+  <button type="button" class="ed-undo" id="edUndoBtn" onclick="edUndo()" hidden>
+    Undo
+  </button>
+</div>
+
+<script>
+/* ══ On-page editor ═══════════════════════════════════════════════════════
+   Every action posts to one endpoint and swaps the affected block's markup
+   back in, so folder position, scroll and any half-typed text elsewhere on
+   the page all survive. Only reordering across containers reloads, because
+   that changes more of the document than one block.
+   ═══════════════════════════════════════════════════════════════════════ */
+const ED = {
+  page: '{{ cms_edit_page.slug }}',
+  csrf: '{{ csrf_token }}',
+  sel: null,
+  target: {parent: null, column: 0},
+  drag: null,
+};
+
+function edStatus(msg, bad){
+  const box = document.getElementById('edStatus');
+  const txt = document.getElementById('edStatusText');
+  txt.textContent = msg;
+  box.style.background = bad ? 'var(--bad)' : 'var(--ink)';
+  box.classList.add('on');
+  clearTimeout(edStatus._t);
+  edStatus._t = setTimeout(() => box.classList.remove('on'), bad ? 5200 : 1700);
+}
+
+async function edPost(url, body, asJson, isUndo){
+  SAVING++;
+  const opts = {method: 'POST', headers: {'X-CSRFToken': ED.csrf}};
+  if (asJson){
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body || {});
+  } else {
+    const fd = new FormData();
+    Object.entries(body || {}).forEach(([k, v]) => fd.append(k, v));
+    opts.body = fd;
+  }
+  let r, d;
+  try {
+    r = await fetch(url, opts);
+    d = await r.json();
+  } catch (err) {
+    SAVING--;
+    edStatus('Could not reach the server — your change was not saved.', true);
+    return null;
+  } finally {
+    if (SAVING > 0 && !r) SAVING--;
+  }
+  SAVING = Math.max(0, SAVING - 1);
+  if (!r.ok || d.error){
+    edStatus(d.error || 'That did not save.', true);
+    return null;
+  }
+  if (d.message) edStatus(d.message);
+  /* Undoing must not itself become undoable, or Ctrl+Z would toggle forever. */
+  if (!isUndo) edRemember(d.undo, d.message || 'change');
+  /* Editing works on a draft, and the sidebar's bar counts what is unsaved.
+     Inline text goes through here rather than the sidebar's own post(), so
+     without this the count sat at "nothing changed yet" while somebody typed. */
+  if (window.cshDraftStatus) setTimeout(cshDraftStatus, 80);
+  return d;
+}
+
+/* ── undo ───────────────────────────────────────────────────────────────
+   Each mutating endpoint returns an `undo` describing what it replaced, so the
+   stack holds facts from the server rather than the editor's guess at the
+   previous state. Ctrl+Z, or the button on the status strip.
+
+   Deletes are recoverable because a delete marks the block rather than
+   destroying it; everything else is a value being put back. */
+const UNDO = {stack: [], busy: false};
+const UNDO_LIMIT = 40;
+
+function edRemember(undo, label){
+  if (!undo || !undo.kind) return;
+  UNDO.stack.push({undo: undo, label: label || 'change'});
+  if (UNDO.stack.length > UNDO_LIMIT) UNDO.stack.shift();
+  edUndoButton();
+}
+
+function edUndoButton(){
+  const btn = document.getElementById('edUndoBtn');
+  if (btn) btn.hidden = UNDO.stack.length === 0;
+}
+
+async function edUndo(){
+  if (UNDO.busy) return;
+  const top = UNDO.stack.pop();
+  edUndoButton();
+  if (!top){ edStatus('Nothing left to undo.'); return; }
+  UNDO.busy = true;
+  const u = top.undo;
+  try {
+    if (u.kind === 'restore'){
+      const d = await edPost('/p/edit/block/' + u.pk + '/restore/', {}, false, true);
+      if (d) location.reload();          /* it has to come back where it was */
+    } else if (u.kind === 'inline'){
+      await edPost('/p/edit/block/' + u.pk + '/inline/',
+                   {field: u.field, value: u.value}, false, true);
+      location.reload();
+    } else if (u.kind === 'item_inline'){
+      await edPost('/p/edit/item/' + u.pk + '/inline/',
+                   {field: u.field, value: u.value}, false, true);
+      location.reload();
+    } else if (u.kind === 'item_order'){
+      const d = await edPost('/p/edit/section/' + u.pk + '/items/order/',
+                             {order: u.order}, true, true);
+      if (d && d.html) edSwap(u.pk, d.html);
+    } else if (u.kind === 'settings'){
+      const body = {};
+      body[u.field] = u.value;
+      const d = await edPost('/p/edit/block/' + u.pk + '/update/', body, false, true);
+      if (d && d.html) edSwap(u.pk, d.html);
+    }
+    edStatus('Undone: ' + top.label);
+  } finally {
+    UNDO.busy = false;
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey){
+    /* Inside a text field the browser's own undo is the better one. */
+    if (e.target.closest?.('[contenteditable="true"], input, textarea')) return;
+    e.preventDefault();
+    edUndo();
+  }
+});
+
+/* ── autosave ────────────────────────────────────────────────────────────
+   An edit used to be saved only when the field lost focus, so closing the tab
+   mid-sentence lost the sentence. Typing now schedules a save, and a save still
+   in flight blocks the page from being closed. */
+const AUTOSAVE_AFTER = 1200;
+let SAVING = 0;
+
+function edScheduleSave(el){
+  clearTimeout(el._saveTimer);
+  el._saveTimer = setTimeout(() => edSaveField(el), AUTOSAVE_AFTER);
+}
+
+window.addEventListener('beforeunload', e => {
+  if (SAVING > 0){
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+function edBlock(pk){ return document.querySelector('[data-block="' + pk + '"]'); }
+
+function edSwap(pk, html){
+  const el = edBlock(pk);
+  if (!el || !html) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html.trim();
+  const fresh = tmp.firstElementChild;
+  el.replaceWith(fresh);
+  edWire(fresh);
+  if (ED.sel === pk) fresh.classList.add('ed-sel');
+}
+
+/* ── responsive preview ─────────────────────────────────────────────────
+   The page is shown in an iframe at the device's width rather than by squeezing a
+   container, because the Hub's responsive rules are media queries and those key
+   off the viewport. A narrowed container would show a squashed desktop layout and
+   claim it was the phone one.
+
+   The frame loads the page without the edit flag, so what appears is exactly what
+   a reader gets — no toolbars, no dashed outlines. */
+const PREV = {w: 1280, h: 800};
+
+function edPreview(){
+  const frame = document.getElementById('edPrevFrame');
+  const url = location.pathname + (location.search
+    ? location.search.replace(/[?&]edit=1/, '').replace(/[?&]new=1/, '') : '');
+  frame.src = (url.endsWith('?') ? url.slice(0, -1) : url) || location.pathname;
+  document.getElementById('edPrev').classList.add('on');
+  edPrevApply();
+}
+function edPrevClose(){ document.getElementById('edPrev').classList.remove('on'); }
+
+function edPrevSize(w, h){
+  PREV.w = w; PREV.h = h;
+  document.querySelectorAll('.ed-prev-widths button').forEach(b =>
+    b.classList.toggle('on', +b.dataset.w === w));
+  edPrevApply();
+}
+function edPrevRotate(){ edPrevSize(PREV.h, PREV.w); }
+
+function edPrevApply(){
+  const frame = document.getElementById('edPrevFrame');
+  const stage = document.getElementById('edPrevStage');
+  frame.style.width = PREV.w + 'px';
+  frame.style.height = PREV.h + 'px';
+  /* Scale down when the device is wider than the room available, so a desktop
+     preview is not cut off on a laptop screen. */
+  const room = stage.clientWidth - 40;
+  const scale = Math.min(1, room / PREV.w);
+  frame.style.transform = scale < 1 ? `scale(${scale})` : '';
+  document.getElementById('edPrevSize').textContent =
+    `${PREV.w} × ${PREV.h}` + (scale < 1 ? ` · ${Math.round(scale * 100)}%` : '');
+}
+window.addEventListener('resize', () => {
+  if (document.getElementById('edPrev')?.classList.contains('on')) edPrevApply();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('edPrev')?.classList.contains('on')){
+    edPrevClose();
+  }
+});
+
+/* ── formatting a selection ─────────────────────────────────────────────
+   A toolbar that follows the selection, rather than a permanent one taking up
+   room. It only appears inside a field marked data-ed-rich: headings stay plain
+   text, because markup in a heading fights the type scale.
+
+   execCommand is deprecated but is the only thing that edits a selection
+   consistently across browsers without shipping an editor framework. What it
+   produces is sanitised on the server before it is stored, so the markup it
+   emits does not have to be trusted. */
+function edRichField(){
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return null;
+  const node = sel.getRangeAt(0).commonAncestorContainer;
+  const el = node.nodeType === 1 ? node : node.parentElement;
+  return el?.closest('[data-ed-rich]') || null;
+}
+
+function edFmtPlace(){
+  const bar = document.getElementById('edFmt');
+  const sel = window.getSelection();
+  const field = edRichField();
+  if (!field || !sel || sel.isCollapsed){ bar.classList.remove('on'); return; }
+  const r = sel.getRangeAt(0).getBoundingClientRect();
+  if (!r.width && !r.height){ bar.classList.remove('on'); return; }
+  bar.classList.add('on');
+  const bw = bar.offsetWidth, bh = bar.offsetHeight;
+  let left = r.left + r.width / 2 - bw / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - bw - 8));
+  let top = r.top - bh - 8;
+  if (top < 8) top = r.bottom + 8;      /* flip below when there is no room above */
+  bar.style.left = left + 'px';
+  bar.style.top = top + 'px';
+}
+
+document.addEventListener('selectionchange', edFmtPlace);
+window.addEventListener('scroll', () => {
+  if (document.getElementById('edFmt')?.classList.contains('on')) edFmtPlace();
+}, true);
+
+function edFmtDo(cmd){
+  const field = edRichField();
+  if (!field) return;
+  document.execCommand(cmd, false, null);
+  edScheduleSave(field);
+  edFmtPlace();
+}
+
+function edFmtLink(){
+  const field = edRichField();
+  if (!field) return;
+  const sel = window.getSelection();
+  const existing = sel.getRangeAt(0).commonAncestorContainer.parentElement?.closest('a');
+  const url = prompt('Link to:', existing?.getAttribute('href') || 'https://');
+  if (url === null) return;
+  if (!url.trim()){ document.execCommand('unlink'); }
+  else { document.execCommand('createLink', false, url.trim()); }
+  edScheduleSave(field);
+}
+
+function edFmtClear(){
+  const field = edRichField();
+  if (!field) return;
+  document.execCommand('removeFormat');
+  document.execCommand('unlink');
+  edScheduleSave(field);
+  edFmtPlace();
+}
+
+/* Ctrl+B / I / K inside a rich field, so the shortcuts people already know work. */
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  const field = edRichField();
+  if (!field) return;
+  const key = e.key.toLowerCase();
+  if (key === 'b'){ e.preventDefault(); edFmtDo('bold'); }
+  else if (key === 'i'){ e.preventDefault(); edFmtDo('italic'); }
+  else if (key === 'k'){ e.preventDefault(); edFmtLink(); }
+});
+
+/* Pasting carries the source document's markup — fonts, colours, spans. Paste as
+   plain text and let the editor add formatting deliberately. */
+document.addEventListener('paste', e => {
+  const field = edRichField() || e.target.closest?.('[data-ed-field]');
+  if (!field) return;
+  e.preventDefault();
+  const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+  document.execCommand('insertText', false, text);
+});
+
+/* ── inline text ──────────────────────────────────────────────────────── */
+function edWire(root){
+  (root || document).querySelectorAll('[data-ed-field]').forEach(el => {
+    if (el.dataset.edWired) return;
+    el.dataset.edWired = '1';
+    el.addEventListener('blur', () => {
+      clearTimeout(el._saveTimer);
+      edSaveField(el);
+    });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey && !el.hasAttribute('data-ed-rich')){
+        e.preventDefault();
+        el.blur();
+      }
+      if (e.key === 'Escape'){
+        if (el.hasAttribute('data-ed-rich')) el.innerHTML = el.dataset.edWas || el.innerHTML;
+        else el.textContent = el.dataset.edWas || el.textContent;
+        el.blur();
+      }
+    });
+    el.addEventListener('focus', () => {
+      el.dataset.edWas = el.hasAttribute('data-ed-rich') ? el.innerHTML : el.textContent;
+    });
+    /* Save while typing, not only when the field is left. */
+    el.addEventListener('input', () => edScheduleSave(el));
+  });
+}
+
+async function edSaveField(el){
+  /* A rich field saves its markup; everything else saves plain text, so a
+     heading cannot acquire formatting by accident. */
+  const rich = el.hasAttribute('data-ed-rich');
+  const value = rich ? el.innerHTML.trim() : el.textContent.trim();
+  if (value === (el.dataset.edWas || '').trim()) return;
+  const itemPk = el.getAttribute('data-ed-item');
+  const field = el.getAttribute('data-ed-field');
+  const block = el.closest('[data-block]');
+  /* Some text on a page belongs to a model of its own rather than to the section
+     -- the Employee Handbook's title and description, for instance. Those fields
+     name their own endpoint, which is why they were read-only before: the section
+     endpoint had nothing to write them to. */
+  const url = el.getAttribute('data-ed-url')
+    || (itemPk
+      ? '/p/edit/item/' + itemPk + '/inline/'
+      : '/p/edit/block/' + block.dataset.block + '/inline/');
+  const body = {field: field, value: value};
+  if (rich) body.rich = '1';
+  const d = await edPost(url, body);
+  if (d) el.dataset.edWas = value;
+  else if (rich) el.innerHTML = el.dataset.edWas || '';
+  else el.textContent = el.dataset.edWas || '';
+}
+
+/* Jump to a piece of text on the page and put the cursor in it. A list or a run
+   of paragraphs is a real rich field where it is rendered; showing its markup in
+   a one-line box in the drawer was worse than useless. */
+function edFindText(key){
+  const el = document.querySelector(`[data-ed-field="txt_${key}"]`);
+  if (!el){
+    edStatus('That line only appears when the panel is empty, so there is '
+           + 'nothing on the page to click yet.', true);
+    return;
+  }
+  el.scrollIntoView({block: 'center', behavior: 'smooth'});
+  el.classList.add('ed-flash');
+  setTimeout(() => el.classList.remove('ed-flash'), 1400);
+  el.focus();
+}
+
+/* ── block actions ────────────────────────────────────────────────────── */
+async function edMove(pk, delta){
+  const d = await edPost('/p/edit/block/' + pk + '/move/', {delta: delta});
+  if (d && d.reload_page) location.reload();
+}
+
+async function edDup(pk){
+  const d = await edPost('/p/edit/block/' + pk + '/duplicate/', {});
+  if (!d) return;
+  const after = edBlock(d.after);
+  const tmp = document.createElement('div');
+  tmp.innerHTML = d.html.trim();
+  after.after(tmp.firstElementChild);
+  edWire(tmp.firstElementChild);
+}
+
+async function edToggle(pk){
+  const d = await edPost('/p/edit/block/' + pk + '/toggle/', {});
+  if (d) edSwap(pk, d.html);
+}
+
+async function edDel(pk){
+  const el = edBlock(pk);
+  const label = el?.querySelector('.ed-lbl')?.textContent || 'this block';
+  const kids = el?.querySelectorAll('[data-block]').length || 0;
+  /* No confirmation dialogue: the delete is recoverable, and the Undo button
+     appears the moment it happens. A dialogue on every delete is friction that
+     buys nothing once the action can be taken back. */
+  const d = await edPost('/p/edit/block/' + pk + '/delete/', {});
+  if (d) { el.remove(); edClose(); }
+}
+
+/* ── settings drawer ──────────────────────────────────────────────────── */
+async function edOpen(pk){
+  let r, d;
+  try {
+    r = await fetch('/p/edit/block/' + pk + '/settings/');
+    d = await r.json();
+  } catch (e) { edStatus('Could not load the settings.', true); return; }
+  if (!r.ok || d.error){ edStatus(d.error || 'Could not load the settings.', true); return; }
+
+  document.querySelectorAll('.cms-block.ed-sel').forEach(b => b.classList.remove('ed-sel'));
+  edBlock(pk)?.classList.add('ed-sel');
+  ED.sel = pk;
+
+  document.getElementById('edDrawerTitle').textContent = d.type_label;
+  document.getElementById('edDrawerBody').innerHTML = d.html;
+  document.getElementById('edDrawer').classList.add('on');
+  edWireDrawer(pk);
+  // Fields the drawer just injected still need the icon picker attached.
+  window.ipWire?.(document.getElementById('edDrawerBody'));
+  window.mpWire?.(document.getElementById('edDrawerBody'));
+}
+
+function edClose(){
+  document.getElementById('edDrawer').classList.remove('on');
+  document.querySelectorAll('.cms-block.ed-sel').forEach(b => b.classList.remove('ed-sel'));
+  ED.sel = null;
+}
+
+/* Drawer fields save on change — no Save button to forget to press. */
+function edWireDrawer(pk){
+  const body = document.getElementById('edDrawerBody');
+  body.querySelectorAll('input,select,textarea').forEach(f => {
+    const evt = (f.tagName === 'SELECT' || f.type === 'checkbox') ? 'change' : 'blur';
+    f.addEventListener(evt, () => edSaveSetting(pk, f));
+  });
+}
+
+async function edSaveSetting(pk, field){
+  const name = field.getAttribute('name');
+  if (!name) return;
+  const value = field.type === 'checkbox' ? (field.checked ? '1' : '0') : field.value;
+  /* What it was, so the change can be put back. */
+  const was = field.dataset.edWas !== undefined ? field.dataset.edWas : field.defaultValue;
+  field.dataset.edWas = value;
+  const body = {};
+  if (name.startsWith('cfg_')) body.config = JSON.stringify({[name.slice(4)]: value});
+  else body[name] = value;
+  const d = await edPost('/p/edit/block/' + pk + '/update/', body);
+  if (d){
+    if (!name.startsWith('cfg_')) edRemember(
+      {kind: 'settings', pk: pk, field: name, value: was}, name);
+    edSwap(pk, d.html);
+  }
+}
+
+async function edSetLayout(pk, value){
+  const d = await edPost('/p/edit/block/' + pk + '/update/', {layout: value});
+  if (!d) return;
+  edSwap(pk, d.html);
+  edOpen(pk);
+}
+
+/* ── palette ──────────────────────────────────────────────────────────── */
+function edPalette(parent, column, before){
+  /* `before` is the block the new one should sit above. Without it every insert
+     landed at the bottom of the page and had to be dragged back up. */
+  ED.target = {parent: parent, column: column || 0, before: before || ''};
+  document.getElementById('edPal').classList.add('on');
+  const q = document.getElementById('edPalQ');
+  if (q){ q.value = ''; edPalFilter(''); q.focus(); }
+}
+function edPaletteClose(){ document.getElementById('edPal').classList.remove('on'); }
+
+/* Typing narrows the grid and hides any group heading left with nothing under
+   it, so the palette never shows an empty section. */
+function edPalFilter(q){
+  const term = (q || '').trim().toLowerCase();
+  const cells = [...document.querySelectorAll('#edPalGrid .ed-pal-b')];
+  let shown = 0;
+  cells.forEach(c => {
+    const hit = !term || c.dataset.search.includes(term);
+    c.style.display = hit ? '' : 'none';
+    c.classList.remove('kb');
+    if (hit) shown++;
+  });
+  document.querySelectorAll('#edPalGrid .ed-pal-sec').forEach(h => {
+    const any = cells.some(c => c.dataset.group === h.dataset.group && c.style.display !== 'none');
+    h.style.display = any ? '' : 'none';
+  });
+  // An explicit value, not '': clearing the inline style would hand control
+  // back to the stylesheet, which hides this message by default.
+  document.getElementById('edPalNone').style.display = shown ? 'none' : 'block';
+  const count = document.getElementById('edPalCount');
+  count.textContent = term ? `${shown} of ${cells.length}` : `${cells.length} blocks`;
+  if (term && shown) edPalHighlight(0);
+}
+
+/* Arrow keys walk the visible cells; Enter inserts the highlighted one, so a
+   block can be added without touching the mouse. */
+function edPalVisible(){
+  return [...document.querySelectorAll('#edPalGrid .ed-pal-b')]
+         .filter(c => c.style.display !== 'none');
+}
+function edPalHighlight(i){
+  const cells = edPalVisible();
+  cells.forEach(c => c.classList.remove('kb'));
+  if (!cells.length) return;
+  const cell = cells[Math.max(0, Math.min(i, cells.length - 1))];
+  cell.classList.add('kb');
+  cell.scrollIntoView({block: 'nearest'});
+}
+function edPalKey(e){
+  const cells = edPalVisible();
+  const at = cells.findIndex(c => c.classList.contains('kb'));
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight'){
+    e.preventDefault(); edPalHighlight(at + 1);
+  } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft'){
+    e.preventDefault(); edPalHighlight(at - 1);
+  } else if (e.key === 'Enter'){
+    e.preventDefault();
+    (cells[at] || cells[0])?.click();
+  }
+}
+
+async function edAdd(type, widget){
+  edPaletteClose();
+  const d = await edPost('/p/edit/' + ED.page + '/block/new/', {
+    type: type,
+    parent: ED.target.parent || '',
+    column: ED.target.column || 0,
+    before: ED.target.before || '',
+    /* A feature is chosen from the palette by which feature it is, so the key
+       travels with the request rather than needing a second step. */
+    widget: widget || '',
+  });
+  if (!d) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = d.html.trim();
+  const fresh = tmp.firstElementChild;
+  const container = d.parent
+    ? document.querySelector('[data-row-id="' + d.parent + '"][data-col="' + d.column + '"]')
+    : document.getElementById('cmsPage');
+  /* Put it where it was asked for, not always last. */
+  const anchor = ED.target.before
+    ? container.querySelector(':scope > [data-block="' + ED.target.before + '"]')
+    : null;
+  if (anchor) anchor.before(fresh);
+  else {
+    const addBtn = container.querySelector(':scope > .ed-add');
+    if (addBtn) addBtn.before(fresh); else container.append(fresh);
+  }
+  edWire(fresh);
+  edOpen(d.pk);
+  /* Land on it: an insert halfway down a long page is otherwise invisible. */
+  fresh.scrollIntoView({block: 'center', behavior: 'smooth'});
+}
+
+async function edItemAdd(sectionPk){
+  const d = await edPost('/p/edit/section/' + sectionPk + '/item/new/', {});
+  if (d){ edSwap(sectionPk, d.html); edOpen(sectionPk); }
+}
+async function edItemDel(itemPk){
+  const d = await edPost('/p/edit/item/' + itemPk + '/delete/', {});
+  if (d){ edSwap(d.pk, d.html); edOpen(d.pk); }
+}
+
+/* Set one field on one row, from the drawer. The block comes back redrawn so
+   the page updates at once; the drawer is deliberately left alone, or the cursor
+   would jump out of whatever is being typed into. */
+async function edItemSet(itemPk, field, value){
+  const d = await edPost('/p/edit/item/' + itemPk + '/inline/',
+                         {field: field, value: value});
+  if (d && d.block && d.html) edSwap(d.block, d.html);
+}
+
+/* Move a row up or down among its siblings, from the drawer. Reordering was
+   drag-only, which is no help at all when the rows are a list in a panel. */
+async function edItemMove(itemPk, delta){
+  const row = document.querySelector(`.ed-item[data-item="${itemPk}"]`);
+  if (!row) return;
+  const list = row.parentElement;
+  const section = list.dataset.sectionItems;
+  const rows = [...list.querySelectorAll('.ed-item')];
+  const j = rows.indexOf(row) + delta;
+  if (j < 0 || j >= rows.length) return;
+  if (delta < 0) rows[j].before(row); else rows[j].after(row);
+
+  const body = new URLSearchParams();
+  [...list.querySelectorAll('.ed-item')].forEach(r => body.append('ids[]', r.dataset.item));
+  /* item_reorder wants ids[] repeated, which the helper's object body cannot
+     express, so this one is sent directly. */
+  await fetch('/p/edit/section/' + section + '/items/order/', {
+    method: 'POST',
+    headers: {'X-CSRFToken': ED.csrf,
+              'Content-Type': 'application/x-www-form-urlencoded'},
+    body: body.toString(),
+  });
+  edOpen(document.querySelector('.cms-block.csh-sel')?.dataset.block || section);
+}
+
+/* ── dragging a row within its block ──────────────────────────────────── */
+/* Rows — cards, tiles, statistics, values, tabs, header actions — reorder by
+   being dragged where they sit. They were previously orderable only by typing
+   numbers into a form.
+
+   A row drags inside its own block and nowhere else: `data-owner` is checked on
+   drop, so a statistic cannot land in a tile strip and produce a row that block
+   has no idea how to render. */
+let IDRAG = null;
+
+document.addEventListener('dragstart', e => {
+  const row = e.target.closest?.('.ed-item');
+  if (!row) return;
+  /* A drag beginning inside text being edited is a text selection, not a move. */
+  if (e.target.closest('[contenteditable="true"]')) { e.preventDefault(); return; }
+  IDRAG = row;
+  row.classList.add('ed-item-drag');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', row.dataset.item);
+  e.stopPropagation();          /* never let this become a block drag */
+});
+
+document.addEventListener('dragend', e => {
+  if (!IDRAG) return;
+  IDRAG.classList.remove('ed-item-drag');
+  document.querySelectorAll('.ed-item-over').forEach(n => n.classList.remove('ed-item-over'));
+  IDRAG = null;
+});
+
+document.addEventListener('dragover', e => {
+  if (!IDRAG) return;
+  const over = e.target.closest?.('.ed-item');
+  if (!over || over === IDRAG) return;
+  if (over.dataset.owner !== IDRAG.dataset.owner) return;   /* different block */
+  e.preventDefault();
+  e.stopPropagation();
+  document.querySelectorAll('.ed-item-over').forEach(n => n.classList.remove('ed-item-over'));
+  over.classList.add('ed-item-over');
+}, true);
+
+document.addEventListener('drop', async e => {
+  if (!IDRAG) return;
+  const over = e.target.closest?.('.ed-item');
+  if (!over || over === IDRAG || over.dataset.owner !== IDRAG.dataset.owner) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  /* Insert before or after depending on which half of the target was hit, so a
+     row can be placed at either end of the run. */
+  const r = over.getBoundingClientRect();
+  const horizontal = r.width > r.height * 1.4;
+  const after = horizontal ? (e.clientX > r.left + r.width / 2)
+                           : (e.clientY > r.top + r.height / 2);
+  over[after ? 'after' : 'before'](IDRAG);
+
+  const owner = IDRAG.dataset.owner;
+  const order = [...document.querySelectorAll(`.ed-item[data-owner="${owner}"]`)]
+                .map(n => n.dataset.item);
+  const d = await edPost('/p/edit/section/' + owner + '/items/order/',
+                         {order: order}, true);
+  if (d && d.html) edSwap(owner, d.html);
+});
+
+/* -- moving a block, by pointer or by keyboard --------------------------- */
+/* The grip arms the drag; the block itself is only draggable while the grip is
+   held, so selecting text inside a block never starts one. */
+function edArmDrag(grip){
+  const block = grip.closest('[data-block]');
+  block.setAttribute('draggable', 'true');
+  const disarm = () => { block.setAttribute('draggable', 'false');
+                         document.removeEventListener('mouseup', disarm); };
+  document.addEventListener('mouseup', disarm);
+}
+
+/* A single insertion line, moved around rather than recreated. Without it the
+   only feedback was a tint on the whole column, which said which column but not
+   whether the block would land above or below what was already there. */
+let EDLINE = null;
+function edLine(){
+  if (!EDLINE){
+    EDLINE = document.createElement('div');
+    EDLINE.className = 'ed-drop';
+    EDLINE.setAttribute('aria-hidden', 'true');
+  }
+  return EDLINE;
+}
+function edClearDrop(){
+  EDLINE?.classList.remove('on');
+  EDLINE?.remove();
+  document.querySelectorAll('.ed-over').forEach(c => c.classList.remove('ed-over'));
+}
+
+/* Whether this block may land in this container.
+   The server already refuses a columns row inside a column, but without the same
+   rule here the page moved the block anyway and then kept showing a position the
+   server had rejected -- the editor lied until the next reload. */
+function edCanDrop(block, zone){
+  if (!block || !zone) return false;
+  if (!zone.classList.contains('cms-col')) return true;
+  if (block.dataset.type === 'row') return false;            /* no row in a row */
+  if (zone.closest('[data-block]') === block) return false;  /* inside itself */
+  if (block.contains(zone)) return false;                    /* or its own tree */
+  return true;
+}
+
+/* The sibling the block would be inserted before, or null to go last. */
+function edDropBefore(zone, dragging, y){
+  return [...zone.querySelectorAll(':scope > [data-block]')]
+    .filter(b => b !== dragging)
+    .find(b => { const r = b.getBoundingClientRect(); return y < r.top + r.height / 2; })
+    || null;
+}
+
+/* Put a block into a container at the pointer's position, keeping the Add
+   button last so the column's own control never ends up above the content. */
+function edPlace(zone, block, before){
+  if (before) before.before(block);
+  else {
+    const addBtn = zone.querySelector(':scope > .ed-add');
+    if (addBtn) addBtn.before(block); else zone.append(block);
+  }
+}
+
+function edOrderOf(zone){
+  return [...zone.querySelectorAll(':scope > [data-block]')].map(b => b.dataset.block);
+}
+
+document.addEventListener('dragstart', e => {
+  const block = e.target.closest?.('[data-block]');
+  if (!block || block.getAttribute('draggable') !== 'true') return;
+  ED.drag = block;
+  /* Remembered so a refused move can be put back exactly where it was. */
+  ED.dragHome = {parent: block.parentElement, next: block.nextElementSibling};
+  block.classList.add('ed-drag');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', block.dataset.block);
+});
+
+document.addEventListener('dragend', () => {
+  ED.drag?.classList.remove('ed-drag');
+  edClearDrop();
+  ED.drag = null;
+});
+
+document.addEventListener('dragover', e => {
+  if (!ED.drag) return;
+  const zone = e.target.closest?.('.cms-col, #cmsPage');
+  if (!zone) return;
+  if (!edCanDrop(ED.drag, zone)){
+    /* Not calling preventDefault leaves the cursor showing "no drop", so an
+       impossible move looks impossible instead of looking fine and then failing. */
+    e.dataTransfer.dropEffect = 'none';
+    edClearDrop();
+    return;
+  }
+  e.preventDefault();
+  document.querySelectorAll('.ed-over').forEach(c => c.classList.remove('ed-over'));
+  if (zone.classList.contains('cms-col')) zone.classList.add('ed-over');
+
+  const line = edLine();
+  line.classList.add('on');
+  edPlace(zone, line, edDropBefore(zone, ED.drag, e.clientY));
+});
+
+document.addEventListener('drop', async e => {
+  if (!ED.drag) return;
+  const zone = e.target.closest?.('.cms-col, #cmsPage');
+  if (!zone || !edCanDrop(ED.drag, zone)){ edClearDrop(); return; }
+  e.preventDefault();
+
+  const block = ED.drag, home = ED.dragHome;
+  const isCol = zone.classList.contains('cms-col');
+  const pk = block.dataset.block;
+
+  edPlace(zone, block, edDropBefore(zone, block, e.clientY));
+  edClearDrop();
+
+  const d = await edPost('/p/edit/block/' + pk + '/reparent/', {
+    parent: isCol ? zone.dataset.rowId : '',
+    column: isCol ? zone.dataset.col : 0,
+    order: edOrderOf(zone),
+  }, true);
+
+  if (!d){
+    /* Put it back. A rejected move must not leave the page showing a layout
+       that was never saved. */
+    if (home && home.parent){
+      if (home.next) home.parent.insertBefore(block, home.next);
+      else home.parent.append(block);
+    }
+    return;
+  }
+  if (d.reload_page) location.reload();
+});
+
+/* -- moving a block with the keyboard ----------------------------------- */
+/* The grip used to be an aria-hidden span that could not take focus, so a block
+   could only be moved with a mouse -- and the toolbar's up/down buttons cannot
+   cross columns at all. Arrows reorder; left and right cross columns. */
+async function edGripKey(e, pk){
+  const DIRS = {ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right'};
+  const dir = DIRS[e.key];
+  if (!dir) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  const block = document.querySelector('[data-block="' + pk + '"]');
+  if (!block) return;
+  const zone = block.parentElement;
+  const inCol = zone.classList.contains('cms-col');
+
+  if (dir === 'up' || dir === 'down'){
+    const sibs = [...zone.querySelectorAll(':scope > [data-block]')];
+    const at = sibs.indexOf(block);
+    const to = dir === 'up' ? at - 1 : at + 1;
+    if (to < 0 || to >= sibs.length){
+      edStatus(dir === 'up' ? 'Already first here.' : 'Already last here.');
+      return;
+    }
+    sibs[to][dir === 'up' ? 'before' : 'after'](block);
+    const d = await edPost('/p/edit/block/' + pk + '/reparent/', {
+      parent: inCol ? zone.dataset.rowId : '',
+      column: inCol ? zone.dataset.col : 0,
+      order: edOrderOf(zone),
+    }, true);
+    if (d) edKeepFocus(pk, 'Moved ' + dir + '.');
+    return;
+  }
+
+  /* Left and right cross columns, within the block's own row. Moving a block out
+     of a row entirely is a bigger change than an arrow key should make. */
+  if (!inCol){
+    edStatus('This block is not in a columns row, so there is no column to move it to.');
+    return;
+  }
+  const row = zone.closest('.cms-row');
+  const cols = [...row.querySelectorAll(':scope > .cms-col')];
+  const target = cols[cols.indexOf(zone) + (dir === 'left' ? -1 : 1)];
+  if (!target){
+    edStatus(dir === 'left' ? 'Already in the first column.'
+                            : 'Already in the last column.');
+    return;
+  }
+  edPlace(target, block, null);
+
+  const d = await edPost('/p/edit/block/' + pk + '/reparent/', {
+    parent: target.dataset.rowId, column: target.dataset.col,
+    order: edOrderOf(target),
+  }, true);
+  if (d) edKeepFocus(pk, 'Moved to column ' + (Number(target.dataset.col) + 1) + '.');
+}
+
+/* A move reloads the page, which throws focus back to the top -- unusable for
+   anyone working by keyboard. The block is remembered and its grip refocused. */
+function edKeepFocus(pk, message){
+  try {
+    sessionStorage.setItem('edFocusBlock', pk);
+    sessionStorage.setItem('edFocusSaid', message || '');
+  } catch (err) {}
+  location.reload();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  let pk, said;
+  try {
+    pk = sessionStorage.getItem('edFocusBlock');
+    said = sessionStorage.getItem('edFocusSaid');
+    sessionStorage.removeItem('edFocusBlock');
+    sessionStorage.removeItem('edFocusSaid');
+  } catch (err) { return; }
+  if (!pk) return;
+  const grip = document.querySelector('[data-block="' + pk + '"] .ed-grip');
+  if (grip){ grip.focus(); if (said) edStatus(said); }
+});
+
+/* ── shell ────────────────────────────────────────────────────────────── */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('edPal').classList.contains('on')) return edPaletteClose();
+  if (document.getElementById('edDrawer').classList.contains('on')) return edClose();
+});
+document.getElementById('edPal').addEventListener('click', e => {
+  if (e.target.id === 'edPal') edPaletteClose();
+});
+
+edWire(document);
+</script>
+{% endif %}

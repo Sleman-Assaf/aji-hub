@@ -1,0 +1,62 @@
+{# templates/content/hr_post.html #}
+{% extends 'base.html' %}
+{% block title %}Post Update — People & Culture{% endblock %}
+
+{% block extra_head %}
+<style>
+.pf-field{margin-bottom:18px}
+.pf-field label{display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:7px}
+.pf-field input,.pf-field select,.pf-field textarea{width:100%;border:1px solid var(--line-2);padding:11px 13px;font-family:inherit;font-size:14px;outline:none;box-sizing:border-box;transition:border-color .13s;resize:vertical}
+.pf-field input:focus,.pf-field select:focus,.pf-field textarea:focus{border-color:var(--ink)}
+.pf-field textarea{min-height:160px;line-height:1.6}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-head rise">
+  <div class="eyebrow">
+    <a href="{% url 'people_culture' %}" style="color:var(--muted);text-decoration:none">← People &amp; Culture</a>
+  </div>
+  <h1>Post an Update</h1>
+  <p>Share an HR announcement, recognition or news item with all AJi employees.</p>
+</div>
+
+<div class="card rise" style="max-width:680px">
+  <form data-save method="post">
+    {% csrf_token %}
+
+    <div class="pf-field">
+      <label>Tag</label>
+      <select name="tag">
+        <option value="Update">Update</option>
+        <option value="Recognition">Recognition</option>
+        <option value="Certification">Certification</option>
+        <option value="Project Win">Project Win</option>
+        <option value="HR">HR</option>
+        <option value="Announcement">Announcement</option>
+        <option value="Event">Event</option>
+      </select>
+    </div>
+
+    <div class="pf-field">
+      <label>Title <span style="color:var(--bad)">*</span></label>
+      <input type="text" name="title" required maxlength="300" placeholder="e.g. Employee of the Month — June 2026" autofocus>
+    </div>
+
+    <div class="pf-field">
+      <label>Body <span style="color:var(--bad)">*</span></label>
+      <textarea name="body" required placeholder="Write the announcement…"></textarea>
+    </div>
+
+    <div class="f-foot">
+      <button type="submit" class="btn y">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>
+        Publish
+      </button>
+      <a href="{% url 'people_culture' %}" class="btn ghost">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

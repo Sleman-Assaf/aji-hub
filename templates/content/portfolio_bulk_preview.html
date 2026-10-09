@@ -1,0 +1,71 @@
+{# templates/content/portfolio_bulk_preview.html — what the upload would do. #}
+{# Nothing has been written at this point. The rows travel back in a hidden #}
+{# field rather than the session, so the confirm is against exactly what is on #}
+{# the screen and a second person uploading at the same time cannot swap it. #}
+{% extends 'base.html' %}
+{% block title %}Check the upload — Projects{% endblock %}
+{% block content %}
+
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">Projects · bulk edit</div>
+    <h1>Check before saving</h1>
+    <p>Nothing has been saved yet. This is what the spreadsheet would do.</p>
+  </div>
+</div>
+
+<div class="pjx-tally rise">
+  <span class="pjx-t add"><b>{{ creates }}</b> to add</span>
+  <span class="pjx-t upd"><b>{{ updates }}</b> to update</span>
+  {% if errors %}<span class="pjx-t err"><b>{{ errors|length }}</b> skipped</span>{% endif %}
+</div>
+
+{% if errors %}
+<div class="pjx-errs rise">
+  <b>These rows will not be saved</b>
+  <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  <span class="muted">Everything else below still goes in. Fix these in the sheet and upload again if you need them.</span>
+</div>
+{% endif %}
+
+{% if plan %}
+<div class="pjx-prev rise">
+  <table>
+    <thead>
+      <tr><th></th><th>Name</th><th>Location</th><th>Division</th><th>Type</th><th>Year</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {% for r in plan %}
+      <tr>
+        <td><span class="pill {% if r.action == 'create' %}ok{% else %}info{% endif %}">
+          {% if r.action == 'create' %}new{% else %}Ref {{ r.ref }}{% endif %}</span></td>
+        <td><b>{{ r.name }}</b></td>
+        <td>{{ r.location }}</td>
+        <td>{{ r.division|default:"—" }}</td>
+        <td>{{ r.type|default:"—" }}</td>
+        <td>{{ r.year|default:"—" }}</td>
+        <td>{{ r.status|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="pjx-confirm rise">
+  <form method="post" action="{% url 'project_bulk_apply' %}">
+    {% csrf_token %}
+    <input type="hidden" name="payload" value="{{ payload }}">
+    <button type="submit" class="btn y">Save these {{ plan|length }} row{{ plan|length|pluralize }}</button>
+  </form>
+  <a href="{% url 'portfolio_manage' %}" class="btn ghost">Cancel</a>
+  <span class="muted" style="font-size:12px">
+    A blank cell on an existing project leaves that field as it is — it does not clear it.
+  </span>
+</div>
+{% else %}
+<div class="pjx-none rise">Nothing in that sheet could be saved.
+  <a href="{% url 'portfolio_manage' %}">Back to projects</a>
+</div>
+{% endif %}
+
+{% endblock %}

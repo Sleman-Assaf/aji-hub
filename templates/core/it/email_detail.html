@@ -1,0 +1,309 @@
+{% extends 'core/it/_shell.html' %}
+{% load cms_tags %}
+{# One email case. Everything editable about it, with a preview beside the form #}
+{# and the placeholders listed where they are needed rather than in a manual. #}
+
+{% block it_note %}{{ case.module_label }}. {{ case.when }}.{% endblock %}
+
+{% block it_back %}
+<a class="it-pg" href="{% url 'it_emails' %}?module={{ case.module }}"
+   style="margin-bottom:16px">{% icon "chevron-left" 14 %} All emails</a>
+{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+.eml-split{display:grid;gap:16px;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
+  align-items:start}
+@media(max-width:980px){.eml-split{grid-template-columns:1fr}}
+.eml-field{margin-bottom:16px}
+.eml-field:last-child{margin-bottom:0}
+.eml-hint{font-size:11.5px;color:var(--muted);margin:5px 0 0;line-height:1.5}
+textarea.it-in{min-height:150px;resize:vertical;line-height:1.6}
+/* The placeholders. Buttons rather than a list, because the useful thing to do
+   with one is put it in the box you are typing in. */
+.eml-tokens{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.eml-token{font-family:var(--mono,monospace);font-size:11.5px;padding:3px 8px;
+  border:1px solid var(--line-2);border-radius:7px;background:var(--paper-2);cursor:pointer;
+  color:var(--ink-2);transition:.12s}
+.eml-token:hover{border-color:var(--ink);color:var(--ink);background:var(--paper)}
+/* The preview. Not the real email layout, which is a table built for Outlook and
+   would fight this page's styles; it shows the words and where they sit. */
+.eml-prev{border:1px solid var(--line-2);border-radius:11px;overflow:hidden;
+  background:var(--paper-2)}
+.eml-prev-h{padding:12px 15px;border-bottom:1px solid var(--line);background:var(--paper)}
+.eml-prev-h .l{font-size:10px;font-weight:800;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px}
+.eml-prev-h .s{font-size:14px;font-weight:700;line-height:1.35}
+.eml-prev-b{padding:15px}
+.eml-prev-b p{margin:0 0 11px;font-size:13px;line-height:1.65;color:var(--ink-2)}
+.eml-prev-b p:last-of-type{margin-bottom:0}
+.eml-btn{display:inline-block;margin-top:14px;background:var(--yellow);
+  color:var(--on-yellow);font-weight:700;font-size:12.5px;padding:9px 16px;border-radius:8px}
+.eml-foot{margin-top:13px;padding-top:11px;border-top:1px solid var(--line);
+  font-size:11px;color:var(--muted);line-height:1.5}
+.eml-facts{display:grid;gap:9px}
+.eml-fact{display:grid;grid-template-columns:112px minmax(0,1fr);gap:12px;
+  font-size:12.5px;align-items:baseline}
+.eml-fact b{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted)}
+.eml-check{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;
+  border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:var(--paper-2)}
+.eml-check:last-of-type{margin-bottom:0}
+.eml-check input{margin-top:2px;flex:none;width:16px;height:16px;accent-color:var(--ink)}
+.eml-check b{display:block;font-size:13px;font-weight:650}
+.eml-check span{display:block;font-size:11.5px;color:var(--muted);margin-top:2px;
+  line-height:1.5}
+</style>
+{% endblock %}
+
+{% block it_content %}
+
+<form method="post" action="{% url 'it_email_save' case.code %}" id="edForm">
+{% csrf_token %}
+
+<div class="eml-split">
+
+  {# ── the editor ── #}
+  <div>
+    <div class="it-card">
+      <div class="it-card-h">{% icon "edit" 16 %} What it says
+        <span class="sp"></span>
+        {% if not is_standard %}
+        <span class="it-chip y">Reworded</span>{% endif %}
+      </div>
+      <div class="it-card-b">
+        <div class="eml-field">
+          <label class="it-lab" for="edSubject">Subject line</label>
+          <input class="it-in" id="edSubject" name="subject" value="{{ subject_value }}"
+                 maxlength="300" autocomplete="off">
+          <p class="eml-hint">This is the subject going out now. Change a word
+            and save.</p>
+        </div>
+
+        <div class="eml-field">
+          <label class="it-lab" for="edBody">Body</label>
+          <textarea class="it-in" id="edBody" name="body">{{ body_value }}</textarea>
+          <p class="eml-hint">This is the wording going out now. One paragraph
+            per line.{% if is_standard %} It is the standard wording, so it will
+            keep up with any later improvement until you change it.{% endif %}</p>
+          {% if case.placeholders %}
+          <div class="eml-tokens">
+            {% for p in case.placeholders %}
+            <button type="button" class="eml-token" data-token="{{ p }}"
+                    title="Insert {{ p }}">&#123;{{ p }}&#125;</button>
+            {% endfor %}
+          </div>
+          <p class="eml-hint">Click one to drop it in. It is replaced with the real
+            value when the email is sent.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="it-card">
+      <div class="it-card-h">{% icon "settings" 16 %} How it is sent</div>
+      <div class="it-card-b">
+        <label class="eml-check">
+          <input type="checkbox" name="enabled" value="1"
+                 {% if enabled %}checked{% endif %}>
+          <span>
+            <b>Send this by email</b>
+            <span>Off means no email. The notification still appears in the Hub,
+              so people are not left in the dark.</span>
+          </span>
+        </label>
+
+        <label class="eml-check">
+          <input type="checkbox" name="high_importance" value="1"
+                 {% if high_importance %}checked{% endif %}>
+          <span>
+            <b>High importance</b>
+            <span>Outlook marks it urgent and sorts it accordingly. Worth it for
+              a deadline; on everything, it stops meaning anything.</span>
+          </span>
+        </label>
+
+        {% if attachment_choices %}
+        {% for value, label in attachment_choices %}
+        <label class="eml-check">
+          <input type="checkbox" name="attachment" value="{{ value }}"
+                 {% if attachment == value %}checked{% endif %}>
+          <span>
+            <b>Attach a file</b>
+            <span>{{ label }}</span>
+          </span>
+        </label>
+        {% endfor %}
+        {% endif %}
+
+        {% if case.note %}
+        <p class="eml-hint" style="margin-top:12px">{{ case.note }}</p>
+        {% endif %}
+      </div>
+      <div class="it-bar">
+        <button class="btn y" type="submit">Save</button>
+        <span class="sp" style="flex:1"></span>
+        {% if not is_standard %}
+        <button class="it-pg" type="submit" form="edReset"
+                data-confirm="Put the standard wording back? What you have written here will be replaced.">
+          Back to standard</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── the preview, and the facts about this case ── #}
+  <div>
+    <div class="it-card">
+      <div class="it-card-h">{% icon "eye" 16 %} How it will read</div>
+      <div class="it-card-b">
+        <div class="eml-prev">
+          <div class="eml-prev-h">
+            <span class="l">Subject</span>
+            <span class="s" id="edPrevSubject">{{ shape.subject }}</span>
+          </div>
+          <div class="eml-prev-b" id="edPrevBody">
+            {% for line in shape.body_lines %}<p>{{ line }}</p>{% endfor %}
+            <span class="eml-btn">{{ shape.link_label }}</span>
+            {% if shape.footer %}<div class="eml-foot">{{ shape.footer }}</div>{% endif %}
+          </div>
+        </div>
+        <p class="eml-hint">Filled in with example values, so this is how the
+          email actually reads. Dashes are stripped on the way out, so one typed
+          into the boxes will not reach an inbox.</p>
+      </div>
+    </div>
+
+    <div class="it-card">
+      <div class="it-card-h">{% icon "info" 16 %} This email</div>
+      <div class="it-card-b">
+        <div class="eml-facts">
+          <div class="eml-fact"><b>Module</b><span>{{ case.module_label }}</span></div>
+          <div class="eml-fact"><b>Fires when</b><span>{{ case.when }}</span></div>
+          <div class="eml-fact"><b>Goes to</b><span>{{ case.to }}</span></div>
+          <div class="eml-fact"><b>Button</b><span>{{ shape.link_label }}</span></div>
+          <div class="eml-fact"><b>Reference</b>
+            <span class="it-mono">{{ case.code }}</span></div>
+          {% if template and template.updated_at %}
+          <div class="eml-fact"><b>Last changed</b>
+            <span>{{ template.updated_at|date:"j M Y, H:i" }}{% if template.updated_by %}
+              by {{ template.updated_by.get_full_name|default:template.updated_by.username }}{% endif %}</span></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="it-card">
+      <div class="it-card-h">{% icon "send" 16 %} Try it</div>
+      <div class="it-card-b">
+        <p class="eml-hint" style="margin:0 0 10px">Sends this email with whatever
+          is in the boxes now, saved or not. A browser cannot show you what
+          Outlook does with a subject line or whether the attachment arrives.</p>
+        <label class="it-lab" for="edTo">Send to</label>
+        <input class="it-in" id="edTo" name="to" value="{{ my_email }}"
+               placeholder="you@ajigroup.com" form="edTest">
+      </div>
+      <div class="it-bar">
+        <button class="it-pg" type="submit" form="edTest">Send it to me</button>
+      </div>
+    </div>
+  </div>
+</div>
+</form>
+
+{# Two more forms, outside the first: a form inside a form is not legal markup #}
+{# and the browser drops the inner one, so the buttons above target these by id. #}
+<form method="post" action="{% url 'it_email_reset' case.code %}" id="edReset">
+  {% csrf_token %}
+</form>
+<form method="post" action="{% url 'it_email_test' case.code %}" id="edTest">
+  {% csrf_token %}
+  <input type="hidden" name="subject" id="edTestSubject">
+  <input type="hidden" name="body" id="edTestBody">
+  <input type="hidden" name="high_importance" id="edTestImportance">
+</form>
+
+<script>
+(function () {
+  var subject = document.getElementById('edSubject');
+  var body = document.getElementById('edBody');
+  var important = document.querySelector('input[name="high_importance"]');
+  var prevSubject = document.getElementById('edPrevSubject');
+  var prevBody = document.getElementById('edPrevBody');
+
+  // The dash rule, mirrored here so the preview tells the truth about what will
+  // be sent. The server strips them on save and again on send; this is only so
+  // somebody typing one sees immediately that it will not survive.
+  function noDashes(text) {
+    return text.replace(/\s*(?:—|–|―|−|--)\s*/g, function (m, i) {
+      var before = text[i - 1] || '', after = text[i + m.length] || '';
+      if (/\d/.test(before) && /\d/.test(after)) return ' to ';
+      return (before && after) ? ', ' : ' ';
+    }).trim();
+  }
+
+  // The same example values the server used for the first paint, so the preview
+  // does not switch from "The Athar Award" to "{award_title}" the moment somebody
+  // types a character into the subject.
+  var examples = {{ examples_json|safe }};
+
+  function fill(text) {
+    return text.replace(/\{(\w+)\}/g, function (whole, key) {
+      return Object.prototype.hasOwnProperty.call(examples, key)
+        ? examples[key] : whole;
+    });
+  }
+
+  function paint() {
+    prevSubject.textContent = noDashes(fill(subject.value));
+
+    var lines = body.value.split('\n')
+      .map(function (l) { return noDashes(fill(l)); })
+      .filter(function (l) { return l; });
+    // Rebuilt rather than patched: the button and the footnote live in here too,
+    // and replacing only the paragraphs would leave duplicates of both.
+    var html = lines.map(function (l) {
+      var p = document.createElement('p');
+      p.textContent = l;
+      return p.outerHTML;
+    }).join('');
+    html += '<span class="eml-btn">{{ shape.link_label|escapejs }}</span>';
+    {% if shape.footer %}
+    html += '<div class="eml-foot">{{ shape.footer|escapejs }}</div>';
+    {% endif %}
+    prevBody.innerHTML = html;
+  }
+
+  subject.addEventListener('input', paint);
+  body.addEventListener('input', paint);
+
+  // Insert a placeholder at the cursor in whichever box was last focused, so
+  // clicking a token does the thing it looks like it does.
+  var last = body;
+  [subject, body].forEach(function (el) {
+    el.addEventListener('focus', function () { last = el; });
+  });
+  document.querySelectorAll('.eml-token').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var token = '{' + btn.dataset.token + '}';
+      var start = last.selectionStart, end = last.selectionEnd;
+      var value = last.value;
+      last.value = value.slice(0, start) + token + value.slice(end);
+      last.focus();
+      last.selectionStart = last.selectionEnd = start + token.length;
+      paint();
+    });
+  });
+
+  // The test form posts what is on screen, not what was saved.
+  document.getElementById('edTest').addEventListener('submit', function () {
+    document.getElementById('edTestSubject').value = subject.value;
+    document.getElementById('edTestBody').value = body.value;
+    document.getElementById('edTestImportance').value =
+      (important && important.checked) ? '1' : '';
+  });
+})();
+</script>
+
+{% endblock %}

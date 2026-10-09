@@ -1,0 +1,74 @@
+{# templates/content/hr_detail.html #}
+{% extends 'base.html' %}
+{% block title %}{{ update.title }} — HR Information{% endblock %}
+{% block content %}
+<a href="{% url 'people_culture' %}" class="ctx-back" title="People &amp; Culture"><span class="ctx-back-lab">People &amp; Culture</span></a>
+
+<div class="card rise" style="max-width:820px;padding:0;overflow:hidden">
+  {# 16:9 matches the ratio the cover is cropped to, so the framing HR chose #}
+  {# is exactly what appears here — no second, surprise crop. #}
+  {% if update.image %}
+  <img src="{{ update.image.url }}" alt=""
+       style="display:block;width:100%;aspect-ratio:16/9;object-fit:cover">
+  {% endif %}
+  <div style="padding:24px 26px">
+    <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="pill info">{{ update.badge }}</span>
+      {% if update.pinned %}<span class="pill warn">Pinned</span>{% endif %}
+      {% if not update.is_live %}<span class="pill mut">{{ update.state_label }}</span>{% endif %}
+      {% if is_hr %}
+      <a href="{% url 'hr_edit' update.pk %}" class="btn ghost sm" style="margin-left:auto">Edit</a>
+      {% endif %}
+    </div>
+
+    <h1 style="font-size:28px;line-height:1.18;letter-spacing:-.03em;margin-bottom:10px">{{ update.title }}</h1>
+    <div class="muted" style="font-size:13px;margin-bottom:20px">
+      {{ update.date|date:"j F Y" }}
+      {% if update.author_name %} · {{ update.author_name }}{% endif %}
+      · {{ update.read_minutes }} min read · {{ update.views }} view{{ update.views|pluralize }}
+    </div>
+
+    <div style="font-size:14.5px;line-height:1.75;color:var(--ink-2)">{{ update.body|linebreaks }}</div>
+
+    {% if attachments %}
+    <div style="margin-top:24px;padding-top:18px;border-top:1px solid var(--line)">
+      <div class="eyebrow" style="margin-bottom:13px">Attachments</div>
+
+      {% for a in attachments %}{% if a.is_image %}
+      <figure style="margin:0 0 14px">
+        <img src="{{ a.file.url }}" alt="{{ a.caption }}" style="width:100%;border:1px solid var(--line);display:block">
+        {% if a.caption %}<figcaption class="muted" style="font-size:12px;margin-top:6px">{{ a.caption }}</figcaption>{% endif %}
+      </figure>
+      {% endif %}{% endfor %}
+
+      {% for a in attachments %}{% if not a.is_image %}
+      <a href="{{ a.file.url }}" download
+         style="display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);margin-bottom:8px;text-decoration:none;color:inherit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="17" height="17" style="flex:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        <span style="flex:1;font-size:13.5px;font-weight:600">{{ a.caption|default:a.filename }}</span>
+        <span class="btn ghost sm">Download</span>
+      </a>
+      {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if others %}
+<div style="max-width:820px;margin-top:26px">
+  <div class="sec-head"><h2>More from HR</h2></div>
+  <div class="hrf" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
+    {% for o in others %}
+    <a href="{% url 'hr_detail' o.slug %}" class="hrf-card">
+      {% if o.image %}<span class="hrf-cover"><img src="{{ o.image.url }}" alt="" loading="lazy"></span>{% endif %}
+      <span class="hrf-body">
+        <span class="hrf-top"><span class="pill info">{{ o.badge }}</span></span>
+        <span class="hrf-title" style="font-size:14px">{{ o.title }}</span>
+        <span class="hrf-foot"><span>{{ o.date|date:"j M Y" }}</span></span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

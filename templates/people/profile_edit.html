@@ -1,0 +1,494 @@
+{# templates/people/profile_edit.html #}
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}My Profile — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+.prof-layout{display:grid;grid-template-columns:280px 1fr;gap:22px;align-items:start}
+
+/* ── Profile card ── */
+.prof-card{border:1px solid var(--line);background:var(--paper-2);padding:28px 22px;text-align:center}
+.prof-av-wrap{position:relative;width:110px;height:110px;margin:0 auto 16px}
+.prof-av{width:110px;height:110px;border-radius:50%;background:linear-gradient(135deg,var(--ink),#3a3a38);color:var(--yellow);font-size:32px;font-weight:700;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.prof-av img{width:100%;height:100%;object-fit:cover}
+.prof-av-edit{position:absolute;bottom:4px;right:4px;width:28px;height:28px;background:var(--ink);color:var(--paper-2);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px solid #fff;transition:background .13s}
+.prof-av-edit:hover{background:var(--yellow);color:var(--on-yellow)}
+.prof-av-edit svg{width:13px;height:13px}
+.prof-name{font-size:18px;font-weight:700;letter-spacing:-.02em;margin-bottom:4px}
+.prof-role{font-size:13px;color:var(--muted);margin-bottom:4px}
+.prof-dept{font-size:12px;color:var(--muted-2)}
+.prof-entity{display:inline-block;margin-top:10px;padding:3px 12px;background:var(--disc);color:var(--yellow);font-size:11px;font-weight:700;letter-spacing:.06em}
+.prof-divider{border:none;border-top:1px solid var(--line);margin:18px 0}
+.prof-meta{text-align:left;font-size:13px}
+.prof-meta-row{display:flex;align-items:center;gap:8px;padding:6px 0;color:var(--ink-2)}
+.prof-meta-row svg{width:14px;height:14px;color:var(--muted);flex:none}
+.prof-meta-row a{color:var(--ink);text-decoration:none}
+.prof-meta-row a:hover{color:var(--yellow-deep)}
+
+/* CV card */
+.cv-card{border:1px solid var(--line);background:var(--paper-2);padding:18px 20px}
+.cv-current{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--ok-bg);border:1px solid var(--ok);margin-bottom:14px}
+.cv-current svg{width:24px;height:24px;color:var(--ok);flex:none}
+.cv-current-info{flex:1;min-width:0}
+.cv-current-name{font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cv-current-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.cv-drop{border:2px dashed var(--line-2);padding:24px 20px;text-align:center;cursor:pointer;transition:border-color .13s,background .13s}
+.cv-drop:hover,.cv-drop.over{border-color:var(--ink);background:var(--paper)}
+.cv-drop svg{width:32px;height:32px;opacity:.2;margin:0 auto 8px;display:block}
+.cv-drop p{font-size:13px;color:var(--muted);margin:0}
+.cv-drop strong{color:var(--ink)}
+
+/* Skills section */
+.skills-section{border:1px solid var(--line);background:var(--paper-2)}
+.skills-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.skills-body{padding:20px}
+.skill-cat{margin-bottom:22px}
+.skill-cat:last-child{margin-bottom:0}
+.skill-cat-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.skill-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.skill-item{border:1px solid var(--line);padding:10px 12px;cursor:pointer;transition:border-color .12s,background .12s;position:relative}
+.skill-item.selected{border-color:var(--ink);background:var(--paper)}
+.skill-item.selected::before{content:'✓';position:absolute;top:6px;right:8px;font-size:11px;font-weight:700;color:var(--ink)}
+.skill-item:hover{border-color:var(--ink-2)}
+.skill-name{font-weight:600;font-size:13px}
+.skill-level-sel{display:none;margin-top:8px}
+.skill-item.selected .skill-level-sel{display:block}
+.skill-level-sel select{width:100%;border:1px solid var(--line-2);padding:5px 8px;font-family:inherit;font-size:12px;outline:none;background:var(--paper-2)}
+.skill-level-sel select:focus{border-color:var(--ink)}
+
+/* My current skills badges */
+.my-skills-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.skill-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--line-2);font-size:12px;font-weight:600;background:var(--paper)}
+.skill-badge .lvl{font-size:10px;color:var(--muted)}
+
+/* Section card */
+.section-card{border:1px solid var(--line);background:var(--paper-2);margin-bottom:16px}
+.section-card-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}
+.section-card-head svg{width:16px;height:16px;color:var(--muted)}
+.section-card-body{padding:20px}
+
+.form-field{margin-bottom:16px}
+.form-field label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:6px}
+.form-field input[type=text],
+.form-field input[type=url],
+.form-field textarea{width:100%;border:1px solid var(--line-2);padding:10px 13px;font-family:inherit;font-size:14px;outline:none;box-sizing:border-box;transition:border-color .13s;background:var(--paper-2)}
+.form-field input:focus,.form-field textarea:focus{border-color:var(--ink)}
+.form-field textarea{resize:vertical;min-height:100px}
+
+@media(max-width:860px){
+  .prof-layout{grid-template-columns:1fr}
+  .skill-grid{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ── Crop Modal ── */
+#cropModal{display:none;position:fixed;inset:0;z-index:9000;background:rgba(18,18,16,.7);align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
+#cropModal.show{display:flex}
+.crop-box{background:var(--paper-2);width:min(500px,94vw);max-height:calc(100vh - 32px);display:flex;flex-direction:column;padding:20px;box-shadow:0 24px 70px rgba(18,18,16,.35);box-sizing:border-box}
+.crop-box h3{margin:0 0 12px;font-size:17px;font-weight:700;flex:none}
+.crop-wrap{position:relative;flex:1;min-height:0;background:#111;overflow:hidden}
+#cropImg{display:block;max-width:100%}
+.crop-controls{display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
+.crop-btn{display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border:1px solid var(--line-2);background:var(--paper-2);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:background .12s}
+.crop-btn:hover{background:var(--paper-2)}
+.crop-btn.primary{background:var(--ink);color:var(--paper-2);border-color:var(--ink)}
+.crop-btn.primary:hover{background:#333}
+.crop-slider-wrap{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.crop-slider-wrap input[type=range]{width:90px;accent-color:var(--ink)}
+</style>
+<link rel="stylesheet" href="{% static 'vendor/cropperjs/cropper.min.css' %}">
+<script src="{% static 'vendor/cropperjs/cropper.min.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-head rise">
+  <div class="eyebrow">Account</div>
+  <h1>My Profile</h1>
+</div>
+
+<div class="prof-layout rise" style="animation-delay:.04s">
+
+  {# ── Left sidebar ── #}
+  <div>
+
+    {# Profile card #}
+    <div class="prof-card" style="margin-bottom:16px">
+      <form data-save method="post" enctype="multipart/form-data" id="photoForm">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="profile">
+
+        <div class="prof-av-wrap">
+          <div class="prof-av">
+            {% if emp.photo %}
+            <img src="{{ emp.photo.url }}" alt="{{ emp.initials }}" id="avatarPreview">
+            {% else %}
+            <span id="avatarInitials">{{ emp.initials }}</span>
+            {% endif %}
+          </div>
+          <label class="prof-av-edit" for="photoInput" title="Change photo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </label>
+          <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="openCropModal(this)">
+          {# Actual upload field — receives cropped blob #}
+          <input type="hidden" name="photo_cropped" id="photoCroppedData">
+          <input type="hidden" name="photo_filename" id="photoFilename">
+        </div>
+
+        <div class="prof-name">{{ emp.full_name }}</div>
+        <div class="prof-role">{{ emp.role }}</div>
+        {% if emp.department %}<div class="prof-dept">{{ emp.department.name }}</div>{% endif %}
+        {% if emp.entity %}<div class="prof-entity">{{ emp.entity.short_name }}</div>{% endif %}
+
+        <hr class="prof-divider">
+
+        <div class="prof-meta">
+          <div class="prof-meta-row">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            <span>{{ emp.email }}</span>
+          </div>
+          {% if emp.extension %}
+          <div class="prof-meta-row">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
+            Ext {{ emp.extension }}
+          </div>
+          {% endif %}
+          {% if emp.country %}
+          <div class="prof-meta-row">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            {{ emp.country }}
+          </div>
+          {% endif %}
+          {% if emp.linkedin %}
+          <div class="prof-meta-row">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+            <a href="{{ emp.linkedin }}" target="_blank">LinkedIn</a>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if emp.photo %}
+        <div style="margin-top:12px">
+          <button type="submit" form="removePhotoForm" class="btn ghost sm" style="font-size:11px;color:var(--bad)">Remove photo</button>
+        </div>
+        {% endif %}
+
+      </form>
+    </div>
+
+    {# CV card #}
+    <div class="cv-card">
+      <div class="section-card-head" style="padding:0 0 14px;border-bottom:1px solid var(--line);margin-bottom:16px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        <span style="font-weight:700;font-size:14px">CV / Resume</span>
+      </div>
+
+      {% if emp.cv %}
+      <div class="cv-current">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>
+        <div class="cv-current-info">
+          <div class="cv-current-name">{{ emp.cv.name|slice:"30:" }}</div>
+          <div class="cv-current-sub">
+            <a href="{{ emp.cv.url }}" target="_blank" class="btn ghost sm" style="font-size:11px;margin-right:6px">View</a>
+            <button type="submit" form="removeCvForm" class="btn ghost sm" style="font-size:11px;color:var(--bad)">Remove</button>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 12px">Upload a new file to replace:</p>
+      {% endif %}
+
+      <form data-save method="post" enctype="multipart/form-data" id="cvForm">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="profile">
+        <div class="cv-drop" id="cvDrop" onclick="document.getElementById('cvInput').click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <p><strong>Click to upload</strong> or drag and drop</p>
+          <p style="font-size:11px;margin-top:4px">PDF, DOC, DOCX (max 10MB)</p>
+          <p id="cvFileName" style="margin-top:8px;font-weight:700;font-size:13px;display:none"></p>
+        </div>
+        <input type="file" id="cvInput" name="cv" accept=".pdf,.doc,.docx" style="display:none">
+        <button type="submit" class="btn y" style="width:100%;margin-top:12px">Upload CV</button>
+      </form>
+    </div>
+
+  </div>
+
+  {# ── Right panel ── #}
+  <div>
+
+    {# Personal info form #}
+    <div class="section-card" style="margin-bottom:16px">
+      <div class="section-card-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Personal Information
+      </div>
+      <div class="section-card-body">
+        <form data-save method="post" enctype="multipart/form-data" id="infoForm">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="profile">
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="form-field">
+              <label>Full Name</label>
+              <input type="text" value="{{ emp.full_name }}" disabled style="background:var(--paper-3);color:var(--muted)">
+            </div>
+            <div class="form-field">
+              <label>Position</label>
+              <input type="text" value="{{ emp.role }}" disabled style="background:var(--paper-3);color:var(--muted)">
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label>LinkedIn Profile URL</label>
+            <input type="url" name="linkedin" value="{{ emp.linkedin }}" placeholder="https://linkedin.com/in/your-profile">
+          </div>
+
+          <div class="form-field">
+            <label>Bio / About me</label>
+            <textarea name="bio" placeholder="A short description about yourself, your expertise and interests…">{{ emp.bio }}</textarea>
+          </div>
+
+          {# Photo upload triggers from sidebar but submits here #}
+          <div class="f-foot">
+            <button type="submit" class="btn y">Save changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {# Skills section #}
+    <div class="skills-section">
+      <div class="skills-head">
+        <div style="font-weight:700;font-size:15px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:6px"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          Skills
+        </div>
+        {% if my_skills %}
+        <span class="pill ok" style="font-size:11px">{{ my_skills.count }} skill{{ my_skills.count|pluralize }}</span>
+        {% endif %}
+      </div>
+
+      {% if my_skills %}
+      <div style="padding:16px 20px;border-bottom:1px solid var(--line)">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px">Current skills</div>
+        <div class="my-skills-wrap">
+          {% for es in my_skills %}
+          <div class="skill-badge">
+            {{ es.skill.name }}
+            <span class="lvl">{{ es.get_level_display }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <form data-save method="post" id="skillsForm">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="skills">
+
+        <div class="skills-body">
+          <p style="font-size:13px;color:var(--muted);margin:0 0 16px">Click a skill to add/remove it, then set your proficiency level.</p>
+
+          {% for cat, skills in skills_by_cat.items %}
+          <div class="skill-cat">
+            <div class="skill-cat-name">{{ cat }}</div>
+            <div class="skill-grid">
+              {% for s in skills %}
+              <div class="skill-item {% if s.selected %}selected{% endif %}" id="si_{{ s.id }}"
+                   onclick="toggleSkill({{ s.id }})">
+                <div class="skill-name">{{ s.name }}</div>
+                <div class="skill-level-sel">
+                  <select name="skill_level_{{ s.id }}" onclick="event.stopPropagation()">
+                    {% for val, label in level_labels.items %}
+                    <option value="{{ val }}" {% if s.level == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <input type="checkbox" name="skills" value="{{ s.id }}"
+                         id="sk_{{ s.id }}" {% if s.selected %}checked{% endif %}
+                         style="display:none">
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="f-foot" style="padding:16px 20px 0">
+          <button type="submit" class="btn y">Save skills</button>
+        </div>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+{# Hidden forms for remove actions #}
+<form data-save="reload" method="post" id="removePhotoForm" style="display:none">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="remove_photo">
+</form>
+<form data-save="reload" method="post" id="removeCvForm" style="display:none">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="remove_cv">
+</form>
+
+<script>
+/* ── Photo Crop ── */
+var cropperInst = null;
+var cropFlipX   = 1;
+var _cropFile   = null;
+
+function openCropModal(input) {
+  if (!input.files || !input.files[0]) return;
+  _cropFile = input.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = document.getElementById('cropImg');
+    // Reset image first
+    if (cropperInst) { cropperInst.destroy(); cropperInst = null; }
+    img.src = '';
+    document.getElementById('cropModal').classList.add('show');
+    cropFlipX = 1;
+    document.getElementById('cropZoom').value = 1;
+    // Wait for image to load before initializing Cropper
+    img.onload = function() {
+      cropperInst = new Cropper(img, {
+      aspectRatio:   1,          // square crop for avatar
+      viewMode:      1,
+      dragMode:      'move',
+      autoCropArea:  0.9,
+      restore:       false,
+      guides:        true,
+      center:        true,
+      highlight:     false,
+      cropBoxMovable: true,
+      cropBoxResizable: true,
+      toggleDragModeOnDblclick: false,
+      zoom: function(e) {
+        document.getElementById('cropZoom').value = e.detail.ratio;
+      },
+      ready: function() {
+        document.getElementById('cropZoom').value = 1;
+      },
+    });
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(_cropFile);
+}
+
+function cropReset() {
+  if (cropperInst) { cropperInst.reset(); cropFlipX = 1; }
+}
+
+function closeCropModal() {
+  document.getElementById('cropModal').classList.remove('show');
+  if (cropperInst) { cropperInst.destroy(); cropperInst = null; }
+  document.getElementById('photoInput').value = '';
+}
+
+function applyCrop() {
+  if (!cropperInst) return;
+  const btn = document.querySelector('.crop-btn.primary');
+  btn.textContent = 'Saving…';
+  btn.disabled = true;
+
+  const canvas = cropperInst.getCroppedCanvas({ width: 400, height: 400, imageSmoothingQuality: 'high' });
+  canvas.toBlob(function(blob) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      // Store base64 in hidden field, preview in avatar
+      const b64 = e.target.result;
+      document.getElementById('photoCroppedData').value = b64;
+      document.getElementById('photoFilename').value    = _cropFile ? _cropFile.name : 'photo.jpg';
+
+      // Update avatar preview
+      const av = document.querySelector('.prof-av');
+      av.innerHTML = `<img src="${b64}" alt="Preview" style="width:100%;height:100%;object-fit:cover">`;
+
+      // Submit photoForm
+      closeCropModal();
+      document.getElementById('photoForm').submit();
+    };
+    reader.readAsDataURL(blob);
+  }, 'image/jpeg', 0.92);
+}
+
+// Close on backdrop click
+document.getElementById('cropModal').addEventListener('click', function(e) {
+  if (e.target === this) closeCropModal();
+});
+
+/* ── CV drag & drop ── */
+const drop = document.getElementById('cvDrop');
+const cvInput = document.getElementById('cvInput');
+
+cvInput?.addEventListener('change', function() {
+  if (this.files[0]) {
+    const fn = document.getElementById('cvFileName');
+    fn.textContent = '📎 ' + this.files[0].name;
+    fn.style.display = 'block';
+  }
+});
+
+drop?.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop?.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop?.addEventListener('drop', e => {
+  e.preventDefault();
+  drop.classList.remove('over');
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  cvInput.files = dt.files;
+  const fn = document.getElementById('cvFileName');
+  fn.textContent = '📎 ' + file.name;
+  fn.style.display = 'block';
+});
+
+/* ── Skill toggle ── */
+function toggleSkill(id) {
+  const item = document.getElementById('si_' + id);
+  const cb   = document.getElementById('sk_' + id);
+  item.classList.toggle('selected');
+  cb.checked = item.classList.contains('selected');
+}
+</script>
+
+{% endblock %}
+
+{% block extra_body %}
+<!-- Crop Modal — direct child of body so position:fixed is viewport-relative -->
+<div id="cropModal">
+  <div class="crop-box">
+    <h3>✂ Crop &amp; Edit Photo</h3>
+    <div class="crop-wrap">
+      <img id="cropImg" src="" alt="Crop preview">
+    </div>
+    <div class="crop-controls">
+      <div class="crop-slider-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6M8 11h6"/></svg>
+        <input type="range" id="cropZoom" min="0.1" max="3" step="0.05" value="1" oninput="cropperInst&&cropperInst.zoomTo(+this.value)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/></svg>
+      </div>
+      <button class="crop-btn" onclick="cropperInst&&cropperInst.rotate(-90)" title="Rotate left">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        Rotate
+      </button>
+      <button class="crop-btn" onclick="cropFlipX=-cropFlipX;cropperInst&&cropperInst.scaleX(cropFlipX)" title="Flip horizontal">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3"/><path d="M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/><line x1="12" y1="20" x2="12" y2="4"/></svg>
+        Flip
+      </button>
+      <button class="crop-btn" onclick="cropReset()" title="Reset">↺ Reset</button>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="crop-btn" onclick="closeCropModal()">Cancel</button>
+        <button class="crop-btn primary" onclick="applyCrop()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+          Apply &amp; Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,814 @@
+{# templates/services/room_booking.html #}
+{% extends 'base.html' %}
+{% block title %}Meeting Room Booking — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+.rb-rooms{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.rb-room-tab{background:var(--paper-2);border:1px solid var(--line-2);padding:10px 16px;cursor:pointer;font-family:inherit;text-align:left;transition:.14s}
+.rb-room-tab:hover{border-color:var(--ink)}
+.rb-room-tab.active{background:var(--raised);border-color:var(--raised);color:var(--raised-fg)}
+.rb-room-tab b{display:block;font-size:14px}
+.rb-room-tab span{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.rb-room-tab.active span{color:rgba(255,255,255,.65)}
+
+.rb-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+#rbWeekLabel{font-weight:700;font-size:14.5px;min-width:200px;text-align:center}
+.rb-hint{font-size:12px;color:var(--muted)}
+
+.rb-grid-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.rb-grid{display:grid;grid-template-columns:64px repeat(7, minmax(108px,1fr));border:1px solid var(--line);background:var(--paper-2);user-select:none;min-width:900px}
+.rb-hcell{padding:10px 8px;font-size:11.5px;font-weight:700;text-align:center;background:var(--paper);border-bottom:2px solid var(--ink);border-left:1px solid var(--line)}
+.rb-hcell:first-child{border-left:none}
+.rb-hcell .rb-daynum{display:block;font-size:10px;font-weight:600;color:var(--muted);margin-top:1px}
+.rb-hcell.today{background:var(--raised);color:var(--raised-fg)}
+.rb-hcell.today .rb-daynum{color:rgba(255,255,255,.65)}
+.rb-time{padding:8px 8px;font-size:10.5px;color:var(--muted);font-weight:600;border-top:1px solid var(--line);display:flex;align-items:center}
+.rb-cell{min-height:32px;position:relative;cursor:pointer;display:flex;align-items:center;padding:0 8px;border-top:1px solid var(--line);border-left:1px solid var(--line);transition:background .1s}
+.rb-cell.free:hover{background:var(--paper-2)}
+.rb-cell.selecting{background:rgba(252,215,0,.45)}
+.rb-cell.booked{background:var(--paper-3);cursor:default;justify-content:center;text-align:center}
+.rb-cell.booked.own{background:var(--yellow-soft);color:var(--ink)}
+.rb-cell.booked.pending{background:repeating-linear-gradient(45deg,var(--paper-3),var(--paper-3) 6px,var(--paper-2) 6px,var(--paper-2) 12px);opacity:.85}
+.rb-cell.booked.own.pending{color:var(--ink);background:repeating-linear-gradient(45deg,var(--yellow-soft),var(--yellow-soft) 6px,var(--paper-2) 6px,var(--paper-2) 12px)}
+.rb-cell-name{font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;line-height:1.35}
+.rb-own-actions{position:absolute;top:4px;right:4px;display:flex;gap:2px}
+.rb-cancel-btn{background:none;border:none;cursor:pointer;color:var(--bad);opacity:.6;padding:1px;flex:none;display:none}
+.rb-cell.booked.own:hover .rb-cancel-btn{display:block}
+.rb-cancel-btn:hover{opacity:1}
+
+.rb-modal-backdrop{display:none;position:fixed;inset:0;background:rgba(18,18,16,.45);z-index:999}
+.rb-confirm{display:none;position:fixed;z-index:1000;width:400px;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);overflow-y:auto;background:var(--ink);color:var(--paper-2);padding:20px;flex-direction:column;gap:14px;box-shadow:0 20px 50px rgba(18,18,16,.4)}
+.rb-confirm-head{display:flex;align-items:center;justify-content:space-between}
+.rb-confirm-head b{font-size:15px}
+.rb-field-row{display:flex;gap:12px;flex-wrap:wrap}
+.rb-field{flex:1;min-width:160px;display:flex;flex-direction:column;gap:5px}
+.rb-field label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.6)}
+.rb-confirm input[type=text],.rb-confirm input[type=number],.rb-confirm select,.rb-confirm textarea{
+  border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;padding:8px 11px;
+  font-family:inherit;font-size:13px;outline:none;width:100%;box-sizing:border-box;resize:vertical}
+.rb-confirm input::placeholder,.rb-confirm textarea::placeholder{color:rgba(255,255,255,.4)}
+.rb-confirm input:focus,.rb-confirm select:focus,.rb-confirm textarea:focus{border-color:var(--yellow)}
+.rb-confirm select option{color:var(--ink);background:var(--paper-2)}
+.rb-confirm-actions{display:flex;gap:10px}
+
+/* ── invitations and your own meetings ── */
+.rb-panel{border:1px solid var(--line);background:var(--paper-2);margin-bottom:16px}
+.rb-panel-h{display:flex;align-items:center;gap:10px;padding:12px 16px;
+  border-bottom:1px solid var(--line);background:var(--paper)}
+.rb-panel-h b{font-size:13.5px}
+.rb-badge{margin-left:auto;font-size:11.5px;font-weight:700;padding:3px 9px;
+  border-radius:20px;background:var(--yellow);color:var(--on-yellow)}
+.rb-inv{display:flex;align-items:center;gap:14px;padding:12px 16px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line)}
+.rb-inv:last-child{border-bottom:none}
+.rb-inv-when{flex:none;min-width:104px;display:flex;flex-direction:column;line-height:1.3}
+.rb-inv-when b{font-size:13px}
+.rb-inv-when span{font-size:11.5px;color:var(--muted);font-family:var(--mono,monospace)}
+.rb-inv-what{flex:1;min-width:200px;display:flex;flex-direction:column;line-height:1.35}
+.rb-inv-what b{font-size:13.5px}
+.rb-inv-what span{font-size:11.5px;color:var(--muted)}
+.rb-inv-what i{font-style:normal;font-weight:700;color:var(--ink-2)}
+.rb-inv-act{flex:none;display:flex;align-items:center;gap:8px}
+.rb-inv-state{font-size:12px;font-weight:700}
+.rb-inv-state.accepted{color:var(--ok)}
+.rb-inv-state.declined{color:var(--bad)}
+.rb-inv-guests{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px}
+.rb-guest{font-size:11.5px;padding:3px 9px;border-radius:20px;border:1px solid var(--line-2);
+  color:var(--ink-2);background:var(--paper)}
+.rb-guest i{font-style:normal;color:var(--muted)}
+/* The reply, read at a glance: a tick's worth of colour rather than a legend. */
+.rb-guest.accepted{border-color:var(--ok);color:var(--ok);background:var(--ok-bg)}
+.rb-guest.declined{border-color:var(--bad);color:var(--bad);background:var(--bad-bg)}
+
+/* ── the invitee pickers, on a dark dialog ──
+   The picker is drawn for a white page — dark text, white chips, a white
+   dropdown. Inside this modal that is invisible on invisible, so the pieces
+   are restated for the dark surface rather than the component being forked. */
+.rb-invites{display:flex;flex-direction:column;gap:12px;
+  padding:12px;border:1px solid rgba(255,255,255,.14);border-radius:10px;
+  background:rgba(255,255,255,.04)}
+.rb-invites-note{margin:0;font-size:11px;line-height:1.5;color:rgba(255,255,255,.5)}
+.rb-invites .pk{border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.08)}
+.rb-invites .pk-chip{background:rgba(255,255,255,.16);color:#fff;border-color:transparent}
+.rb-invites .pk-x{color:rgba(255,255,255,.7)}
+.rb-invites .pk-x:hover{color:#fff}
+.rb-invites .pk-search input{background:transparent;color:#fff;border:none}
+.rb-invites .pk-search input::placeholder{color:rgba(255,255,255,.4)}
+.rb-invites .pk-search svg{color:rgba(255,255,255,.5)}
+/* The results list stays light: it is a menu floating above the dialog, and a
+   dark menu on a dark dialog loses its edge. */
+.rb-invites .pk-results{background:var(--paper-2);color:var(--ink);
+  box-shadow:0 16px 40px rgba(0,0,0,.5);max-height:210px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">Workplace &amp; Facilities</div>
+    <h1>Meeting Room Booking</h1>
+    <p>Click and drag across free slots to select a time, then save. Bookings are confirmed by the reception desk.</p>
+  </div>
+  {% if is_receptionist %}
+  <a href="{% url 'services:room_requests' %}" class="btn y">Booking requests{% if pending_requests_count %} ({{ pending_requests_count }}){% endif %}</a>
+  {% endif %}
+</div>
+
+{# ── meetings you have been asked to ── #}
+{# Above the grid, because answering an invitation is a thing you came here to #}
+{# do, and below it nobody would find it. Hidden entirely when there is nothing #}
+{# to answer and nothing to report. #}
+{% if my_invites %}
+<div class="rb-panel rise">
+  <div class="rb-panel-h">
+    <b>Your invitations</b>
+    {% if awaiting_count %}<span class="rb-badge">{{ awaiting_count }} awaiting your reply</span>{% endif %}
+  </div>
+  {% for inv in my_invites %}
+  <div class="rb-inv" data-invite="{{ inv.pk }}">
+    <div class="rb-inv-when">
+      <b>{{ inv.booking.date|date:"D j M" }}</b>
+      <span>{{ inv.booking.start_time|time:"H:i" }}–{{ inv.booking.end_time|time:"H:i" }}</span>
+    </div>
+    <div class="rb-inv-what">
+      <b>{{ inv.booking.title|default:inv.booking.where }}</b>
+      <span>
+        {{ inv.booking.where }} ·
+        {{ inv.booking.booked_by.get_full_name|default:inv.booking.booked_by.username }} ·
+        <i>{{ inv.get_kind_display|lower }}</i>
+        {% if inv.booking.status == 'pending' %} · room not confirmed yet{% endif %}
+      </span>
+    </div>
+    <div class="rb-inv-act" data-inv-act>
+      {% if inv.response == 'pending' %}
+      <button type="button" class="btn y sm" data-respond="accepted">Accept</button>
+      <button type="button" class="btn ghost sm" data-respond="declined">Decline</button>
+      {% else %}
+      <span class="rb-inv-state {{ inv.response }}">{{ inv.get_response_display }}</span>
+      <button type="button" class="btn ghost sm" data-respond="{% if inv.response == 'accepted' %}declined{% else %}accepted{% endif %}">
+        Change to {% if inv.response == 'accepted' %}decline{% else %}accept{% endif %}
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── your own meetings, and who has replied ── #}
+{% if my_meetings %}
+<div class="rb-panel rise">
+  <div class="rb-panel-h"><b>Your meetings</b></div>
+  {% for b in my_meetings %}
+  <div class="rb-inv">
+    <div class="rb-inv-when">
+      <b>{{ b.date|date:"D j M" }}</b>
+      <span>{{ b.start_time|time:"H:i" }}–{{ b.end_time|time:"H:i" }}</span>
+    </div>
+    <div class="rb-inv-what">
+      <b>{{ b.title|default:b.where }}</b>
+      <span>{{ b.where }} · {{ b.response_summary }}</span>
+    </div>
+    <div class="rb-inv-guests">
+      {% for i in b.invites.all %}
+      <span class="rb-guest {{ i.response }}" title="{{ i.get_kind_display }} · {{ i.get_response_display }}">
+        {{ i.user.get_full_name|default:i.user.username }}{% if i.kind == 'optional' %} <i>(optional)</i>{% endif %}
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="rb-rooms rise">
+  {% for room in rooms %}
+  <button class="rb-room-tab{% if forloop.first %} active{% endif %}" data-room-id="{{ room.pk }}" onclick="selectRoom({{ room.pk }}, this)">
+    <b>{{ room.name }}</b>
+    <span>{{ room.chairs }} chairs</span>
+  </button>
+  {% endfor %}
+</div>
+
+<div class="rb-toolbar rise">
+  <button class="btn ghost sm" onclick="changeWeek(-1)">&larr; Prev week</button>
+  <div id="rbWeekLabel"></div>
+  <button class="btn ghost sm" onclick="changeWeek(1)">Next week &rarr;</button>
+  <button class="btn ghost sm" onclick="jumpToday()">Today</button>
+  <span class="rb-hint">08:00–17:00, half-hour slots</span>
+</div>
+
+<div class="rb-grid-scroll rise">
+  <div class="rb-grid" id="rbGrid"></div>
+</div>
+
+<div class="rb-modal-backdrop" id="rbBackdrop" onclick="clearSelection()"></div>
+<div class="rb-confirm" id="rbConfirm">
+  <div class="rb-confirm-head">
+    <b id="rbConfirmText"></b>
+    <button type="button" onclick="clearSelection()" style="background:none;border:none;color:rgba(255,255,255,.6);cursor:pointer">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+
+  <div class="rb-field">
+    <label>Meeting title</label>
+    <input type="text" id="rbTitle" placeholder="Optional" maxlength="200">
+  </div>
+
+  <div class="rb-field-row">
+    <div class="rb-field">
+      <label>Internal / External</label>
+      <select id="rbType">
+        <option value="internal">Internal</option>
+        <option value="external">External</option>
+      </select>
+    </div>
+    <div class="rb-field">
+      <label>How many attendees</label>
+      <input type="number" id="rbAttendees" min="1" placeholder="e.g. 8">
+    </div>
+  </div>
+
+  {# ── who is invited ── #}
+  {# Two lists, the way Outlook splits them: required means the meeting needs #}
+  {# them, optional means they are welcome. The count above is a different #}
+  {# question — it is what the catering is priced against, and a meeting can be #}
+  {# booked for twelve and invite four. #}
+  <div class="rb-invites">
+    <div class="rb-field">
+      <label>Required attendees</label>
+      {% include 'exchange/_people_picker.html' with search_url=people_search_url field='required' placeholder='Search colleagues who must attend…' %}
+    </div>
+    <div class="rb-field">
+      <label>Optional attendees</label>
+      {% include 'exchange/_people_picker.html' with search_url=people_search_url field='optional' placeholder='Search colleagues who are welcome…' %}
+    </div>
+    <p class="rb-invites-note">
+      Everyone here gets a notification in the Hub and can accept or decline.
+      They are not emailed yet — that arrives when the Hub can send on your behalf.
+    </p>
+  </div>
+
+  <div class="rb-field">
+    <label>Catering requirements <span style="color:var(--yellow)">*</span></label>
+    <select id="rbCateringNeeded" onchange="toggleCatering()">
+      <option value="">— Select —</option>
+      <option value="no">No</option>
+      <option value="yes">Yes</option>
+    </select>
+  </div>
+  <div id="rbCateringBox" style="display:none">
+    <div id="rbCateringStatus" style="display:none;font-size:11.5px;font-weight:700;padding:7px 10px;margin-bottom:10px"></div>
+    <div class="rb-field">
+      <label>Catering package <span style="color:var(--yellow)">*</span></label>
+      <select id="rbCateringPackage">
+        <option value="">— Choose a package —</option>
+        {% for package in packages %}
+        <option value="{{ package.pk }}">{{ package.get_level_display }} — {{ package.name }} ({{ package.price_per_person }} JD / person)</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="rb-field">
+      <label>Catering notes</label>
+      <textarea id="rbCatering" rows="2" placeholder="Optional — e.g. one guest is vegetarian…"></textarea>
+    </div>
+    <div style="font-size:11px;color:rgba(255,255,255,.7);margin:-4px 0 10px">The package request goes to the Facility Manager for approval, then to the cafeteria. Paid by AJi.</div>
+  </div>
+
+  <div class="rb-field">
+    <label>IT department requirements <span style="color:var(--yellow)">*</span></label>
+    <select id="rbITNeeded" onchange="toggleIT()">
+      <option value="">— Select —</option>
+      <option value="no">No</option>
+      <option value="yes">Yes</option>
+    </select>
+  </div>
+  <div class="rb-field" id="rbITBox" style="display:none">
+    <label>Specify IT requirements <span style="color:var(--yellow)">*</span></label>
+    <textarea id="rbIT" rows="2" placeholder="e.g. projector, video conferencing setup…"></textarea>
+  </div>
+
+  <div class="rb-confirm-actions">
+    <button class="btn y sm" id="rbSaveBtn" onclick="saveBooking()">Save booking</button>
+    <button class="btn ghost sm" style="color:#fff;border-color:rgba(255,255,255,.35)" onclick="clearSelection()">Cancel</button>
+  </div>
+</div>
+
+<script>
+const TIME_SLOTS = {{ time_slots|safe }};
+const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+let selectedRoomId = {{ rooms.0.pk|default:'null' }};
+let weekStart = null;          // Date object, always a Sunday
+let weekDayStrs = [];          // ['2026-07-12', ... x7]
+let scheduleByRoom = {};       // { roomId: { bookings_by_date: {date: [...]} } }
+
+let dragging = false, dragDayIdx = null, dragStart = null, dragEnd = null;
+let editingBookingId = null;
+
+function localDateStr(d) {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function startOfWeek(d) {
+  const result = new Date(d);
+  result.setHours(0,0,0,0);
+  result.setDate(result.getDate() - result.getDay());
+  return result;
+}
+
+function addMinutes(hhmm, mins) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = h * 60 + m + mins;
+  return String(Math.floor(total/60)).padStart(2,'0') + ':' + String(total%60).padStart(2,'0');
+}
+
+function fmtShort(d) {
+  return d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+}
+
+function selectRoom(roomId, btn) {
+  selectedRoomId = roomId;
+  document.querySelectorAll('.rb-room-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  clearSelection();
+  renderGrid();
+}
+
+function changeWeek(delta) {
+  weekStart.setDate(weekStart.getDate() + delta * 7);
+  loadWeekSchedule();
+}
+
+function jumpToday() {
+  weekStart = startOfWeek(new Date());
+  loadWeekSchedule();
+}
+
+async function loadWeekSchedule() {
+  clearSelection();
+  const startStr = localDateStr(weekStart);
+  const r = await fetch(`{% url 'services:room_week_schedule_api' %}?start=${startStr}`);
+  const data = await r.json();
+  weekDayStrs = data.days;
+  scheduleByRoom = {};
+  (data.rooms || []).forEach(rm => scheduleByRoom[rm.id] = rm);
+
+  const endLabel = fmtShort(new Date(weekDayStrs[6]));
+  document.getElementById('rbWeekLabel').textContent = `${fmtShort(weekStart)} – ${endLabel}, ${weekStart.getFullYear()}`;
+  renderGrid();
+}
+
+function bookingForSlot(roomId, dateStr, slot) {
+  const room = scheduleByRoom[roomId];
+  if (!room) return null;
+  const dayBookings = room.bookings_by_date[dateStr] || [];
+  const slotEnd = addMinutes(slot, 30);
+  return dayBookings.find(b => b.start < slotEnd && slot < b.end) || null;
+}
+
+function renderGrid() {
+  const grid = document.getElementById('rbGrid');
+  grid.innerHTML = '';
+  const todayStr = localDateStr(new Date());
+
+  // Header row (row 1)
+  const corner = document.createElement('div');
+  corner.className = 'rb-hcell';
+  corner.style.gridColumn = '1';
+  corner.style.gridRow = '1';
+  grid.appendChild(corner);
+
+  weekDayStrs.forEach((dateStr, dayIdx) => {
+    const h = document.createElement('div');
+    h.className = 'rb-hcell' + (dateStr === todayStr ? ' today' : '');
+    h.style.gridColumn = String(dayIdx + 2);
+    h.style.gridRow = '1';
+    const d = new Date(dateStr + 'T00:00:00');
+    h.innerHTML = `${DAY_NAMES[dayIdx]}<span class="rb-daynum">${fmtShort(d)}</span>`;
+    grid.appendChild(h);
+  });
+
+  // Time labels (column 1)
+  TIME_SLOTS.forEach((slot, slotIdx) => {
+    const timeCol = document.createElement('div');
+    timeCol.className = 'rb-time';
+    timeCol.style.gridColumn = '1';
+    timeCol.style.gridRow = String(slotIdx + 2);
+    timeCol.textContent = slot;
+    grid.appendChild(timeCol);
+  });
+
+  // Day columns — merge consecutive slots that belong to the same booking
+  weekDayStrs.forEach((dateStr, dayIdx) => {
+    let slotIdx = 0;
+    while (slotIdx < TIME_SLOTS.length) {
+      const slot = TIME_SLOTS[slotIdx];
+      const booking = bookingForSlot(selectedRoomId, dateStr, slot);
+
+      if (booking) {
+        let span = 1;
+        while (slotIdx + span < TIME_SLOTS.length) {
+          const next = bookingForSlot(selectedRoomId, dateStr, TIME_SLOTS[slotIdx + span]);
+          if (next && next.id === booking.id) span++;
+          else break;
+        }
+
+        const cell = document.createElement('div');
+        cell.className = 'rb-cell booked' + (booking.is_own ? ' own' : '') + (booking.status === 'pending' ? ' pending' : '');
+        cell.style.gridColumn = String(dayIdx + 2);
+        cell.style.gridRow = `${slotIdx + 2} / span ${span}`;
+        cell.dataset.dayIdx = dayIdx;
+        cell.dataset.date = dateStr;
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'rb-cell-name';
+        const label = booking.title ? `${booking.booked_by} — ${booking.title}` : booking.booked_by;
+        nameSpan.textContent = booking.status === 'pending' ? `${label} (pending approval)` : label;
+        cell.appendChild(nameSpan);
+
+        if (booking.is_own) {
+          const actions = document.createElement('div');
+          actions.className = 'rb-own-actions';
+
+          const editBtn = document.createElement('button');
+          editBtn.className = 'rb-cancel-btn';
+          editBtn.title = 'Edit booking';
+          editBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>';
+          editBtn.onclick = (e) => { e.stopPropagation(); editBooking(booking, dateStr, e.clientX, e.clientY); };
+          actions.appendChild(editBtn);
+
+          const cancelBtn = document.createElement('button');
+          cancelBtn.className = 'rb-cancel-btn';
+          cancelBtn.title = 'Cancel booking';
+          cancelBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+          cancelBtn.onclick = (e) => { e.stopPropagation(); cancelBooking(booking.id); };
+          actions.appendChild(cancelBtn);
+
+          cell.appendChild(actions);
+        }
+
+        grid.appendChild(cell);
+        slotIdx += span;
+      } else {
+        const cell = document.createElement('div');
+        cell.className = 'rb-cell free';
+        cell.style.gridColumn = String(dayIdx + 2);
+        cell.style.gridRow = String(slotIdx + 2);
+        cell.dataset.dayIdx = dayIdx;
+        cell.dataset.slotIdx = slotIdx;
+        cell.dataset.slot = slot;
+        cell.dataset.date = dateStr;
+        const capturedSlotIdx = slotIdx; // snapshot — `slotIdx` keeps mutating as the while-loop continues
+        cell.addEventListener('mousedown', () => startDrag(dayIdx, capturedSlotIdx));
+        cell.addEventListener('mouseenter', () => extendDrag(dayIdx, capturedSlotIdx));
+        grid.appendChild(cell);
+        slotIdx += 1;
+      }
+    }
+  });
+
+  applySelectionHighlight();
+}
+
+function startDrag(dayIdx, slotIdx) {
+  editingBookingId = null;
+  dragging = true;
+  dragDayIdx = dayIdx;
+  dragStart = slotIdx;
+  dragEnd = slotIdx;
+  applySelectionHighlight();
+}
+
+function extendDrag(dayIdx, slotIdx) {
+  if (!dragging || dayIdx !== dragDayIdx) return;
+  const lo = Math.min(dragStart, slotIdx), hi = Math.max(dragStart, slotIdx);
+  const dateStr = weekDayStrs[dayIdx];
+  for (let i = lo; i <= hi; i++) {
+    if (bookingForSlot(selectedRoomId, dateStr, TIME_SLOTS[i])) return;
+  }
+  dragEnd = slotIdx;
+  applySelectionHighlight();
+}
+
+document.addEventListener('mouseup', (e) => {
+  if (!dragging) return;
+  dragging = false;
+  if (dragDayIdx === null || dragStart === null || dragEnd === null) return;
+  showConfirm(e.clientX, e.clientY);
+});
+
+function applySelectionHighlight() {
+  document.querySelectorAll('.rb-cell.free').forEach(c => c.classList.remove('selecting'));
+  if (dragDayIdx === null || dragStart === null || dragEnd === null) return;
+  const lo = Math.min(dragStart, dragEnd), hi = Math.max(dragStart, dragEnd);
+  document.querySelectorAll('.rb-cell.free').forEach(c => {
+    const dIdx = parseInt(c.dataset.dayIdx, 10), sIdx = parseInt(c.dataset.slotIdx, 10);
+    if (dIdx === dragDayIdx && sIdx >= lo && sIdx <= hi) c.classList.add('selecting');
+  });
+}
+
+function resetForm() {
+  document.getElementById('rbTitle').value = '';
+  document.getElementById('rbType').value = 'internal';
+  document.getElementById('rbAttendees').value = '';
+  document.getElementById('rbCateringNeeded').value = '';
+  document.getElementById('rbCateringPackage').value = '';
+  document.getElementById('rbCatering').value = '';
+  document.getElementById('rbITNeeded').value = '';
+  document.getElementById('rbIT').value = '';
+  setCateringStatus(null);
+  clearInvites();
+  toggleCatering(); toggleIT();
+}
+
+/* Shows the Facility Manager decision on the catering request when editing.
+   Approved/Rejected requests are final — the catering fields get locked. */
+function setCateringStatus(status) {
+  const el = document.getElementById('rbCateringStatus');
+  const pkgSel = document.getElementById('rbCateringPackage');
+  const notes = document.getElementById('rbCatering');
+  if (!status) {
+    el.style.display = 'none';
+    pkgSel.disabled = false; notes.disabled = false;
+    return;
+  }
+  const s = status.toLowerCase();
+  let bg, fg, extra = '';
+  if (s.startsWith('approved')) { bg = 'rgba(70,160,90,.25)'; fg = '#7fd89a'; extra = ' — already ordered from the cafeteria. Contact the Facility Manager to change it.'; }
+  else if (s.startsWith('rejected')) { bg = 'rgba(200,70,70,.25)'; fg = '#f0918f'; extra = ' — contact the Facility Manager if you still need catering.'; }
+  else { bg = 'rgba(240,190,60,.2)'; fg = 'var(--yellow)'; extra = ' — you can still change the package until it is reviewed.'; }
+  el.style.display = 'block';
+  el.style.background = bg;
+  el.style.color = fg;
+  el.textContent = 'Catering status: ' + status + extra;
+  const finalized = s.startsWith('approved') || s.startsWith('rejected');
+  pkgSel.disabled = finalized;
+  notes.disabled = finalized;
+}
+
+function toggleCatering() {
+  const yes = document.getElementById('rbCateringNeeded').value === 'yes';
+  document.getElementById('rbCateringBox').style.display = yes ? 'block' : 'none';
+  clampModal();
+}
+function toggleIT() {
+  const yes = document.getElementById('rbITNeeded').value === 'yes';
+  document.getElementById('rbITBox').style.display = yes ? 'block' : 'none';
+  clampModal();
+}
+
+/* When the form grows (catering / IT sections revealed), pull the modal up
+   so the save button stays inside the viewport. */
+function clampModal() {
+  const modal = document.getElementById('rbConfirm');
+  if (modal.style.display !== 'flex') return;
+  const h = modal.offsetHeight;
+  let top = parseInt(modal.style.top) || 16;
+  if (top + h > window.innerHeight - 16) top = Math.max(16, window.innerHeight - h - 16);
+  modal.style.top = top + 'px';
+}
+
+function positionModal(x, y) {
+  const modal = document.getElementById('rbConfirm');
+  modal.style.left = '0px';
+  modal.style.top = '0px';
+  const w = modal.offsetWidth, h = modal.offsetHeight;
+  // Leave headroom for the catering/IT sections that appear later.
+  const expectedH = Math.max(h, Math.min(window.innerHeight - 32, h + 260));
+  let left = (x != null ? x : window.innerWidth / 2) + 14;
+  let top = (y != null ? y : window.innerHeight / 2) + 14;
+  if (left + w > window.innerWidth - 16) left = Math.max(16, x - w - 14);
+  if (top + expectedH > window.innerHeight - 16) top = Math.max(16, window.innerHeight - expectedH - 16);
+  if (left < 16) left = 16;
+  if (top < 16) top = 16;
+  modal.style.left = left + 'px';
+  modal.style.top = top + 'px';
+}
+
+function showConfirm(x, y) {
+  editingBookingId = null;
+  resetForm();
+  const lo = Math.min(dragStart, dragEnd), hi = Math.max(dragStart, dragEnd);
+  const start = TIME_SLOTS[lo];
+  const end = addMinutes(TIME_SLOTS[hi], 30);
+  const dateStr = weekDayStrs[dragDayIdx];
+  const d = new Date(dateStr + 'T00:00:00');
+  document.getElementById('rbConfirmText').textContent = `Book ${DAY_NAMES[dragDayIdx]} ${fmtShort(d)}, ${start}–${end}`;
+  document.getElementById('rbSaveBtn').textContent = 'Save booking';
+  document.getElementById('rbConfirm').style.display = 'flex';
+  document.getElementById('rbBackdrop').style.display = 'block';
+  positionModal(x, y);
+}
+
+function editBooking(booking, dateStr, x, y) {
+  dragging = false; dragDayIdx = null; dragStart = null; dragEnd = null;
+  applySelectionHighlight();
+  editingBookingId = booking.id;
+  document.getElementById('rbTitle').value = booking.title || '';
+  document.getElementById('rbType').value = booking.meeting_type || 'internal';
+  document.getElementById('rbAttendees').value = booking.attendees_count || '';
+  const hasCatering = !!(booking.catering_package || booking.catering_requirements);
+  document.getElementById('rbCateringNeeded').value = hasCatering ? 'yes' : 'no';
+  document.getElementById('rbCatering').value = booking.catering_requirements || '';
+  document.getElementById('rbCateringPackage').value = booking.catering_package || '';
+  document.getElementById('rbITNeeded').value = booking.it_requirements ? 'yes' : 'no';
+  document.getElementById('rbIT').value = booking.it_requirements || '';
+  setCateringStatus(booking.catering_status);
+  loadInvites(booking);
+  toggleCatering(); toggleIT();
+  const d = new Date(dateStr + 'T00:00:00');
+  document.getElementById('rbConfirmText').textContent = `Edit booking — ${fmtShort(d)}, ${booking.start}–${booking.end}`;
+  document.getElementById('rbSaveBtn').textContent = 'Save changes';
+  document.getElementById('rbConfirm').style.display = 'flex';
+  document.getElementById('rbBackdrop').style.display = 'block';
+  positionModal(x, y);
+}
+
+function clearSelection() {
+  dragging = false; dragDayIdx = null; dragStart = null; dragEnd = null;
+  editingBookingId = null;
+  document.getElementById('rbConfirm').style.display = 'none';
+  document.getElementById('rbBackdrop').style.display = 'none';
+  resetForm();
+  applySelectionHighlight();
+}
+
+function bookingFormBody() {
+  const title = document.getElementById('rbTitle').value.trim();
+  const type = document.getElementById('rbType').value;
+  const attendees = document.getElementById('rbAttendees').value;
+  const cateringNeeded = document.getElementById('rbCateringNeeded').value;
+  const cateringPackage = document.getElementById('rbCateringPackage').value;
+  const catering = document.getElementById('rbCatering').value.trim();
+  const itNeeded = document.getElementById('rbITNeeded').value;
+  const it = document.getElementById('rbIT').value.trim();
+  return `title=${encodeURIComponent(title)}&meeting_type=${encodeURIComponent(type)}` +
+    `&attendees_count=${encodeURIComponent(attendees)}` +
+    `&catering_needed=${encodeURIComponent(cateringNeeded)}&catering_package=${encodeURIComponent(cateringPackage)}` +
+    `&catering_requirements=${encodeURIComponent(catering)}` +
+    `&it_needed=${encodeURIComponent(itNeeded)}&it_requirements=${encodeURIComponent(it)}` +
+    invitesBody();
+}
+
+/* The picker keeps its choices as hidden inputs, but this dialog posts a string
+   it builds itself rather than submitting a form — so the inputs are read out
+   here. invitees_posted tells the server the boxes were on screen at all: an
+   edit sent from somewhere without them must not be read as "uninvite
+   everybody". */
+function invitesBody() {
+  let out = '&invitees_posted=1';
+  document.querySelectorAll('.rb-invites input[type=hidden][name]').forEach(function (i) {
+    out += `&${encodeURIComponent(i.name)}=${encodeURIComponent(i.value)}`;
+  });
+  return out;
+}
+
+/* Emptied between bookings, or the last meeting's guests are silently added to
+   the next one. */
+function clearInvites() {
+  document.querySelectorAll('.rb-invites [data-pk-chosen]').forEach(function (box) {
+    box.innerHTML = '';
+  });
+}
+
+/* Fill the boxes from a booking being edited, so saving does not drop the
+   people already invited. */
+function loadInvites(booking) {
+  clearInvites();
+  (booking.invites || []).forEach(function (inv) {
+    const root = document.querySelector('.rb-invites [data-pick][data-field="' + inv.kind + '"]');
+    if (!root) return;
+    const box = root.querySelector('[data-pk-chosen]');
+    const chip = document.createElement('span');
+    chip.className = 'pk-chip';
+    chip.setAttribute('data-pk-chip', inv.id);
+    chip.textContent = inv.name;
+    const x = document.createElement('button');
+    x.type = 'button'; x.className = 'pk-x'; x.textContent = '×';
+    x.setAttribute('aria-label', 'Remove ' + inv.name);
+    chip.appendChild(x);
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden'; hidden.name = inv.kind; hidden.value = inv.id;
+    chip.appendChild(hidden);
+    box.appendChild(chip);
+  });
+}
+
+function validateBookingForm() {
+  const cateringNeeded = document.getElementById('rbCateringNeeded').value;
+  const itNeeded = document.getElementById('rbITNeeded').value;
+  if (!cateringNeeded) { toast('Please select whether you need catering (yes / no).'); return false; }
+  if (cateringNeeded === 'yes') {
+    if (!document.getElementById('rbCateringPackage').value) { toast('Please choose a catering package.'); return false; }
+    if (!document.getElementById('rbAttendees').value) { toast('Please enter how many attendees (needed for the catering package).'); return false; }
+  }
+  if (!itNeeded) { toast('Please select whether you need IT requirements (yes / no).'); return false; }
+  if (itNeeded === 'yes' && !document.getElementById('rbIT').value.trim()) {
+    toast('Please specify the IT requirements.'); return false;
+  }
+  return true;
+}
+
+async function saveBooking() {
+  if (!validateBookingForm()) return;
+  let url, body;
+  if (editingBookingId) {
+    url = "{% url 'services:room_booking_update' 0 %}".replace('0', editingBookingId);
+    body = bookingFormBody();
+  } else {
+    const lo = Math.min(dragStart, dragEnd), hi = Math.max(dragStart, dragEnd);
+    const start = TIME_SLOTS[lo];
+    const end = addMinutes(TIME_SLOTS[hi], 30);
+    const dateStr = weekDayStrs[dragDayIdx];
+    url = "{% url 'services:room_booking_create' %}";
+    body = `room_id=${selectedRoomId}&date=${dateStr}&start_time=${start}&end_time=${end}&${bookingFormBody()}`;
+  }
+
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type':'application/x-www-form-urlencoded','X-CSRFToken':getCookie('csrftoken')},
+    body,
+  });
+  const data = await r.json();
+  if (!data.ok) {
+    toast(data.error || 'Could not save booking.');
+    return;
+  }
+  const wasEditing = !!editingBookingId;
+  clearSelection();
+  if (wasEditing) {
+    toast('Booking updated.');
+  } else if (data.catering_requested) {
+    toast('Booking request sent to the reception desk. Catering will follow after room approval.');
+  } else {
+    toast('Booking request sent to the reception desk for approval.');
+  }
+  loadWeekSchedule();
+}
+
+async function cancelBooking(id) {
+  if (!confirm('Cancel this booking?')) return;
+  const url = "{% url 'services:room_booking_cancel' 0 %}".replace('0', id);
+  const r = await fetch(url, {method:'POST', headers:{'X-CSRFToken':getCookie('csrftoken')}});
+  const data = await r.json();
+  if (data.ok) { toast('Booking cancelled.'); loadWeekSchedule(); }
+}
+
+weekStart = startOfWeek(new Date());
+loadWeekSchedule();
+
+/* ── answering an invitation ──
+   Delegated, so the buttons keep working after a row redraws itself. The row is
+   replaced in place rather than the page reloading: the reply is the whole
+   interaction, and throwing the page away to show one word changed is a poor
+   trade. */
+document.addEventListener('click', async function (e) {
+  const btn = e.target.closest('[data-respond]');
+  if (!btn) return;
+  const row = btn.closest('[data-invite]');
+  if (!row) return;
+
+  const answer = btn.dataset.respond;
+  const box = row.querySelector('[data-inv-act]');
+  const was = box.innerHTML;
+  box.textContent = 'Saving…';
+
+  try {
+    const url = "{% url 'services:meeting_invite_respond' 0 %}".replace('0', row.dataset.invite);
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'response=' + encodeURIComponent(answer),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || r.status);
+
+    const accepted = d.response === 'accepted';
+    box.innerHTML =
+      '<span class="rb-inv-state ' + d.response + '">' +
+      (accepted ? 'Accepted' : 'Declined') + '</span>' +
+      '<button type="button" class="btn ghost sm" data-respond="' +
+      (accepted ? 'declined' : 'accepted') + '">Change to ' +
+      (accepted ? 'decline' : 'accept') + '</button>';
+
+    // The count in the header is now one out of date. An unanswered row is the
+    // only one still showing the yellow Accept button, so they are the count.
+    const badge = document.querySelector('.rb-badge');
+    if (badge) {
+      const waiting = document.querySelectorAll('.rb-inv [data-inv-act] .btn.y').length;
+      if (waiting) badge.textContent = waiting + ' awaiting your reply';
+      else badge.remove();
+    }
+  } catch (err) {
+    box.innerHTML = was;
+    toast('That did not save. Please try again.');
+  }
+});
+</script>
+{% include 'includes/people_picker_js.html' %}
+{% endblock %}

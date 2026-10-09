@@ -1,0 +1,21 @@
+{# templates/cms/sections/feature.html — a page's working part. #}
+{# Renders the partial its page always rendered, with that page's own context, #}
+{# so the feature runs exactly the code it ran before conversion. #}
+{% load cms_tags %}
+{% if section.title %}
+<div class="sec-head">
+  <h2 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title|aji }}</h2>
+  {% sec_link_ok section as show_link %}{% if show_link %}<a href="{{ section|cfg:"link_url" }}" class="lk">{{ section|cfg:"link_label"|default:"View all" }} →</a>{% endif %}
+</div>
+{% endif %}
+
+{% if widget_template %}
+  {% include widget_template %}
+{% elif cms_edit_mode %}
+<div class="card" style="border-style:dashed">
+  <b style="display:block;font-size:13.5px;margin-bottom:5px">No feature chosen</b>
+  <span class="muted" style="font-size:12.5px">
+    Open this block's settings and pick which page feature it should show.
+  </span>
+</div>
+{% endif %}

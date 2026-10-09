@@ -1,0 +1,87 @@
+{# templates/includes/access_fields_js.html — the access panels on the #}
+{# management screens. Included once; every panel on the page is wired by it. #}
+<script>
+(function () {
+  'use strict';
+
+  function refresh(panel) {
+    var mode = panel.querySelector('[data-acc-mode]:checked');
+    /* Both closed modes need the lists: "by request" keeps the people who have
+       already been approved in exactly the same place. Only "everyone" hides
+       them. Written as != 'everyone' rather than a list of the closed modes, so
+       a mode added later is shown rather than silently blank. */
+    panel.classList.toggle('show-who', !!mode && mode.value !== 'everyone');
+  }
+
+  document.addEventListener('change', function (e) {
+    if (e.target.matches('[data-acc-mode]')) {
+      refresh(e.target.closest('[data-acc]'));
+    }
+  });
+
+  /* Remove somebody. The hidden input goes with the chip, which is what the
+     form actually posts — the chip is only the part you can see. */
+  document.addEventListener('click', function (e) {
+    var drop = e.target.closest('[data-acc-drop]');
+    if (!drop) return;
+    e.preventDefault();
+    drop.closest('.acc-chip').remove();
+  });
+
+  var timer = null;
+
+  document.addEventListener('input', function (e) {
+    var box = e.target.closest('[data-acc-find]');
+    if (!box) return;
+    var panel = box.closest('[data-acc]');
+    var results = panel.querySelector('[data-acc-results]');
+    var q = box.value.trim();
+    clearTimeout(timer);
+    if (q.length < 2) { results.hidden = true; results.innerHTML = ''; return; }
+
+    timer = setTimeout(function () {
+      fetch('/people/api/search/?q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var chosen = [...panel.querySelectorAll('.acc-chip input')].map(function (i) { return i.value; });
+          var rows = (d.users || []).filter(function (u) { return chosen.indexOf(String(u.id)) === -1; });
+          if (!rows.length) {
+            results.innerHTML = '<div class="acc-res" style="color:var(--muted)">Nobody else by that name.</div>';
+          } else {
+            results.innerHTML = rows.map(function (u) {
+              return '<button type="button" class="acc-res" data-acc-add="' + u.id + '" data-name="' +
+                     String(u.name).replace(/"/g, '&quot;') + '">' +
+                     String(u.name).replace(/</g, '&lt;') +
+                     (u.role ? '<i>' + String(u.role).replace(/</g, '&lt;') + '</i>' : '') +
+                     '</button>';
+            }).join('');
+          }
+          results.hidden = false;
+        })
+        .catch(function () { results.hidden = true; });
+    }, 250);
+  });
+
+  document.addEventListener('click', function (e) {
+    var add = e.target.closest('[data-acc-add]');
+    if (add) {
+      e.preventDefault();
+      var panel = add.closest('[data-acc]');
+      var chip = document.createElement('span');
+      chip.className = 'acc-chip';
+      chip.innerHTML = document.createTextNode(add.dataset.name).textContent +
+        '<input type="hidden" name="allowed_users" value="' + add.dataset.add + '">' +
+        '<button type="button" data-acc-drop aria-label="Remove">&times;</button>';
+      panel.querySelector('[data-acc-people]').appendChild(chip);
+      panel.querySelector('[data-acc-results]').hidden = true;
+      panel.querySelector('[data-acc-find]').value = '';
+      return;
+    }
+    if (!e.target.closest('.acc-search')) {
+      document.querySelectorAll('[data-acc-results]').forEach(function (r) { r.hidden = true; });
+    }
+  });
+
+  document.querySelectorAll('[data-acc]').forEach(refresh);
+})();
+</script>

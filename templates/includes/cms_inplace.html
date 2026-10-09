@@ -1,0 +1,118 @@
+{# templates/includes/cms_inplace.html — editing where you are looking. #}
+{# #}
+{# The complaint this answers, in the user's words: "the sidebar opens, I have #}
+{# to go to the full settings, then add columns and items, and then go back, #}
+{# then edit again". Three round trips this removes: #}
+{# #}
+{#  1. Inserting always landed at the bottom of the page, so anything wanted in #}
+{#     the middle had to be added and then dragged up. A thin line appears #}
+{#     between blocks on hover and inserts at that point instead. #}
+{#  2. Changing an icon meant selecting the block, finding the Icon field in the #}
+{#     panel, then opening the picker. Now the icon on the page is the button. #}
+{#  3. Adding a row to a list meant the panel, or worse the full section form. #}
+{#     There is a "+" at the end of the list on the page. #}
+{# #}
+{# None of it is new machinery: every action calls the endpoint the panel calls. #}
+{% if cms_edit_mode %}
+<script>
+(function(){
+  /* ── insert between two blocks ─────────────────────────────────────────── */
+  /* One line element, moved around, rather than one per gap: a page with thirty
+     blocks would otherwise carry thirty hidden buttons. */
+  let LINE = null;
+
+  function line(){
+    if (LINE) return LINE;
+    LINE = document.createElement('button');
+    LINE.type = 'button';
+    LINE.className = 'ed-ins';
+    LINE.title = 'Add a block here';
+    LINE.setAttribute('aria-label', 'Add a block here');
+    LINE.addEventListener('click', e => {
+      e.stopPropagation();
+      /* The palette needs to know where the block goes, not just which column. */
+      const before = LINE.dataset.before || null;
+      const zone = LINE.closest('.cms-col');
+      if (window.edPalette)
+        edPalette(zone ? zone.dataset.rowId : null, zone ? zone.dataset.col : 0, before);
+    });
+    return LINE;
+  }
+
+  /* Show the line in whichever gap the pointer is nearest. Attached to the
+     container rather than to each block, so blocks added later work with no
+     rewiring. */
+  function track(e){
+    const zone = e.target.closest?.('#cmsPage, .cms-col');
+    if (!zone) return;
+    /* Not while dragging: the drop indicator owns the gaps then. */
+    if (document.body.classList.contains('pd-dragging') || window.ED?.drag) return;
+
+    const blocks = [...zone.querySelectorAll(':scope > .cms-block[data-block]')];
+    if (!blocks.length) return;
+
+    let nearest = null, best = Infinity, before = null;
+    blocks.forEach(b => {
+      const r = b.getBoundingClientRect();
+      for (const [edge, pk] of [[r.top, b.dataset.block], [r.bottom, null]]) {
+        const d = Math.abs(e.clientY - edge);
+        if (d < best){ best = d; nearest = b; before = pk; }
+      }
+    });
+    /* Only near a gap, or the line would follow the pointer down the page and
+       sit in the middle of whatever is being read. */
+    if (best > 40){ line().remove(); return; }
+
+    const l = line();
+    l.dataset.before = before || '';
+    if (before) nearest.before(l); else nearest.after(l);
+  }
+
+  document.addEventListener('mousemove', track);
+  document.addEventListener('mouseleave', () => LINE?.remove());
+
+  /* ── change an icon by clicking it ─────────────────────────────────────── */
+  /* An icon rendered by a block or one of its rows is tagged when edit mode is
+     on, so the click knows what it belongs to without guessing from the DOM. */
+  document.addEventListener('click', e => {
+    const hit = e.target.closest?.('[data-ed-icon]');
+    if (!hit) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    /* A hidden input is what the shared picker drives, so this reuses it rather
+       than being a second way to choose an icon. */
+    let input = hit.querySelector(':scope > input[data-icon-field]');
+    if (!input){
+      input = document.createElement('input');
+      input.type = 'text';
+      input.dataset.iconField = '1';
+      input.hidden = true;
+      input.value = hit.dataset.edIconValue || '';
+      hit.append(input);
+      input.addEventListener('change', async () => {
+        const kind = hit.dataset.edIcon;            /* "block" or "item" */
+        const pk = hit.dataset.edIconPk;
+        const url = kind === 'item'
+          ? '/p/edit/item/' + pk + '/inline/'
+          : '/p/edit/block/' + pk + '/inline/';
+        const d = await edPost(url, {field: 'icon', value: input.value});
+        if (!d) return;
+        if (d.block && d.html) edSwap(d.block, d.html);
+        else if (kind === 'block') edSwap(pk, null) || location.reload();
+      });
+    }
+    if (window.ipOpen) ipOpen(input);
+  }, true);
+
+  /* ── add a row where the list is ───────────────────────────────────────── */
+  document.addEventListener('click', async e => {
+    const add = e.target.closest?.('[data-ed-add-item]');
+    if (!add) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (window.edItemAdd) edItemAdd(add.dataset.edAddItem);
+  }, true);
+})();
+</script>
+{% endif %}

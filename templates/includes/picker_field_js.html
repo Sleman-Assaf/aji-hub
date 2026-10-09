@@ -1,0 +1,59 @@
+{# templates/includes/picker_field_js.html — how a "choose an icon / a picture" #}
+{# field looks, in one place. #}
+{# #}
+{# Both pickers used to append a bare 30px box *after* their input. Because the #}
+{# field label is a block and the input is full width, that box landed on its #}
+{# own line underneath — a stray white square. Empty, it printed the word #}
+{# "none" inside itself, which wrapped and came out as a caption. Fourteen #}
+{# fields across six screens all looked like that. #}
+{# #}
+{# Now: one row, thumbnail first, then the field, then a clear button that only #}
+{# appears when there is something to clear. Shared so the icon field and the #}
+{# picture field cannot drift into looking like two different controls. #}
+{% if user.is_authenticated %}
+<script>
+/* Wrap an input into a picker row. Idempotent: the settings drawer re-renders
+   and re-wires the same fields constantly. */
+function pickField(input, kind){
+  if (input.dataset.pickWrapped) return input.closest('.pick');
+  const row = document.createElement('div');
+  row.className = 'pick pick-' + kind + ' is-empty';
+  input.before(row);
+
+  /* A button, not a span: the thumbnail is the most obvious thing to click, so
+     it has to be reachable by keyboard and announced as a control. */
+  const prev = document.createElement('button');
+  prev.type = 'button';
+  prev.className = 'pick-prev';
+  prev.setAttribute('aria-label', kind === 'icon' ? 'Choose an icon' : 'Choose a picture');
+  prev.addEventListener('click', () => input.click());
+
+  const clear = document.createElement('button');
+  clear.type = 'button';
+  clear.className = 'pick-clear';
+  clear.title = 'Clear';
+  clear.setAttribute('aria-label', 'Clear');
+  clear.textContent = '×';
+  clear.addEventListener('click', () => {
+    input.value = '';
+    /* change, so whatever owns the field saves it the same way a pick does. */
+    input.dispatchEvent(new Event('change', {bubbles: true}));
+    pickShow(input, '');
+  });
+
+  row.append(prev, input, clear);
+  input.dataset.pickWrapped = '1';
+  return row;
+}
+
+/* Put the chosen thing in the thumbnail, or empty it. The empty state is drawn
+   in CSS rather than by writing the word "none" into the box. */
+function pickShow(input, html){
+  const row = input.closest('.pick');
+  if (!row) return;
+  const prev = row.querySelector('.pick-prev');
+  if (prev) prev.innerHTML = html || '';
+  row.classList.toggle('is-empty', !html);
+}
+</script>
+{% endif %}

@@ -1,0 +1,84 @@
+{# Behaviour shared by the Exchange screens: the people picker, the share #}
+{# dialog, the confirmations and the file field. #}
+{# These enhance real forms rather than replacing them — the chosen people are #}
+{# real hidden inputs, share is a normal POST, and the confirmations only #}
+{# intercept a submit that would already work on its own. #}
+<script>
+(function () {
+  'use strict';
+
+  // The people picker is a shared control now — see the include below.
+
+  // ── share dialog ───────────────────────────────────────────────────────
+  var dlg = document.getElementById('shareDlg');
+  if (dlg) {
+    var openers = document.querySelectorAll('[data-share-open]');
+    openers.forEach(function (b) {
+      b.addEventListener('click', function () {
+        dlg.hidden = false;
+        document.body.style.overflow = 'hidden';
+        var input = dlg.querySelector('[data-pk-input]');
+        if (input) setTimeout(function () { input.focus(); }, 30);
+      });
+    });
+    dlg.addEventListener('click', function (e) {
+      if (e.target === dlg || e.target.closest('[data-share-close]')) close();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !dlg.hidden) close();
+    });
+    function close() { dlg.hidden = true; document.body.style.overflow = ''; }
+
+    // The send button stays disabled until somebody is chosen, so the reader
+    // is not told off for pressing the only enabled control on the dialog.
+    var send = dlg.querySelector('[data-share-send]');
+    if (send) {
+      dlg.addEventListener('pk:change', function () {
+        send.disabled = !dlg.querySelector('.pk-chip');
+      });
+      send.disabled = !dlg.querySelector('.pk-chip');
+    }
+  }
+
+  // ── confirmations ──────────────────────────────────────────────────────
+  /* The confirmation dialog is in base.html now, for every page. */
+  });
+
+  // ── the file field, showing what was actually chosen ───────────────────
+  document.querySelectorAll('[data-filefield]').forEach(function (wrap) {
+    var input = wrap.querySelector('input[type=file]');
+    var list  = wrap.querySelector('[data-filelist]');
+    if (!input || !list) return;
+    input.addEventListener('change', function () {
+      list.innerHTML = '';
+      Array.prototype.forEach.call(input.files, function (f) {
+        var mb = f.size / 1048576;
+        var row = document.createElement('div');
+        row.className = 'ff-row' + (mb > {{ max_mb|default:35 }} ? ' over' : '');
+        row.textContent = f.name + ' · ' +
+          (mb >= 1 ? mb.toFixed(1) + ' MB' : Math.max(f.size / 1024, 1).toFixed(0) + ' KB') +
+          (mb > {{ max_mb|default:35 }} ? ' — too large' : '');
+        list.appendChild(row);
+      });
+    });
+    wrap.addEventListener('dragover', function (e) {
+      e.preventDefault(); wrap.classList.add('over');
+    });
+    wrap.addEventListener('dragleave', function () { wrap.classList.remove('over'); });
+    wrap.addEventListener('drop', function (e) {
+      e.preventDefault();
+      wrap.classList.remove('over');
+      input.files = e.dataTransfer.files;
+      input.dispatchEvent(new Event('change'));
+    });
+  });
+
+  // Kept for callers that re-render a picker and re-initialise it by name.
+  window.ajiInitPickers = function (scope) {
+    if (window.AJIPicker) window.AJIPicker.init(scope);
+  };
+})();
+</script>
+{# The picker itself. Included after the above so ajiInitPickers has something #}
+{# to delegate to by the time anything calls it. #}
+{% include 'includes/people_picker_js.html' %}

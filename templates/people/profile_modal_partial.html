@@ -1,0 +1,62 @@
+{% load people_tags %}
+{# templates/people/profile_modal_partial.html #}
+<div class="mh">
+  <div class="skp-head" style="align-items:center;gap:14px">
+    <div class="skp-av" style="overflow:hidden;padding:0">{% if employee.photo %}<img src="{{ employee.photo.url }}" style="width:100%;height:100%;object-fit:cover">{% else %}{{ employee.initials }}{% endif %}</div>
+    <div>
+      <h2 style="font-size:20px;margin-bottom:3px">{{ employee.full_name }}</h2>
+      <div class="muted" style="font-size:13px">{{ employee.role|default:"" }}{% if employee.entity %} · {{ employee.entity.name }}{% endif %}</div>
+    </div>
+  </div>
+  <span class="x" onclick="closeModal()">×</span>
+</div>
+<div class="mb">
+  <!-- Contact -->
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">
+    {% if employee.email or employee.email_auto %}
+    <a href="mailto:{{ employee.email|default:employee.email_auto }}" class="btn ghost sm">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="15" height="15"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg>
+      Email
+    </a>
+    {% endif %}
+    {% if employee.extension %}
+    <span class="prof-ext">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="14" height="14"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
+      Ext {{ employee.extension }}
+    </span>
+    {% endif %}
+    {% if employee.user %}
+    <button class="btn sm y" onclick="chatOpenWith({{ employee.user.pk }}, '{{ employee.full_name|escapejs }}', '{% if employee.photo %}{{ employee.photo.url }}{% endif %}')">Message</button>
+    {% endif %}
+    <a href="/people/{{ employee.pk }}/" class="btn ghost sm">Full profile</a>
+  </div>
+
+  <!-- Manager -->
+  {% if employee.manager %}
+  <div style="margin-bottom:14px">
+    <div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px">Reports To</div>
+    <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);padding:10px">
+      {% emp_avatar employee.manager size=36 %}
+      <div><div style="font-weight:700;font-size:13.5px">{{ employee.manager.full_name }}</div><div class="muted" style="font-size:11.5px">{{ employee.manager.role|default:"" }}</div></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Skills -->
+  {% if skills_by_cat %}
+  {% for cat, emp_skills in skills_by_cat.items %}
+  <div class="skp-cat">{{ cat }}</div>
+  <div class="skp-row">
+    {% for es in emp_skills %}
+    <div class="skp-skill">
+      {{ es.skill.name }}
+      <div class="lv">{% for i in "1234" %}<i class="{% if forloop.counter <= es.level %}on{% endif %}"></i>{% endfor %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+<div class="mf">
+  <button class="btn ghost" onclick="closeModal()">Close</button>
+</div>

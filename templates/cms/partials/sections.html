@@ -1,0 +1,9 @@
+{# CMS sections contributed to a host route by its bound Page. #}
+{# Goes through cms_block so a section behaves identically whether it was #}
+{# appended to a hardcoded page or placed on a fully builder-driven one — #}
+{# same live data, same columns, same editing toolbar. The old version used a #}
+{# plain include, so rows and data-driven blocks rendered empty here. #}
+{% load cms_tags %}
+<div class="cms-page{% if cms_edit_mode %} ed-on{% endif %}">
+  {% for section in sections %}{% cms_block section %}{% endfor %}
+</div>

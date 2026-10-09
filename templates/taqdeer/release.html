@@ -1,0 +1,128 @@
+{# templates/taqdeer/release.html — the confirmation screen before release. #}
+{# The only irreversible step in the cycle. It states the consequence in #}
+{# numbers before the button, lists exactly who is affected, and warns about #}
+{# the people it cannot reach — a release that silently skips four employees #}
+{# is worse than one that refuses to start. #}
+{% extends 'base.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}Release {{ cycle.label }} — Athar{% endblock %}
+
+{% block content %}
+<a href="{% url 'taqdeer_athar_period' cycle.pk %}" class="ctx-back" title="{{ cycle.label }}"><span class="ctx-back-lab">{{ cycle.label }}</span></a>
+
+<div class="tq-nom-head">
+  <div>
+    <div class="eyebrow">HR · release</div>
+    <h1>{{ cycle.label }} Athar Awards</h1>
+  </div>
+  <span class="tq-chip {{ cycle.stage }}">{{ cycle.get_stage_display }}</span>
+</div>
+
+{% if already %}
+<div class="rl-done">
+  {% icon "check" 18 %}
+  <div>
+    <b>{{ cycle.label }} has already been released</b>
+    <span>{{ approved|length }} recipient{{ approved|length|pluralize }},
+      released {{ cycle.issued_at|date:"j F Y" }}{% if cycle.released_by %}
+      by {{ cycle.released_by.get_full_name|default:cycle.released_by.username }}{% endif %}.
+      Releasing again would send everybody a second email, so it cannot be done twice.</span>
+  </div>
+</div>
+
+{% elif not ready %}
+<div class="rl-block">
+  {% icon "lock" 18 %}
+  <div>
+    <b>Not ready yet</b>
+    <span>A quarter has to be marked <i>ready to release</i> on the period page
+      before its certificates can go out.</span>
+  </div>
+</div>
+
+{% elif not approved %}
+<div class="rl-block">
+  {% icon "lock" 18 %}
+  <div>
+    <b>Nothing approved</b>
+    <span>Approve at least one nomination before releasing the quarter.</span>
+  </div>
+</div>
+
+{% else %}
+{# ── the consequence, in words and numbers ─────────────────────────────── #}
+<div class="rl-ask">
+  <h2>Ready to release {{ cycle.label }} Athar Awards?</h2>
+  <p>
+    <b>{{ approved|length }}</b>
+    {% if approved|length == 1 %}employee{% else %}employees{% endif %}
+    will receive their recognition certificate, and the results become visible
+    to everyone on AJi Taqdeer.
+  </p>
+  <ul class="rl-what">
+    <li>{% icon "file-text" 14 %} A certificate is generated for each recipient</li>
+    <li>{% icon "send" 14 %} Each is emailed a link to their own certificate</li>
+    <li>{% icon "bell" 14 %} Each gets a notification in the Hub</li>
+    <li>{% icon "eye" 14 %} Names and reasons are published — the certificates are not</li>
+  </ul>
+  <p class="rl-note">
+    This cannot be undone. The certificate itself stays private to each
+    recipient; the results feed shows the name and the reason only.
+  </p>
+</div>
+
+{% if no_email %}
+<div class="rl-warn">
+  {% icon "warning" 16 %}
+  <div>
+    <b>{{ no_email|length }} of these {{ approved|length }} has no email address</b>
+    <span>They will be notified in the Hub and their certificate will be waiting
+      there, but no email can be sent:
+      {% for n in no_email %}{{ n.recipient_name }}{% if not forloop.last %}, {% endif %}{% endfor %}.</span>
+  </div>
+</div>
+{% endif %}
+
+{# ── exactly who ───────────────────────────────────────────────────────── #}
+<div class="sec-head" style="margin-top:24px">
+  <h2>Who is receiving it</h2>
+  <span class="ny-count">{{ approved|length }}</span>
+</div>
+<div class="rl-list">
+  {% for n in approved %}
+  <div class="rl-row">
+    {% if n.recipient.employee.photo %}
+    <img class="tqr-av" src="{{ n.recipient.employee.photo.url }}" alt="">
+    {% else %}<span class="tqr-av tone">{{ n.recipient|initials }}</span>{% endif %}
+    <div class="rl-b">
+      <b>{{ n.recipient_name }}</b>
+      <span>{{ n.citation|truncatechars:130 }}</span>
+      <i>nominated by {{ n.nominated_by.get_full_name|default:n.nominated_by.username }}
+        {% if not n.recipient.email %}· no email on record{% endif %}</i>
+    </div>
+    <span class="rl-get">
+      <a class="cx-iconbtn" href="{% url 'taqdeer_preview' n.pk %}" target="_blank" rel="noopener">
+        {% icon "file-text" 13 %}<span>Preview</span></a>
+      <a class="cx-iconbtn" href="{% url 'taqdeer_certificate_image' n.pk %}?view=1"
+         target="_blank" rel="noopener">{% icon "image" 13 %}<span>As image</span></a>
+    </span>
+  </div>
+  {% endfor %}
+</div>
+
+{# ── the message they will get ─────────────────────────────────────────── #}
+<div class="rl-msg">
+  <div class="rl-msg-h">{% icon "chat" 14 %} What each recipient will be told</div>
+  <p>{{ settings.congratulations_message }}</p>
+  <a class="lk" href="{% url 'taqdeer_settings' %}">Edit this wording in Settings →</a>
+</div>
+
+<form method="post" class="rl-go"
+      data-confirm="Release {{ cycle.label }}? {{ approved|length }} {% if approved|length == 1 %}person{% else %}people{% endif %} will be emailed. This cannot be undone.">
+  {% csrf_token %}
+  <button class="btn y" type="submit">
+    {% icon "send" 15 %} Release {{ approved|length }} Athar certificate{{ approved|length|pluralize }}</button>
+  <a class="btn ghost" href="{% url 'taqdeer_athar_period' cycle.pk %}">Not yet</a>
+</form>
+{% endif %}
+{% endblock %}

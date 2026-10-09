@@ -1,0 +1,193 @@
+{# templates/portal/library_users.html — everyone in the library, and everyone asking. #}
+{# One list, on its own page. Approving moves the row up into the list rather #}
+{# than sending you elsewhere to see the result, and each row also carries what #}
+{# that person may do with the documents — read them here, or take a copy. #}
+{# Nothing on this page reloads: every control posts on its own and rewrites #}
+{# its own row from the answer. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}{{ library.name }} — people{% endblock %}
+{% block content %}
+
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">
+      <a href="{% url 'library_workspace' library.pk %}" class="wsp-up">{{ library.name }}</a>
+    </div>
+    <h1>People</h1>
+    <p>
+      {{ inside }} with access{% if waiting %}, {{ waiting }} awaiting your approval{% endif %}.
+      {% if is_open %}
+      This library is open to everyone signed in, so the list below only takes
+      effect once you close it.
+      {% elif not takes_requests %}
+      Nobody can request this library, so names are added under Settings.
+      {% endif %}
+    </p>
+  </div>
+  <div class="lh-head-go">
+    <a href="{% url 'library_workspace' library.pk %}?tab=settings" class="btn ghost">
+      {% icon "sliders" 15 %} Access &amp; groups
+    </a>
+    <a href="{% url 'library_workspace' library.pk %}" class="btn ghost">
+      {% icon "arrow-left" 15 %} Back to the files
+    </a>
+  </div>
+</div>
+
+<div class="lu-list rise" data-users-url="{% url 'library_user_set' library.pk %}">
+  {% csrf_token %}
+  {% for r in rows %}
+  <div class="lu-row" data-row data-state="{{ r.state }}" data-user="{{ r.user.pk }}">
+    <span class="lu-who">
+      <b>{{ r.user.get_full_name|default:r.user.username }}</b>
+      {% if r.note %}<i>{{ r.note }}</i>{% endif %}
+    </span>
+
+    <span class="lu-state" data-state-chip>
+      {% if r.state == 'owner' %}{% icon "user-circle" 12 %} Owner
+      {% elif r.state == 'deputy' %}{% icon "users" 12 %} Manager
+      {% elif r.state == 'in' %}{% icon "check" 12 %} Has access
+      {% elif r.state == 'pending' %}{% icon "clock" 12 %} Awaiting approval
+      {% else %}{% icon "x" 12 %} No access{% endif %}
+    </span>
+
+    {# What they may do with the documents. The owner and the managers add and #}
+    {# remove the files, so withholding a copy of one from them would be for #}
+    {# show; their level is fixed and stated rather than offered as a choice. #}
+    <span class="lu-level" data-level>
+      {% if r.state == 'owner' or r.state == 'deputy' %}
+      <span class="lu-fixed" title="Whoever runs the library can always take a copy">
+        {% icon "download-simple" 12 %} Read &amp; download
+      </span>
+      {% elif r.state == 'in' %}
+      <select data-role aria-label="What {{ r.user.get_full_name|default:r.user.username }} may do">
+        <option value="download" {% if r.role == 'download' %}selected{% endif %}>Read &amp; download</option>
+        <option value="read" {% if r.role == 'read' %}selected{% endif %}>Read in the Hub only</option>
+      </select>
+      {% endif %}
+    </span>
+
+    <span class="lu-when">{% if r.when %}{{ r.when|date:"j M Y" }}{% endif %}</span>
+
+    {# The owner has no controls: removing the person whose library it is would #}
+    {# leave it with nobody able to change its settings. #}
+    <span class="lu-go" data-actions>
+      {% if r.state != 'owner' %}
+      <button type="button" class="btn y sm" data-act="accept"
+              {% if r.state == 'in' or r.state == 'deputy' %}hidden{% endif %}>Approve</button>
+      <button type="button" class="btn ghost danger sm" data-act="remove"
+              {% if r.state == 'pending' or r.state == 'declined' %}hidden{% endif %}>Revoke access</button>
+      <button type="button" class="btn ghost danger sm" data-act="decline"
+              {% if r.state != 'pending' %}hidden{% endif %}>Decline</button>
+      {% endif %}
+    </span>
+  </div>
+  {% empty %}
+  <div class="wsp-none">
+    {% icon "users" 24 1.5 %}
+    <p>
+      Nobody is named on this library yet.
+      {% if is_open %}It is open to everyone signed in.
+      {% else %}Add people under Access &amp; groups, or wait for somebody to request it.{% endif %}
+    </p>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+/* Every control posts on its own and rewrites its own row from the answer. No
+   reload: the point of this page is that approving somebody shows you the result
+   where you are already looking. */
+(function () {
+  const list = document.querySelector('[data-users-url]');
+  if (!list) return;
+  const url = list.dataset.usersUrl;
+  const token = list.querySelector('[name=csrfmiddlewaretoken]').value;
+
+  /* Which controls a row shows, given where the person now stands. Derived from
+     the state rather than toggled per action, so a row cannot end up offering
+     "Approve" to somebody who already has access. */
+  const SHOWN = {
+    in:       {accept: false, remove: true,  decline: false},
+    deputy:   {accept: false, remove: true,  decline: false},
+    pending:  {accept: true,  remove: false, decline: true},
+    declined: {accept: true,  remove: false, decline: false},
+    out:      {accept: true,  remove: false, decline: false},
+  };
+  const CHIP = {
+    in: '{% icon "check" 12 %} Has access',
+    deputy: '{% icon "users" 12 %} Manager',
+    pending: '{% icon "clock" 12 %} Awaiting approval',
+    declined: '{% icon "x" 12 %} No access',
+    out: '{% icon "x" 12 %} No access',
+  };
+  /* The level only means anything for somebody who is in. Hidden otherwise
+     rather than disabled: a dropdown that cannot be used is a question the page
+     is asking and then refusing to hear the answer to. */
+  const LEVEL_FOR = {in: true, deputy: true};
+
+  async function post(row, body, onOk) {
+    const controls = [...row.querySelectorAll('[data-act], [data-role]')];
+    controls.forEach(c => { c.disabled = true; });
+    try {
+      body.append('csrfmiddlewaretoken', token);
+      body.append('user', row.dataset.user);
+      const r = await fetch(url, {
+        method: 'post', body: body,
+        headers: {'X-Requested-With': 'XMLHttpRequest'},
+      });
+      const data = await r.json().catch(() => null);
+      if (!r.ok || !data || !data.ok) {
+        toast((data && data.error) || 'That did not save.', 'bad');
+        return;
+      }
+      onOk(data);
+      toast(data.said);
+      document.querySelectorAll('[data-waiting]').forEach(el => {
+        el.textContent = data.waiting;
+        el.hidden = !data.waiting;
+      });
+    } catch (err) {
+      toast('That did not save. Check your connection and try again.', 'bad');
+    } finally {
+      controls.forEach(c => { c.disabled = false; });
+    }
+  }
+
+  list.addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    const row = btn.closest('[data-row]');
+    const was = btn.textContent;
+    btn.textContent = 'Saving…';
+    const body = new FormData();
+    body.append('action', btn.dataset.act);
+    post(row, body, data => {
+      row.dataset.state = data.state;
+      row.querySelector('[data-state-chip]').innerHTML = CHIP[data.state] || CHIP.out;
+      const shown = SHOWN[data.state] || SHOWN.out;
+      row.querySelectorAll('[data-act]').forEach(b => { b.hidden = !shown[b.dataset.act]; });
+      /* The level control appears the moment somebody is in and goes when they
+         are not, so the row never offers to set a level for a person who has no
+         access to apply it to. */
+      const level = row.querySelector('[data-level]');
+      const select = level.querySelector('[data-role]');
+      if (LEVEL_FOR[data.state] && select) { select.hidden = false; }
+      if (select) { select.hidden = !LEVEL_FOR[data.state]; }
+      if (data.role && select) { select.value = data.role; }
+    }).finally(() => { btn.textContent = was; });
+  });
+
+  list.addEventListener('change', function (e) {
+    const select = e.target.closest('[data-role]');
+    if (!select) return;
+    const row = select.closest('[data-row]');
+    const body = new FormData();
+    body.append('action', 'level');
+    body.append('role', select.value);
+    post(row, body, () => {});
+  });
+})();
+</script>
+{% endblock %}

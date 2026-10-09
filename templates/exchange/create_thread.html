@@ -1,0 +1,134 @@
+{# templates/exchange/create_thread.html #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}New Thread — {{ community.name }} — AJi Hub{% endblock %}
+
+{% block content %}
+
+<a href="{% url 'community_detail' community.slug %}" class="ctx-back" title="{{ community.name }}"><span class="ctx-back-lab">{{ community.name }}</span></a>
+
+<div class="page-head rise" style="margin-bottom:6px">
+  <h1>New Thread</h1>
+</div>
+
+{# The form used to be a 780px card alone on a 1500px page, with the whole #}
+{# right-hand side blank. Same two columns as every other Exchange screen, #}
+{# and the column beside it answers what somebody posting actually wonders: #}
+{# where this goes, who sees it, and what makes a thread worth replying to. #}
+<div class="cx-layout">
+  <div class="cx-main">
+
+<form method="post" enctype="multipart/form-data" class="card rise cx-form">
+  {% csrf_token %}
+
+  <div class="cx-field">
+    <label>Type</label>
+    <div class="cx-vis two" id="typeRow">
+      {% for value, label in thread_types %}
+      <label class="cx-vis-opt{% if form_type == value %} on{% endif %}">
+        <input type="radio" name="thread_type" value="{{ value }}"
+               {% if form_type == value %}checked{% endif %}>
+        <span class="cx-vis-ic">
+          {% if value == 'question' %}{% icon "question" 17 %}{% else %}{% icon "chat-circle-text" 17 %}{% endif %}
+        </span>
+        <span class="cx-vis-txt">
+          <b>{{ label }}</b>
+          <i>{% if value == 'question' %}You are asking — replies can be marked as the answer.{% else %}You are sharing something.{% endif %}</i>
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="cx-field">
+    <label for="thTitle">Title <span class="req">*</span></label>
+    <input id="thTitle" type="text" name="title" maxlength="300" required
+           value="{{ form_title|default:'' }}"
+           placeholder="What is this thread about?" autocomplete="off">
+  </div>
+
+  <div class="cx-field">
+    <label for="thBody">Content <span class="req">*</span></label>
+    <textarea id="thBody" name="body" rows="10" required
+              placeholder="Share your thoughts, question or idea with the community…">{{ form_body|default:'' }}</textarea>
+  </div>
+
+  <div class="cx-field" data-filefield>
+    <label for="thFiles">Attachments</label>
+    <div class="ff">
+      <input type="file" name="attachments" id="thFiles" multiple>
+      <label for="thFiles" class="ff-label">
+        {% icon "paperclip" 15 %}
+        <span><b>Choose files</b> or drag them here — up to {{ max_mb }} MB each</span>
+      </label>
+      <div class="ff-list" data-filelist></div>
+    </div>
+    <div class="cx-hint">Drawings, PDFs, images and short videos. They also show up in this community's Documents.</div>
+  </div>
+
+  <div class="cx-actions">
+    <button type="submit" class="btn y">{% icon "paper-plane-tilt" 15 %} Post thread</button>
+    <a href="{% url 'community_detail' community.slug %}" class="btn ghost">Cancel</a>
+    <span class="cx-posting">Posting in <strong>{{ community.name }}</strong></span>
+  </div>
+</form>
+
+  </div>
+
+  <aside class="cx-side">
+    <div class="cx-side-card cx-about">
+      <a class="cx-about-top" href="{% url 'community_detail' community.slug %}">
+        <span class="cx-about-ic">{% icon "users-group" 16 %}</span>
+        <span class="cx-about-txt">
+          <b>{{ community.name }}</b>
+          <i>{{ community.member_count }} member{{ community.member_count|pluralize }}{% if community.is_private %} · Private{% endif %}</i>
+        </span>
+      </a>
+      <div class="cx-side-note">
+        {% if community.is_private %}
+          This community is private, so only its members will see what you post.
+        {% else %}
+          Anyone at AJi can read this community, so anyone can find your thread.
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="cx-side-card">
+      <div class="cx-side-head">{% icon "lightning" 15 %}<span>Getting a good reply</span></div>
+      <ul class="cx-tips">
+        <li><b>Say what you need in the title.</b> "Revit family for a curtain wall mullion" gets read; "question" does not.</li>
+        <li><b>Ask a question if you want an answer.</b> Replies to a question can be marked as the one that solved it.</li>
+        <li><b>Attach the drawing.</b> Most threads here are answered from a file, not a description of one.</li>
+        <li><b>Mention a colleague with @.</b> They get a notification; posting alone does not reach anybody in particular.</li>
+      </ul>
+    </div>
+
+    {% if recent_threads %}
+    <div class="cx-side-card">
+      <div class="cx-side-head">{% icon "chat-circle-text" 15 %}<span>Recently in this community</span></div>
+      {% for t in recent_threads %}
+      <a class="cx-more-row" href="{% url 'thread_detail' community.slug t.pk %}">
+        <span class="cx-more-title">{{ t.title }}</span>
+        <span class="cx-more-meta">
+          {% if t.thread_type == 'question' %}<span class="cx-more-kind q">Question</span>
+          {% else %}<span class="cx-more-kind">Discussion</span>{% endif %}
+          <span>{{ t.created_at|date:"j M" }}</span>
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </aside>
+</div>
+
+{% include 'exchange/_exchange_js.html' %}
+<script>
+document.querySelectorAll('#typeRow input').forEach(function (r) {
+  r.addEventListener('change', function () {
+    document.querySelectorAll('#typeRow .cx-vis-opt').forEach(function (o) {
+      o.classList.toggle('on', o.querySelector('input').checked);
+    });
+  });
+});
+</script>
+{% endblock %}

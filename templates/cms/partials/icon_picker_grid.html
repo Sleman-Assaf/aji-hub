@@ -1,0 +1,30 @@
+{# templates/cms/partials/icon_picker_grid.html — just the cells. #}
+{# Returned on its own when the search term or category changes, so the rail #}
+{# keeps its scroll position and the search box keeps focus and the caret. #}
+{% load cms_tags %}
+<div class="ip-count">
+  {% if q %}
+    {{ total }} match{{ total|pluralize:"es" }} for &ldquo;{{ q }}&rdquo;
+  {% else %}
+    {{ total }} icon{{ total|pluralize }}
+  {% endif %}
+  {% if more %}
+    {# Said out loud rather than silently cutting the list off: a grid that #}
+    {# stops at 180 with no explanation reads as "that is all there is". #}
+    <span class="muted">· showing the first {{ names|length }}, keep typing to narrow it</span>
+  {% endif %}
+</div>
+<div class="ip-grid" id="ipGrid">
+  {% for name in names %}
+  <button type="button" class="ip-cell{% if name == current %} on{% endif %}"
+          data-name="{{ name }}" onclick="ipPick('{{ name }}', this)" title="{{ name }}">
+    {% icon name 22 %}
+    <span>{{ name }}</span>
+  </button>
+  {% empty %}
+  <p class="ip-none">
+    Nothing matches that.
+    {% if q %}Try a plainer word — &ldquo;calendar&rdquo; rather than &ldquo;scheduling&rdquo;.{% endif %}
+  </p>
+  {% endfor %}
+</div>

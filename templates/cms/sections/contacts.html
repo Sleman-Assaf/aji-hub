@@ -1,0 +1,25 @@
+{% load cms_tags %}
+{% include 'cms/_section_head.html' %}
+<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr))">
+  {% for item in section.visible_items %}
+  <div class="card" style="display:flex;gap:13px;align-items:flex-start">
+    {% if item.image %}
+    <img src="{{ item.image.url }}" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover;flex:none">
+    {% else %}
+    <span style="width:44px;height:44px;border-radius:50%;background:var(--disc);color:var(--yellow);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex:none">{{ item.badge|default:item.title|slice:":2"|upper }}</span>
+    {% endif %}
+    <div style="min-width:0">
+      <div style="font-weight:700;font-size:14px">{{ item.title }}</div>
+      {% if item.meta %}<div class="muted" style="font-size:12px;margin-top:2px">{{ item.meta }}</div>{% endif %}
+      {% if item.text %}<div class="muted" style="font-size:12px;margin-top:4px">{{ item.text }}</div>{% endif %}
+      {% if item.url %}
+      <a href="{{ item.url }}" style="font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px;margin-top:7px">
+        {% cms_icon item.icon|default:"mail" 13 %}{{ item.button_label|default:"Contact" }}
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="muted" style="font-size:13px">No contacts yet.</div>
+  {% endfor %}
+</div>

@@ -1,0 +1,305 @@
+{# templates/core/it/calls.html #}
+{% extends 'core/it/_shell.html' %}
+{% load cms_tags %}
+
+{% block it_note %}
+Live calls — direct and group — the bandwidth they are actually using on the
+wire, what the media bridge has carried, the chat's file transfers, and
+exportable reports. Refreshes itself every few seconds.
+{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+.itc-peers{margin:0;padding:0;list-style:none}
+.itc-peers li{display:flex;align-items:center;gap:9px;padding:7px 0;
+  border-bottom:1px dashed var(--line);font-size:12.5px}
+.itc-peers li:last-child{border-bottom:none}
+.itc-peers b{font-weight:650;min-width:140px}
+.itc-num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.itc-dim{color:var(--muted);font-size:11.5px}
+.itc-live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:var(--ok);box-shadow:0 0 0 3px var(--ok-bg);margin-right:2px}
+.itc-room-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.itc-room-h .sp{flex:1}
+.itc-refresh{font-size:11px;color:var(--muted)}
+</style>
+{% endblock %}
+
+{% block it_content %}
+<div class="it-stats" id="itcCards">
+  <div class="it-stat"><b id="cBridge">…</b><span>Media bridge</span></div>
+  <div class="it-stat"><b id="cLive">…</b><span>Calls live now</span></div>
+  <div class="it-stat"><b id="cPeople">…</b><span>People on calls</span></div>
+  <div class="it-stat"><b id="cRate">…</b><span>Bandwidth right now</span></div>
+  <div class="it-stat"><b id="cTotal">…</b><span>Carried since bridge start</span></div>
+</div>
+
+<div class="it-card">
+  <div class="it-card-h">{% icon "phone" 16 %} Live calls
+    <span class="sp"></span><span class="itc-refresh" id="itcWhen"></span>
+    <a class="it-pg" href="{% url 'it_call_settings' %}" style="margin-left:10px">{% icon "clipboard-check" 14 %} Call settings</a></div>
+  <div class="it-card-b" id="itcLive"><div class="it-none">Loading…</div></div>
+</div>
+
+<div class="it-grid2">
+  <div class="it-card">
+    <div class="it-card-h">{% icon "clock" 16 %} Recently ended (bridge, this session)</div>
+    <div class="it-card-b flush" id="itcHist"><div class="it-none">Loading…</div></div>
+  </div>
+  <div class="it-card">
+    <div class="it-card-h">{% icon "clipboard-text" 16 %} Call log summary</div>
+    <div class="it-card-b" id="itcDb"><div class="it-none">Loading…</div></div>
+  </div>
+</div>
+
+<div class="it-card">
+  <div class="it-card-h">{% icon "paper-plane-tilt" 16 %} File transfers in chat
+    <span class="sp"></span><span class="itc-refresh" id="itcFileN"></span></div>
+  <div class="it-card-b flush" id="itcFiles"><div class="it-none">Loading…</div></div>
+</div>
+
+<div class="it-card">
+  <div class="it-card-h">{% icon "download-tray" 16 %} Reports</div>
+  <div class="it-card-b">
+    <p class="itc-dim" style="margin:0 0 12px">
+      Export the archive as CSV for a date range (Excel opens it directly;
+      Arabic names come through correctly). Calls: one row per call — when,
+      who, type, talk time, outcome, carried by bridge or mesh. File
+      transfers: one row per file — when, sender, conversation, size, and a
+      link to the file.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div><label class="it-lab" for="repFrom">From</label>
+        <input class="it-in" type="date" id="repFrom" style="width:auto"></div>
+      <div><label class="it-lab" for="repTo">To</label>
+        <input class="it-in" type="date" id="repTo" style="width:auto"></div>
+      <a class="it-pg" id="repCalls" href="#">{% icon "phone" 14 %} Export calls CSV</a>
+      <a class="it-pg" id="repFiles" href="#">{% icon "paper-plane-tilt" 14 %} Export file transfers CSV</a>
+    </div>
+  </div>
+</div>
+
+<p class="it-head-note">
+The wire numbers come from the media bridge at
+<span class="it-mono">{{ bridge_url }}</span> (room limit {{ bridge_limit }}),
+read from each connection's WebRTC transport — so they are bytes the network
+actually carried, retransmits included. “Up” is what browsers send the bridge
+(microphones and shared screens); “down” is what the bridge sends back (the
+mix and the stage). Mesh calls — the fallback when the bridge is not running —
+never touch the server, so they appear in the log summary but carry no wire
+numbers. The same live trace prints in the bridge and Waitress terminals.
+</p>
+
+<script>
+(function () {
+  'use strict';
+  const URL = "{% url 'it_calls_data' %}";
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function bytes(n) {
+    n = n || 0;
+    const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = 0;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return (i ? n.toFixed(1) : n.toFixed(0)) + ' ' + u[i];
+  }
+  function kbps(v) {
+    v = v || 0;
+    return v >= 1000 ? (v / 1000).toFixed(1) + ' Mbps' : v.toFixed(0) + ' kbps';
+  }
+  function dur(s) {
+    s = Math.max(0, s | 0);
+    if (s < 60) return s + 's';
+    if (s < 3600) return Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's';
+    return Math.floor(s / 3600) + 'h ' + String(Math.floor(s % 3600 / 60)).padStart(2, '0') + 'm';
+  }
+  function ago(ts) {
+    const s = Math.max(0, (Date.now() / 1000 - ts) | 0);
+    return dur(s) + ' ago';
+  }
+
+  function drawCards(d) {
+    const b = d.bridge_up;
+    const el = document.getElementById('cBridge');
+    el.textContent = b ? 'Up' : 'Down';
+    el.parentElement.classList.toggle('warn', !b);
+    el.parentElement.querySelector('span').textContent = b
+      ? 'Media bridge · up ' + dur(d.bridge.uptime_s)
+      : 'Media bridge · ' + (d.bridge_down_reason || 'not answering');
+
+    const rooms = b ? d.bridge.rooms : [];
+    const liveDb = d.db.live.length;
+    document.getElementById('cLive').textContent = liveDb;
+    document.getElementById('cPeople').textContent =
+      b ? rooms.reduce((n, r) => n + r.peers.length, 0)
+        : d.db.live.reduce((n, c) => n + c.people.length, 0);
+    let rate = 0;
+    rooms.forEach(r => r.peers.forEach(p => { rate += (p.up_kbps || 0) + (p.down_kbps || 0); }));
+    document.getElementById('cRate').textContent = b ? kbps(rate) : '—';
+    document.getElementById('cTotal').textContent = b
+      ? bytes((d.bridge.totals.up_bytes || 0) + (d.bridge.totals.down_bytes || 0))
+      : '—';
+  }
+
+  function drawLive(d) {
+    const box = document.getElementById('itcLive');
+    const rooms = d.bridge_up ? d.bridge.rooms : [];
+    const bridged = new Set(rooms.map(r => r.room));
+    let html = rooms.map(r => {
+      const peers = r.peers.map(p =>
+        `<li>
+           <b>${esc(p.name)}${p.sharing ? ' 🖥' : ''}</b>
+           <span class="it-chip ${p.state === 'connected' ? 'ok' : 'warnc'}">${esc(p.state)}</span>
+           <span class="itc-num">↑ ${kbps(p.up_kbps)} · ↓ ${kbps(p.down_kbps)}</span>
+           <span class="itc-dim itc-num">↑ ${bytes(p.up_bytes)} · ↓ ${bytes(p.down_bytes)}
+             · buf ${p.audio_buffer_ms} ms · ${dur(p.connected_s)}</span>
+         </li>`).join('');
+      return `<div class="it-card" style="margin-bottom:12px">
+        <div class="it-card-h itc-room-h">
+          <span class="itc-live-dot"></span> ${esc(r.title || r.room)}
+          <span class="it-chip">${r.is_group ? 'group call' : 'direct call'}</span>
+          <span class="it-chip y">bridge</span>
+          ${r.sharing_name ? `<span class="it-chip">${esc(r.sharing_name)} sharing</span>` : ''}
+          <span class="sp"></span>
+          <span class="itc-dim itc-num">${dur(r.age_s)} · total ↑ ${bytes(r.up_bytes)} · ↓ ${bytes(r.down_bytes)}</span>
+        </div>
+        <div class="it-card-b"><ul class="itc-peers">${peers ||
+          '<li class="itc-dim">Nobody connected to the bridge yet.</li>'}</ul></div>
+      </div>`;
+    }).join('');
+
+    // Live calls the bridge does not know: mesh calls (bridge was down when
+    // they started). The database still sees them.
+    d.db.live.forEach(c => {
+      if (bridged.has('call-' + c.id)) return;
+      html += `<div class="it-card" style="margin-bottom:12px">
+        <div class="it-card-h itc-room-h">
+          <span class="itc-live-dot"></span> ${esc(c.title)}
+          <span class="it-chip">${c.is_group ? 'group call' : 'direct call'}</span>
+          <span class="it-chip">${c.via_bridge ? 'bridge' : 'mesh — no wire numbers'}</span>
+          <span class="sp"></span>
+          <span class="itc-dim itc-num">${dur(c.seconds)} · started by ${esc(c.started_by)}</span>
+        </div>
+        <div class="it-card-b"><ul class="itc-peers">
+          ${c.people.map(n => `<li><b>${esc(n)}</b></li>`).join('') ||
+            '<li class="itc-dim">Ringing…</li>'}
+        </ul></div>
+      </div>`;
+    });
+
+    box.innerHTML = html || '<div class="it-none">No calls right now.</div>';
+  }
+
+  function drawHist(d) {
+    const box = document.getElementById('itcHist');
+    if (!d.bridge_up) {
+      box.innerHTML = '<div class="it-none">The bridge is not answering, so its history is not readable.</div>';
+      return;
+    }
+    const rows = d.bridge.history.map(h =>
+      `<tr>
+         <td>${esc(h.room)}</td>
+         <td class="itc-num">${ago(h.closed_at)}</td>
+         <td class="itc-num">${dur(h.duration_s)}</td>
+         <td class="itc-num">${h.peak_peers}</td>
+         <td class="itc-num">↑ ${bytes(h.up_bytes)}</td>
+         <td class="itc-num">↓ ${bytes(h.down_bytes)}</td>
+       </tr>`).join('');
+    box.innerHTML = rows
+      ? `<table class="it-table"><thead><tr><th>Room</th><th>Ended</th>
+           <th>Length</th><th>Peak</th><th>Up</th><th>Down</th></tr></thead>
+           <tbody>${rows}</tbody></table>`
+      : '<div class="it-none">No calls have ended since the bridge started.</div>';
+  }
+
+  function drawFiles(d) {
+    const box = document.getElementById('itcFiles');
+    const list = d.files || [];
+    document.getElementById('itcFileN').textContent =
+      (d.file_counts ? d.file_counts.day + ' in 24 h · ' +
+        d.file_counts.week + ' in 7 days' : '');
+    if (!list.length) {
+      box.innerHTML = '<div class="it-none">No files have been sent in chat yet.</div>';
+      return;
+    }
+    const rows = list.map(f =>
+      `<tr>
+         <td class="itc-num itc-dim">${esc(f.sent_at.replace('T', ' ').slice(0, 16))}</td>
+         <td>${esc(f.sender)}</td>
+         <td>${esc(f.conv)} <span class="it-chip">${f.is_group ? 'group' : 'direct'}</span></td>
+         <td>${esc(f.name)}</td>
+         <td class="itc-num">${bytes(f.bytes)}</td>
+         <td style="white-space:nowrap">
+           ${f.url ? `<a class="it-pg" href="${esc(f.url)}" target="_blank" rel="noopener">View</a>
+           <a class="it-pg" href="${esc(f.url)}" download>Download</a>` : '<span class="itc-dim">gone from disk</span>'}
+         </td>
+       </tr>`).join('');
+    box.innerHTML =
+      `<table class="it-table"><thead><tr><th>Sent</th><th>By</th>
+         <th>Conversation</th><th>File</th><th>Size</th><th></th></tr></thead>
+         <tbody>${rows}</tbody></table>`;
+  }
+
+  function drawDb(d) {
+    const b = d.db;
+    const row = (label, x) =>
+      `<tr><td>${label}</td>
+         <td class="itc-num">${x.calls}</td>
+         <td class="itc-num">${x.group} / ${x.direct}</td>
+         <td class="itc-num">${x.answered}</td>
+         <td class="itc-num">${x.missed}</td>
+         <td class="itc-num">${x.declined}</td>
+         <td class="itc-num">${x.minutes} min</td>
+         <td class="itc-num">${x.via_bridge} / ${x.via_mesh}</td></tr>`;
+    document.getElementById('itcDb').innerHTML =
+      `<table class="it-table">
+         <thead><tr><th></th><th>Calls</th><th>Group / direct</th>
+           <th>Answered</th><th>Missed</th>
+           <th>Declined</th><th>Talk time</th><th>Bridge / mesh</th></tr></thead>
+         <tbody>${row('Last 24 h', b.day)}${row('Last 7 days', b.week)}</tbody>
+       </table>`;
+  }
+
+  // ── reports ──
+  const REPORT_URL = "{% url 'it_calls_report' %}";
+  (function () {
+    const from = document.getElementById('repFrom');
+    const to = document.getElementById('repTo');
+    const day = 24 * 3600 * 1000;
+    const iso = t => new Date(t).toISOString().slice(0, 10);
+    from.value = iso(Date.now() - 30 * day);
+    to.value = iso(Date.now());
+    function go(what) {
+      const q = new URLSearchParams({what, from: from.value, to: to.value});
+      window.location = REPORT_URL + '?' + q.toString();
+    }
+    document.getElementById('repCalls').addEventListener('click',
+      e => { e.preventDefault(); go('calls'); });
+    document.getElementById('repFiles').addEventListener('click',
+      e => { e.preventDefault(); go('files'); });
+  })();
+
+  let timer = null;
+  function tick() {
+    fetch(URL, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then(r => r.json())
+      .then(d => {
+        drawCards(d); drawLive(d); drawHist(d); drawDb(d); drawFiles(d);
+        document.getElementById('itcWhen').textContent =
+          'updated ' + new Date().toLocaleTimeString();
+      })
+      .catch(() => {});
+  }
+  tick();
+  timer = setInterval(tick, 3000);
+  // A background tab does not need three requests every nine seconds.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { clearInterval(timer); timer = null; }
+    else if (!timer) { tick(); timer = setInterval(tick, 3000); }
+  });
+})();
+</script>
+{% endblock %}

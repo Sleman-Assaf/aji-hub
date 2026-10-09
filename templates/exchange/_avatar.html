@@ -1,0 +1,15 @@
+{% load hub_extras %}
+{# One avatar, used by the post author, every reply and the composer. #}
+{# #}
+{# Takes: user, and optionally size ("sm"). It was written inline in three #}
+{# places before, each building initials as first_name.0 + last_name.0 — #}
+{# which is an empty string for any account without a name, so those replies #}
+{# showed a filled square with nothing in it. #}
+{% if user.employee.photo %}
+  <img class="cx-av{% if size %} {{ size }}{% endif %}"
+       src="{{ user.employee.photo.url }}"
+       alt="{{ user.get_full_name|default:user.username }}" loading="lazy">
+{% else %}
+  <span class="cx-av tone{% if size %} {{ size }}{% endif %}"
+        aria-hidden="true">{{ user|initials }}</span>
+{% endif %}

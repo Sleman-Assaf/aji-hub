@@ -1,0 +1,214 @@
+{# templates/people/skills.html #}
+{% extends 'base.html' %}
+{% block title %}AJi Skills Directory{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div class="eyebrow">Directory</div>
+  <h1>AJi Skills</h1>
+  <p>Find the right person for a proposal, review or project — search across AJi by skill, country, company or division.</p>
+</div>
+
+<!-- Filter bar -->
+<div class="sk-toolbar rise">
+  <div class="sk-searchwrap">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    <input type="text" id="skillQ" value="{{ q }}" placeholder="Search by name, role or skill…" oninput="applyFilters()">
+  </div>
+
+  <!-- Category filter dropdown -->
+  <div class="skf" id="catFilter">
+    <button class="skf-btn" onclick="this.parentElement.classList.toggle('open')">
+      <span class="skf-lbl" id="catLabel">All Categories</span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="skf-pop">
+      <div class="skf-opt" onclick="setCat('')"><div class="skf-check"></div>All Categories</div>
+      {% for cat in categories %}
+      <div class="skf-grouplbl">{{ cat.name }}</div>
+      {% for skill in cat.skills.all %}
+      <div class="skf-opt" data-skill="{{ skill.pk }}" data-name="{{ skill.name }}" onclick="toggleSkill(this)">
+        <div class="skf-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></div>
+        {{ skill.name }}
+      </div>
+      {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Entity filter -->
+  <select id="entityFilter" onchange="applyFilters(true)" style="border:1px solid var(--line-2);padding:13px;font-family:inherit;font-size:13.5px;font-weight:600">
+    <option value="">All entities</option>
+    {% for e in entities %}<option value="{{ e.code }}"{% if e.code == selected_entity %}selected{% endif %}>{{ e.name }}</option>{% endfor %}
+  </select>
+
+  <span class="sk-count" id="skCount">{{ total }} person{{ total|pluralize:"s" }}</span>
+</div>
+
+<!-- Active chips -->
+<div class="sk-active" id="activeChips"></div>
+
+<!-- Results grid -->
+<div class="sk-grid" id="skGrid">
+  {% for emp in employees %}
+  <div class="sk-card" style="cursor:pointer;transition:box-shadow .15s" onclick="openProfile({{ emp.pk }})" onmouseover="this.style.boxShadow='4px 4px 0 var(--yellow)'" onmouseout="this.style.boxShadow=''">
+    <div class="sk-card-top">
+      <div class="sk-card-av" style="overflow:hidden;padding:0">{% if emp.photo %}<img src="{{ emp.photo.url }}" style="width:100%;height:100%;object-fit:cover">{% else %}{{ emp.initials }}{% endif %}</div>
+      <div class="sk-card-id">
+        <div class="sk-card-nm">{{ emp.full_name }}</div>
+        <div class="sk-card-role">{{ emp.role|default:"" }}</div>
+        {% if emp.entity %}<div class="sk-card-ent">{{ emp.entity.name }}</div>{% endif %}
+      </div>
+    </div>
+    <div class="sk-tags">
+      {% for es in emp.skills.all|slice:":6" %}
+      <div class="sk-tag {% if es.skill.pk in selected_skills %}match{% endif %}">
+        {{ es.skill.name }}
+        <div class="lv">{% for i in "1234" %}<i class="{% if forloop.counter <= es.level %}on{% endif %}"></i>{% endfor %}</div>
+      </div>
+      {% endfor %}
+      {% with remaining=emp.skills.count|add:"-6" %}{% if remaining > 0 %}<span class="sk-more">+{{ remaining }} more</span>{% endif %}{% endwith %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="sk-empty"><p>No employees match your filters.</p></div>
+  {% endfor %}
+</div>
+
+{# Ten arrive with the page, fifty at a time after that. #}
+<div class="dir-more" id="skMore"{% if not has_more %} hidden{% endif %}>
+  <button type="button" class="btn ghost" id="skMoreBtn"
+          data-offset="{{ next_offset }}" data-limit="{{ more_page }}">
+    Show {{ more_page }} more
+  </button>
+  <span class="muted" id="skShown">Showing {{ employees|length }} of {{ total }}</span>
+</div>
+
+<script>
+async function openProfile(pk){
+  const r = await fetch('/people/'+pk+'/modal/');
+  const html = await r.text();
+  openModal(html);
+}
+
+/* Strings throughout. These used to be seeded as numbers and then added as
+   strings from dataset.skill, so a skill arriving in the URL could never be
+   matched against one clicked in the list — Set.has(3) is false when the set
+   holds "3", and the chip for it silently failed to appear. */
+let selectedSkills = new Set([{% for sk in selected_skills %}'{{ sk }}',{% endfor %}]);
+
+function toggleSkill(el){
+  const pk = el.dataset.skill;
+  el.classList.toggle('on');
+  if(selectedSkills.has(pk)){selectedSkills.delete(pk);}
+  else{selectedSkills.add(pk);}
+  renderChips();applyFilters(true);
+}
+
+function renderChips(){
+  const container=document.getElementById('activeChips');
+  const opts=document.querySelectorAll('.skf-opt[data-skill]');
+  const chips=[];
+  opts.forEach(o=>{if(selectedSkills.has(o.dataset.skill))chips.push({pk:o.dataset.skill,name:o.dataset.name});});
+  container.innerHTML=chips.map(c=>`<span class="sk-active-chip" onclick="removeSkill('${c.pk}')"><span>${c.name}</span><span class="x">×</span></span>`).join('');
+  document.getElementById('catLabel').textContent = chips.length ? `${chips.length} skill${chips.length>1?'s':''}` : 'All Categories';
+}
+
+function removeSkill(pk){
+  selectedSkills.delete(pk);
+  document.querySelectorAll('.skf-opt[data-skill]').forEach(o=>{if(o.dataset.skill===pk)o.classList.remove('on');});
+  renderChips();applyFilters(true);
+}
+
+/* ── Filtering, on the server ──
+   This used to render every active employee and every one of their skills into
+   the page and then hide the cards that did not match. Instant on a hundred
+   people; on 1,256 it is a very large document to build before anything paints,
+   and it cannot page — a search that only looks at what is already loaded is
+   not a search. The filters now ask the server, which also means "show more"
+   returns the next fifty *matches* rather than the next fifty people. */
+const grid    = document.getElementById('skGrid');
+const countEl = document.getElementById('skCount');
+const moreWrap= document.getElementById('skMore');
+const moreBtn = document.getElementById('skMoreBtn');
+const shownEl = document.getElementById('skShown');
+let shown = grid.querySelectorAll('.sk-card').length;
+let timer = null;
+
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function cardHtml(e){
+  const av = e.photo
+    ? `<div class="sk-card-av" style="overflow:hidden;padding:0"><img src="${esc(e.photo)}" style="width:100%;height:100%;object-fit:cover"></div>`
+    : `<div class="sk-card-av">${esc(e.initials)}</div>`;
+  const tags = (e.skills || []).map(s => {
+    let lv = '';
+    for (let i = 1; i <= 4; i++) lv += `<i class="${i <= s.level ? 'on' : ''}"></i>`;
+    return `<div class="sk-tag${s.match ? ' match' : ''}">${esc(s.name)}<div class="lv">${lv}</div></div>`;
+  }).join('');
+  const more = e.more > 0 ? `<span class="sk-more">+${e.more} more</span>` : '';
+  return `<div class="sk-card" style="cursor:pointer;transition:box-shadow .15s" onclick="openProfile(${e.pk})"
+      onmouseover="this.style.boxShadow='4px 4px 0 var(--yellow)'" onmouseout="this.style.boxShadow=''">
+      <div class="sk-card-top">${av}<div class="sk-card-id">
+        <div class="sk-card-nm">${esc(e.name)}</div>
+        <div class="sk-card-role">${esc(e.role)}</div>
+        ${e.entity ? `<div class="sk-card-ent">${esc(e.entity)}</div>` : ''}
+      </div></div>
+      <div class="sk-tags">${tags}${more}</div>
+    </div>`;
+}
+
+function query(offset, limit){
+  let url = '/people/skills/?q=' + encodeURIComponent(document.getElementById('skillQ').value.trim())
+          + '&entity=' + encodeURIComponent(document.getElementById('entityFilter').value)
+          + '&offset=' + offset + '&limit=' + limit;
+  selectedSkills.forEach(function(pk){ url += '&skill=' + encodeURIComponent(pk); });
+  return url;
+}
+
+function load(offset, append){
+  const was = moreBtn.textContent;
+  moreBtn.disabled = true;
+  if (append) moreBtn.textContent = 'Loading…';
+
+  return fetch(query(offset, append ? moreBtn.dataset.limit : {{ more_page }}),
+               {headers:{'X-Requested-With':'XMLHttpRequest'}})
+    .then(r => r.json())
+    .then(d => {
+      const emps = d.employees || [];
+      const html = emps.map(cardHtml).join('');
+      if (append) {
+        grid.insertAdjacentHTML('beforeend', html);
+        shown += emps.length;
+      } else {
+        grid.innerHTML = html || '<div class="sk-empty"><p>No employees match your filters.</p></div>';
+        shown = emps.length;
+      }
+      countEl.textContent = d.total + ' person' + (d.total !== 1 ? 's' : '');
+      shownEl.textContent = 'Showing ' + shown + ' of ' + d.total;
+      moreBtn.dataset.offset = d.next_offset;
+      moreWrap.hidden = !d.has_more;
+      moreBtn.disabled = false;
+      moreBtn.textContent = was;
+    })
+    .catch(() => { moreBtn.disabled = false; moreBtn.textContent = was; });
+}
+
+moreBtn.addEventListener('click', () => load(parseInt(moreBtn.dataset.offset,10) || 0, true));
+
+/* Debounced, because this now costs a request. Skill and entity changes are a
+   deliberate click and go straight away. */
+function applyFilters(immediate){
+  clearTimeout(timer);
+  if (immediate) { load(0, false); return; }
+  timer = setTimeout(() => load(0, false), 300);
+}
+
+document.addEventListener('click',e=>{if(!e.target.closest('#catFilter'))document.getElementById('catFilter').classList.remove('open');});
+renderChips();
+</script>
+{% endblock %}

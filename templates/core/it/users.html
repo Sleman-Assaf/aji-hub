@@ -1,0 +1,70 @@
+{% extends 'core/it/_shell.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}Accounts — IT Portal{% endblock %}
+{% block it_note %}Everyone on the system. Search by name, username or email.{% endblock %}
+
+{% block it_content %}
+<div class="it-card">
+  <form method="get" class="it-filters">
+    <input class="it-in" name="q" value="{{ q }}" placeholder="Search name, username or email…">
+    <select class="it-in" name="state" style="flex:none;width:auto">
+      <option value="">Everyone</option>
+      <option value="active" {% if state == 'active' %}selected{% endif %}>Active only</option>
+      <option value="disabled" {% if state == 'disabled' %}selected{% endif %}>Disabled only</option>
+      <option value="privileged" {% if state == 'privileged' %}selected{% endif %}>Holds a role</option>
+      <option value="never" {% if state == 'never' %}selected{% endif %}>Never signed in</option>
+    </select>
+    <select class="it-in" name="role" style="flex:none;width:auto">
+      <option value="">Any role</option>
+      {% for g in all_roles %}
+      <option value="{{ g.name }}" {% if role == g.name %}selected{% endif %}>{{ g.name }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn y sm" type="submit">Search</button>
+    {% if q or state or role %}<a class="btn ghost sm" href="{% url 'it_users' %}">Clear</a>{% endif %}
+  </form>
+
+  <div class="it-card-b flush">
+    {% for p in people %}
+    {# A grid, not a flex row. Ten role chips as flex siblings squeezed the name #}
+    {# column to nothing and pushed the username under the chips. Columns hold #}
+    {# their width whatever the person carries. #}
+    <a class="it-urow" href="{% url 'it_user_detail' p.pk %}">
+      {% if p.employee.photo %}<img class="it-av" src="{{ p.employee.photo.url }}" alt="">
+      {% else %}<span class="it-av">{{ p|initials }}</span>{% endif %}
+
+      <span class="it-uwho">
+        <b>{{ p.get_full_name|default:p.username }}</b>
+        <span class="it-mono">{{ p.username }}</span>
+      </span>
+
+      <span class="it-umail">{{ p.email|default:"—" }}</span>
+
+      <span class="it-uroles">
+        {% for g in p.groups.all|slice:":4" %}<span class="it-chip">{{ g.name }}</span>{% endfor %}
+        {% if p.groups.all|length > 4 %}
+          <span class="it-chip" title="{% for g in p.groups.all|slice:'4:' %}{{ g.name }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+            +{{ p.groups.all|length|add:"-4" }}</span>
+        {% endif %}
+        {% if not p.groups.all %}<span class="it-udash">No roles</span>{% endif %}
+      </span>
+
+      <span class="it-ustate">
+        {% if p.is_superuser %}<span class="it-chip y">Super</span>{% endif %}
+        {% if not p.is_active %}<span class="it-chip bad">Disabled</span>{% endif %}
+      </span>
+    </a>
+    {% empty %}
+    <div class="it-none">Nobody matches that.</div>
+    {% endfor %}
+  </div>
+
+  {% if total > shown %}
+  <div class="it-bar">
+    <span style="font-size:12.5px;color:var(--muted)">
+      Showing the first {{ shown }} of {{ total }}. Narrow the search to see the rest.
+    </span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

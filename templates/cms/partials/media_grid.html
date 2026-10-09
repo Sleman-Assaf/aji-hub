@@ -1,0 +1,36 @@
+{# templates/cms/partials/media_grid.html — the images available to reuse. #}
+{# The pixel size travels with each cell because the crop tool cannot work #}
+{# without it: a rectangle measured against the scaled preview would land #}
+{# somewhere else on the real file. #}
+{% for a in assets %}
+<button type="button" class="mp-cell" data-pk="{{ a.pk }}"
+        data-url="{{ a.file.url }}" data-alt="{{ a.alt_text }}"
+        data-fx="{{ a.focal_x }}" data-fy="{{ a.focal_y }}"
+        data-w="{{ a.width }}" data-h="{{ a.height }}"
+        data-size="{{ a.pretty_size }}"
+        data-editable="{% if a.width and a.ext != '.svg' %}1{% else %}0{% endif %}"
+        data-orig="{% if a.has_earlier %}1{% else %}0{% endif %}"
+        {# Quality only applies to a lossy format, so the slider is hidden for a #}
+        {# PNG rather than left on screen doing nothing. The flag is set by the #}
+        {# view from imaging.lossy_format, not worked out again from the #}
+        {# extension here -- two copies of that list would drift apart. #}
+        data-lossy="{% if a.is_lossy %}1{% else %}0{% endif %}"
+        data-format="{{ a.format_label }}"
+        onclick="mpPick({{ a.pk }})" title="{{ a.name }}">
+  <span class="mp-thumb">
+    <img src="{% if a.thumbnail %}{{ a.thumbnail.url }}{% else %}{{ a.file.url }}{% endif %}"
+         alt="" loading="lazy" decoding="async"
+         style="object-position:{{ a.focal_css }}">
+  </span>
+  <span class="mp-name">{{ a.name }}</span>
+  <span class="mp-meta">
+    {% if a.width %}{{ a.width }}×{{ a.height }} · {% endif %}{{ a.pretty_size }}
+    {% if not a.alt_text %}<b class="mp-warn" title="No alt text yet">no alt</b>{% endif %}
+  </span>
+</button>
+{% empty %}
+<p class="mp-none">
+  Nothing here yet. Drop an image above, or use Upload — it will be available to
+  every page after that.
+</p>
+{% endfor %}

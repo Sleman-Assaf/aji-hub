@@ -1,0 +1,36 @@
+{# templates/cms/sections/icon_tiles.html — a grid of bordered tiles, icon over label. #}
+{# Reproduces the expertise tiles. The seven areas were a literal list in a view #}
+{# and every tile drew the same hardcoded icon; each is now a record with its own #}
+{# icon, label, optional link and order. #}
+{% load cms_tags %}
+{% if section.title %}
+<div class="sec-head">
+  {% if section|cfg:"label" %}<span class="sec-label">{{ section|cfg:"label" }}</span>{% endif %}
+  <h2 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title|aji }}</h2>
+  {% sec_link_ok section as show_link %}{% if show_link %}<a href="{{ section|cfg:"link_url" }}" class="lk">{{ section|cfg:"link_label"|default:"View all" }} →</a>{% endif %}
+</div>
+{% endif %}
+{% page_actions section as tiles %}
+<div class="expertise-tiles" style="--cols:{{ section|cfg:"columns"|default:4 }}">
+  {% for t in tiles %}
+  {% if t.href %}<a href="{{ t.href }}" class="exp-tile{% if cms_edit_mode %} ed-item{% endif %}"
+     style="text-decoration:none;color:inherit" data-item="{{ t.pk }}"
+     data-owner="{{ section.pk }}" {% if cms_edit_mode %}draggable="true"{% endif %}>
+  {% else %}<div class="exp-tile{% if cms_edit_mode %} ed-item{% endif %}"
+     data-item="{{ t.pk }}" data-owner="{{ section.pk }}"
+     {% if cms_edit_mode %}draggable="true"{% endif %}>{% endif %}
+    {% editable_icon t t.icon|default:"grid" 20 1.6 kind="item" %}
+    <h4 {% if cms_edit_mode %}data-ed-item="{{ t.pk }}" data-ed-field="title" contenteditable="true"{% endif %}>{{ t.title }}</h4>
+    {% if t.meta %}<span class="muted" style="font-size:11.5px">{{ t.meta }}</span>{% endif %}
+  {% if t.href %}</a>{% else %}</div>{% endif %}
+  {% empty %}
+  {% if cms_edit_mode %}
+  <p class="muted" style="grid-column:1/-1;font-size:12.5px;margin:0">
+    No tiles yet — add one from this block's settings.
+  </p>
+  {% endif %}
+  {% endfor %}
+  {% if cms_edit_mode %}
+  <button type="button" data-ed-add-item="{{ section.pk }}">+ Add a tile</button>
+  {% endif %}
+</div>

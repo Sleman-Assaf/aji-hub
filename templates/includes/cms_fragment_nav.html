@@ -1,0 +1,138 @@
+{# templates/includes/cms_fragment_nav.html — no reloads on the management screens. #}
+{# #}
+{# Four screens were the last part of the CMS that still worked the old way: a #}
+{# form posts, Django redirects, the browser does a full navigation. Every #}
+{# in-place edit elsewhere on the Hub updates without one; the section list, the #}
+{# section form, the item form and page settings were the hold-outs. #}
+{# #}
+{# The fix is generic rather than four bespoke rewrites. Any form or link marked #}
+{# data-frag is intercepted here. A form's POST carries a header telling the view #}
+{# a script is asking, so it can answer with JSON {redirect: ...} instead of a #}
+{# real redirect; the destination is then fetched the ordinary way -- ordinary #}
+{# GET, ordinary full-page render -- and only its #hubMain is swapped in, so the #}
+{# nav, the chat panel and the editor overlay never move. Anyone without JS still #}
+{# gets the classic form post and redirect: the header is simply absent, and #}
+{# every view falls back to exactly what it did before this existed. #}
+{% if user.is_authenticated %}
+<script>
+(function(){
+  const csrf = () => (document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/) || [])[1] || '';
+
+  async function fragSubmit(form){
+    const url = form.getAttribute('action') || location.pathname;
+    const fd = new FormData(form);
+    let r, d;
+    try {
+      r = await fetch(url, {method: 'POST',
+        headers: {'X-CSRFToken': decodeURIComponent(csrf()), 'X-Cms-Fragment': '1'},
+        body: fd});
+      d = await r.json();
+    } catch (e){ if (window.toast) toast('Could not reach the server.'); return; }
+    if (!r.ok || d.error){ if (window.toast) toast(d.error || 'That did not save.'); return; }
+    if (d.message && window.toast) toast(d.message);
+    if (d.redirect) await fragGo(d.redirect);
+  }
+
+  /* Fetches a destination the ordinary way -- a full HTML page, the exact
+     request a real navigation would make -- and swaps only #hubMain in. No view
+     needs a second, fragment-only way of rendering itself. */
+  async function fragGo(url, push){
+    let html;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) { location.href = url; return; }
+      html = await r.text();
+    } catch (e){ location.href = url; return; }
+
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const next = doc.getElementById('hubMain');
+    const main = document.getElementById('hubMain');
+    if (!next || !main){ location.href = url; return; }
+
+    main.innerHTML = next.innerHTML;
+    document.title = doc.title;
+    swapHeadStyles(doc);
+    if (push !== false) history.pushState({frag: true}, '', url);
+
+    /* innerHTML does not execute <script> tags -- page_manage's drag-reorder
+       logic lives in one of these, so it would silently stop working after the
+       very first swap without this. */
+    main.querySelectorAll('script').forEach(old => {
+      const s = document.createElement('script');
+      [...old.attributes].forEach(a => s.setAttribute(a.name, a.value));
+      s.textContent = old.textContent;
+      old.replaceWith(s);
+    });
+
+    if (window.ipWire) ipWire(main);
+    if (window.mpWire) mpWire(main);
+    wireFlash(main);
+    main.focus({preventScroll: true});
+    window.scrollTo(0, 0);
+  }
+
+  /* Four of these screens keep their own CSS in {% templatetag openblock %} block extra_head
+     {% templatetag closeblock %}, which lives in <head> -- outside the region being
+     swapped. So arriving at the section list from the editor gave it the right
+     markup and none of its styling: every row stacked, buttons in a column.
+
+     The styles a swap brings with it are tagged, so the next swap can take the
+     previous screen's away again rather than piling one page's rules on top of
+     another's. */
+  function swapHeadStyles(doc){
+    document.head.querySelectorAll('[data-frag-style]').forEach(el => el.remove());
+    doc.head.querySelectorAll('style, link[rel="stylesheet"]').forEach(el => {
+      /* Anything the base template already loads is there in both documents and
+         must not be duplicated. */
+      const href = el.getAttribute('href');
+      if (href && document.head.querySelector(`link[href="${CSS.escape(href)}"]`)) return;
+      if (!href && [...document.head.querySelectorAll('style:not([data-frag-style])')]
+                    .some(s => s.textContent === el.textContent)) return;
+      const copy = el.cloneNode(true);
+      copy.setAttribute('data-frag-style', '1');
+      document.head.append(copy);
+    });
+  }
+
+  /* Notices arriving inside swapped markup. DOMContentLoaded only fires once,
+     so anything swapped in needs wiring by hand or it would sit there forever.
+
+     A notice belongs to the window, not to the fragment it came in, so it is
+     moved into the real stack at the foot of the page rather than animated
+     where it landed — inside a swapped panel it would be positioned by whatever
+     that panel happens to be. It used to look for `.flash-msg`, the banner
+     class, which no longer exists. */
+  function wireFlash(root){
+    const stack = document.getElementById('toasts');
+    root.querySelectorAll('[data-toast]').forEach(el => {
+      if (stack && el.parentNode !== stack) stack.appendChild(el);
+      if (typeof toastEnter === 'function') toastEnter(el);
+      else setTimeout(() => el.remove(), 3000);
+    });
+  }
+
+  document.addEventListener('submit', e => {
+    const form = e.target.closest('form[data-frag]');
+    if (!form) return;
+    e.preventDefault();
+    if (form.dataset.confirm && !confirm(form.dataset.confirm)) return;
+    fragSubmit(form);
+  });
+
+  document.addEventListener('click', e => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target.closest('a[data-frag]');
+    if (!a || a.target === '_blank') return;
+    e.preventDefault();
+    fragGo(a.href);
+  });
+
+  /* Back/forward could replay a stale swap built from a page that no longer
+     matches what was recorded, so a real reload is always correct there rather
+     than trying to keep a client-side cache in step. */
+  window.addEventListener('popstate', () => location.reload());
+
+  window.fragGo = fragGo;
+})();
+</script>
+{% endif %}

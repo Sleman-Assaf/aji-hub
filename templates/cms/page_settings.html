@@ -1,0 +1,124 @@
+{# templates/cms/page_settings.html #}
+{# ?embed=1 renders the form on its own, for the editing panel. Without it the #}
+{# panel would show the entire site inside a 320px iframe -- navigation, chat #}
+{# bubble and all. Same form either way, so there is one place page settings #}
+{# are defined. #}
+{% extends embed|yesno:"cms/_bare.html,base.html" %}
+{% block title %}{% if page %}Page settings{% else %}New page{% endif %} — AJi Hub{% endblock %}
+{% block content %}
+{% if embed and request.GET.saved %}
+{# The iframe never renders Django's messages, and a redirect inside it would #}
+{# otherwise be silent -- reaching into the parent window (same origin, so this #}
+{# is allowed) is what tells the editor the save actually happened. #}
+<script>
+(function(){
+  var w = window.parent;
+  if (!w || w === window) return;
+  if (w.toast) w.toast('Page saved.');
+  var t = w.document.querySelector('.csh-page');
+  if (t) t.textContent = {{ page.title|default:''|escapejs }};
+  var s = w.document.querySelector('.csh-state');
+  if (s){
+    var live = {{ page.is_published|yesno:'true,false' }};
+    s.textContent = live ? 'Live' : 'Draft';
+    s.classList.toggle('live', live);
+    s.classList.toggle('draft', !live);
+  }
+})();
+</script>
+{% endif %}
+<a href="{% if page %}{% url 'cms_page_manage' page.slug %}{% else %}{% url 'cms_index' %}{% endif %}"
+   {% if not embed %}data-frag{% endif %} class="ctx-back" title="{% if page %}{{ page.title }}{% else %}Pages{% endif %}"><span class="ctx-back-lab">{% if page %}{{ page.title }}{% else %}Pages{% endif %}</span></a>
+
+<div class="page-head rise">
+  <div class="eyebrow">Hub</div>
+  <h1>{% if page %}Page settings{% else %}New page{% endif %}</h1>
+  <p>Who can see this page, and when it goes live.</p>
+</div>
+
+<form data-save method="post" {% if not embed %}data-frag{% endif %} class="card rise" style="max-width:720px">
+  {% csrf_token %}
+
+  <div class="field" style="margin-bottom:15px">
+    <label for="p-title">Title</label>
+    <input id="p-title" name="title" required maxlength="200" value="{{ page.title|default:'' }}"
+           style="width:100%;border:1px solid var(--line-2);padding:10px 12px;font-family:inherit;font-size:15px;outline:none">
+  </div>
+
+  <div style="display:flex;gap:14px;flex-wrap:wrap">
+    <div class="field" style="flex:1;min-width:190px;margin-bottom:15px">
+      <label for="p-eyebrow">Eyebrow</label>
+      <input id="p-eyebrow" name="eyebrow" maxlength="80" value="{{ page.eyebrow|default:'' }}"
+             placeholder="e.g. People &amp; Culture"
+             style="width:100%;border:1px solid var(--line-2);padding:10px 12px;font-family:inherit;font-size:14px">
+    </div>
+    <div class="field" style="flex:1;min-width:190px;margin-bottom:15px">
+      <label for="p-slug">Link</label>
+      <input id="p-slug" name="slug" value="{{ page.slug|default:'' }}" placeholder="auto from title"
+             style="width:100%;border:1px solid var(--line-2);padding:10px 12px;font-family:inherit;font-size:13px">
+      <div class="muted" style="font-size:12px;margin-top:5px">/p/&lt;link&gt;/</div>
+    </div>
+  </div>
+
+  <div class="field" style="margin-bottom:15px">
+    <label for="p-sub">Subtitle</label>
+    <input id="p-sub" name="subtitle" maxlength="400" value="{{ page.subtitle|default:'' }}"
+           style="width:100%;border:1px solid var(--line-2);padding:10px 12px;font-family:inherit;font-size:14px">
+  </div>
+
+  <div class="field" style="margin-bottom:15px">
+    <label for="p-aud">Who can see this page</label>
+    <select id="p-aud" name="audience" style="width:100%;max-width:280px;border:1px solid var(--line-2);padding:10px 12px;font-family:inherit;font-size:14px">
+      {% for value, label in audiences %}
+      <option value="{{ value }}" {% if page and page.audience == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field" style="margin-bottom:15px">
+    <label for="p-groups">Specific groups</label>
+    <select id="p-groups" name="audience_groups" multiple size="4"
+            style="width:100%;max-width:340px;border:1px solid var(--line-2);padding:8px;font-family:inherit;font-size:13.5px">
+      {% for g in groups %}
+      <option value="{{ g.pk }}" {% if page and g in page.audience_groups.all %}selected{% endif %}>{{ g.name }}</option>
+      {% endfor %}
+    </select>
+    <div class="muted" style="font-size:12px;margin-top:5px">Only used when the audience above is “Specific groups”.</div>
+  </div>
+
+  <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:9px">
+    <input type="checkbox" name="show_in_nav" {% if page.show_in_nav %}checked{% endif %}>
+    List this page on the Hub pages index
+  </label>
+
+  {% if can_publish %}
+  <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px">
+    <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:12px">
+      <input type="checkbox" name="is_published" {% if page.is_published %}checked{% endif %}>
+      Published
+    </label>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:200px">
+        <label for="p-pub">Go live at</label>
+        <input id="p-pub" type="datetime-local" name="publish_at"
+               value="{{ page.publish_at|date:'Y-m-d\TH:i' }}"
+               style="width:100%;border:1px solid var(--line-2);padding:9px 11px;font-family:inherit;font-size:13.5px">
+      </div>
+      <div class="field" style="flex:1;min-width:200px">
+        <label for="p-arc">Archive at</label>
+        <input id="p-arc" type="datetime-local" name="archive_at"
+               value="{{ page.archive_at|date:'Y-m-d\TH:i' }}"
+               style="width:100%;border:1px solid var(--line-2);padding:9px 11px;font-family:inherit;font-size:13.5px">
+      </div>
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:6px">Leave both empty to show immediately and indefinitely.</div>
+  </div>
+  {% endif %}
+
+  <div class="f-foot">
+    <button type="submit" class="btn y">{% if page %}Save settings{% else %}Create page{% endif %}</button>
+    <a href="{% if page %}{% url 'cms_page_manage' page.slug %}{% else %}{% url 'cms_index' %}{% endif %}"
+       {% if not embed %}data-frag{% endif %} class="btn ghost">Cancel</a>
+  </div>
+</form>
+{% endblock %}

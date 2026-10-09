@@ -1,0 +1,62 @@
+{# templates/content/_project_fields.html — one project's fields. #}
+{# Shared by the add form and every edit form, so the two cannot drift. #}
+<div class="pjx-grid">
+  <label class="pjx-f wide">
+    <span>Name <em>required</em></span>
+    <input type="text" name="title" value="{{ p.title|default:'' }}" required
+           maxlength="300" placeholder="e.g. Abdoun Mixed-Use Mall">
+  </label>
+
+  <label class="pjx-f wide">
+    <span>Location <em>required</em></span>
+    <input type="text" name="location" value="{{ p.location|default:'' }}" required
+           maxlength="300" placeholder="e.g. Amman · Jordan">
+  </label>
+
+  <label class="pjx-f">
+    <span>Division</span>
+    <input type="text" name="division" value="{{ p.division|default:'' }}"
+           maxlength="100" list="pjxDivisions" placeholder="AJiBE">
+  </label>
+
+  <label class="pjx-f">
+    <span>Type</span>
+    <input type="text" name="type" value="{{ p.type|default:'' }}"
+           maxlength="100" list="pjxTypes" placeholder="Architecture">
+  </label>
+
+  <label class="pjx-f narrow">
+    <span>Year</span>
+    <input type="number" name="year" value="{{ p.year|default:'' }}"
+           min="1900" max="2100" placeholder="2026">
+  </label>
+
+  <label class="pjx-f">
+    <span>Status</span>
+    <select name="status">
+      {% for value, label in statuses %}
+      <option value="{{ value }}" {% if p and p.status == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label class="pjx-f full">
+    <span>Description</span>
+    <textarea name="description" rows="4"
+              placeholder="What the project is, in a sentence or two.">{{ p.description|default:'' }}</textarea>
+  </label>
+
+  <label class="pjx-f full pjx-file">
+    <span>Picture{% if p and p.image %} — replace{% endif %}</span>
+    <input type="file" name="image" accept="image/*">
+    <i>Optional. Leave empty to keep{% if p and p.image %} the current one{% else %} it blank{% endif %}.</i>
+  </label>
+
+  <label class="pjx-f full pjx-check">
+    <input type="checkbox" name="use_placeholder" value="1"
+           {% if p and p.use_placeholder %}checked{% endif %}>
+    <span>Place dummy picture</span>
+    <i>Draws a stand-in graphic while there is no real photograph. Nothing is
+       downloaded for it.</i>
+  </label>
+</div>

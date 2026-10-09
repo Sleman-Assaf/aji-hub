@@ -1,0 +1,70 @@
+{% extends 'core/it/_shell.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}Security — IT Portal{% endblock %}
+{% block it_note %}Checks run against the database each time this page opens, so it cannot go stale the way a written review does.{% endblock %}
+
+{% block it_content %}
+<div class="it-card">
+  <div class="it-card-h">{% icon "lock" 16 %}<span class="sp">Review</span>
+    {% if findings %}<span class="it-chip warnc">{{ findings|length }}</span>
+    {% else %}<span class="it-chip ok">All clear</span>{% endif %}</div>
+  <div class="it-card-b flush">
+    {% for level, title, detail in findings %}
+    <div class="it-finding {{ level }}">
+      <span class="it-finding-ic">
+        {% if level == 'bad' %}!{% elif level == 'warn' %}!{% else %}i{% endif %}
+      </span>
+      <div><b>{{ title }}</b><p>{{ detail }}</p></div>
+    </div>
+    {% empty %}
+    <div class="it-none">Nothing needs attention.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="it-grid2">
+  <div class="it-card">
+    <div class="it-card-h">{% icon "shield" 16 %}<span class="sp">Who administers the Hub</span>
+      <span class="it-chip">{{ privileged|length }}</span></div>
+    <div class="it-card-b flush">
+      {% for p in privileged %}
+      <a class="it-row" href="{% url 'it_user_detail' p.pk %}">
+        <span class="it-av">{{ p|initials }}</span>
+        <span class="it-row-main">
+          <b>{{ p.get_full_name|default:p.username }}</b>
+          <span>{% for g in p.groups.all %}{{ g.name }}{% if not forloop.last %} · {% endif %}{% endfor %}</span>
+        </span>
+        {% if p.is_superuser %}<span class="it-chip y">Superuser</span>{% endif %}
+        {% if not p.is_active %}<span class="it-chip bad">Disabled</span>{% endif %}
+      </a>
+      {% empty %}
+      <div class="it-none">Nobody holds an administrative role.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="it-card">
+    <div class="it-card-h">{% icon "clock-2" 16 %}<span class="sp">Recent sign-ins</span></div>
+    <div class="it-card-b flush">
+      {% for p in recent_signins %}
+      <div class="it-row">
+        <span class="it-row-main">
+          <b>{{ p.get_full_name|default:p.username }}</b>
+          <span>{{ p.last_login|date:"j M Y, H:i" }}</span>
+        </span>
+      </div>
+      {% empty %}
+      <div class="it-none">Nobody has signed in yet.</div>
+      {% endfor %}
+    </div>
+    <div class="it-bar">
+      <span style="font-size:12.5px;color:var(--muted)">
+        Sign-in is
+        {% if ldap_on %}handled by Active Directory, so passwords are not stored here.
+        {% else %}handled by the Hub's own passwords. Turn on LDAP in Global
+        Settings to hand that to Active Directory.{% endif %}
+      </span>
+    </div>
+  </div>
+</div>
+{% endblock %}

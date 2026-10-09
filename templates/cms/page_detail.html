@@ -1,0 +1,46 @@
+{# templates/cms/page_detail.html — renders a database-driven Hub page. #}
+{# Goes through cms_page_body, the same renderer the homepage uses. The previous #}
+{# version looped with a plain {% include %} and its own 26px margin, so on a #}
+{# /p/ page a columns row rendered empty, live-data blocks had no data, and the #}
+{# spacing ignored the platform scale. A page built here and a page bound to an #}
+{# existing route now render through one path. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}{{ page.title }} — AJi Hub{% endblock %}
+{% block content %}
+
+<div class="page-head rise" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div>
+    {% if page.eyebrow %}<div class="eyebrow">{{ page.eyebrow }}</div>{% endif %}
+    <h1>{{ page.title }}</h1>
+    {% if page.subtitle %}<p>{{ page.subtitle }}</p>{% endif %}
+  </div>
+  {% if can_edit %}
+  <div style="display:flex;gap:8px;flex:none;flex-wrap:wrap">
+    {% if not page.is_published %}<span class="pill warn">Draft</span>{% endif %}
+    {% if page.schedule_state == 'scheduled' %}<span class="pill info">Scheduled</span>{% endif %}
+    {% if page.schedule_state == 'archived' %}<span class="pill mut">Archived</span>{% endif %}
+    {% if cms_edit_mode %}
+    <a href="{{ request.path }}" class="btn y">Done editing</a>
+    {% else %}
+    <a href="{{ request.path }}?edit=1" class="btn y">Edit this page</a>
+    {% endif %}
+    <a href="{% url 'cms_page_manage' page.slug %}" class="btn ghost">Manage content</a>
+  </div>
+  {% endif %}
+</div>
+
+{% cms_page_body page %}
+
+{% if not sections %}
+<div class="card rise" style="text-align:center;padding:48px">
+  <div class="muted" style="font-size:13.5px">This page has no content yet.</div>
+  {% if can_edit %}
+  <div style="margin-top:14px">
+    <a href="{{ request.path }}?edit=1" class="btn y sm">Start building it</a>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

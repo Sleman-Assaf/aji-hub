@@ -1,0 +1,61 @@
+{# templates/taqdeer/archive.html — every Athar quarter ever released. #}
+{# Results leave the front page after their window; they do not leave the #}
+{# record. Without this the window would be a delete button with a timer. #}
+{% extends 'base.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}Athar Archive — AJi Taqdeer{% endblock %}
+
+{% block content %}
+<a href="{% url 'taqdeer_home' %}" class="ctx-back" title="AJi Taqdeer"><span class="ctx-back-lab">AJi Taqdeer</span></a>
+
+<div class="tq-nom-head">
+  <div>
+    <div class="eyebrow">The Athar Award</div>
+    <h1>Previous awards <span class="tq-ar">جائزة الأثر</span></h1>
+  </div>
+</div>
+
+<p class="tq-nom-note">
+  Every quarter that has been released.
+  {% if window_days %}Results lead AJi Taqdeer for {{ window_days }} days and
+  then live here.{% else %}Results stay on AJi Taqdeer permanently and are also
+  collected here.{% endif %}
+</p>
+
+{% for cycle, winners in rows %}
+<section class="ar-q">
+  <div class="ar-q-h">
+    <b>{{ cycle.label }}</b>
+    <span>{{ winners|length }} recipient{{ winners|length|pluralize }}{% if cycle.issued_at %}
+      · released {{ cycle.issued_at|date:"j F Y" }}{% endif %}</span>
+  </div>
+  <div class="ar-list">
+    {% for n in winners %}
+    <div class="ar-row">
+      {% if n.recipient.employee.photo %}
+      <img class="tqr-av" src="{{ n.recipient.employee.photo.url }}" alt="">
+      {% else %}<span class="tqr-av tone">{{ n.recipient|initials }}</span>{% endif %}
+      <div class="ar-b">
+        <b>{{ n.recipient_name }}</b>
+        {% if n.recipient.employee.department %}
+        <i>{{ n.recipient.employee.department.name }}</i>{% endif %}
+        <span>{{ n.citation }}</span>
+      </div>
+      {% if n.recipient_id == request.user.pk and n.certificate %}
+      <a class="cx-iconbtn" href="{% url 'taqdeer_certificate' n.pk %}">
+        {% icon "medal" 13 %}<span>Yours</span></a>
+      {% endif %}
+    </div>
+    {% empty %}
+    <div class="cx-side-empty">No recipients recorded for this quarter.</div>
+    {% endfor %}
+  </div>
+</section>
+{% empty %}
+<div class="tq-none">
+  <span class="tq-none-ic">{% icon "medal" 20 %}</span>
+  <b>No quarter has been released yet</b>
+  <span>Once HR releases a quarter its recipients appear here for good.</span>
+</div>
+{% endfor %}
+{% endblock %}

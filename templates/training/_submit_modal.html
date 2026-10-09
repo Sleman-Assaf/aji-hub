@@ -1,0 +1,118 @@
+{# Expression of Interest modal. Included on People & Culture; opened by trOpen(). #}
+<style>
+.tr-bg{position:fixed;inset:0;background:rgba(18,18,16,.5);z-index:900;display:none}
+.tr-bg.on{display:block}
+.trm{position:fixed;z-index:901;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:min(760px,94vw);max-height:90vh;overflow-y:auto;background:var(--paper-2);
+  border:1px solid var(--line-2);box-shadow:0 22px 60px -20px rgba(18,18,16,.5);
+  padding:24px;display:none}
+.trm.on{display:block}
+.trm-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.trm-head h3{font-size:19px;letter-spacing:-.02em;margin:0 0 4px}
+.trm-x{background:none;border:none;font-size:22px;line-height:1;color:var(--muted);cursor:pointer;font-family:inherit}
+.trm-x:hover{color:var(--ink)}
+.trm-fld{margin-bottom:14px}
+.trm-fld>label{display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.09em;color:var(--muted);margin-bottom:5px}
+.trm-in{width:100%;border:1px solid var(--line-2);padding:9px 11px;font-family:inherit;
+  font-size:13.5px;outline:none;background:var(--paper-2)}
+.trm-in:focus{border-color:var(--ink)}
+.trm-row{display:flex;gap:12px;flex-wrap:wrap}
+.trm-row>*{flex:1;min-width:150px}
+.trm-hint{font-size:11.5px;color:var(--muted);margin-top:4px}
+.trm-acts{display:flex;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.trm-flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11px;
+  font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
+.trm-flow b{color:var(--ink)}
+</style>
+
+<div class="tr-bg" id="trBg" onclick="trClose()"></div>
+<div class="trm" id="trm" role="dialog" aria-modal="true" aria-labelledby="trmHead">
+  <div class="trm-head">
+    <div>
+      <h3 id="trmHead">Expression of Interest — Training</h3>
+      <p class="muted" style="font-size:13px;margin:0">Tell us what you'd like to attend and why.</p>
+    </div>
+    <button type="button" class="trm-x" onclick="trClose()" aria-label="Close">&times;</button>
+  </div>
+
+  <div class="trm-flow">
+    <b>You</b> → Your manager → HR → Scheduled
+  </div>
+
+  <form method="post" action="{% url 'training_submit' %}" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <div class="trm-row">
+      <div class="trm-fld">
+        <label for="tr-course">Course or programme</label>
+        <input id="tr-course" name="course_name" class="trm-in" required maxlength="250">
+      </div>
+      <div class="trm-fld">
+        <label for="tr-prov">Training provider</label>
+        <input id="tr-prov" name="provider" class="trm-in" maxlength="200" placeholder="Optional">
+      </div>
+    </div>
+
+    <div class="trm-fld">
+      <label for="tr-need">Business need</label>
+      <textarea id="tr-need" name="business_need" rows="3" class="trm-in" required
+                placeholder="Why is this training needed?"></textarea>
+    </div>
+
+    <div class="trm-fld">
+      <label for="tr-just">Business justification</label>
+      <textarea id="tr-just" name="justification" rows="3" class="trm-in" required
+                placeholder="What happens if it does not go ahead?"></textarea>
+    </div>
+
+    <div class="trm-fld">
+      <label for="tr-ben">Expected benefits</label>
+      <textarea id="tr-ben" name="expected_benefits" rows="2" class="trm-in"
+                placeholder="What will you and the team gain?"></textarea>
+    </div>
+
+    <div class="trm-row">
+      <div class="trm-fld">
+        <label for="tr-cost">Estimated cost</label>
+        <input id="tr-cost" name="estimated_cost" class="trm-in" inputmode="decimal" placeholder="Optional">
+      </div>
+      <div class="trm-fld">
+        <label for="tr-cur">Currency</label>
+        <input id="tr-cur" name="currency" class="trm-in" value="JOD" maxlength="8">
+      </div>
+      <div class="trm-fld">
+        <label for="tr-from">Preferred from</label>
+        <input id="tr-from" type="date" name="preferred_from" class="trm-in">
+      </div>
+      <div class="trm-fld">
+        <label for="tr-to">Preferred to</label>
+        <input id="tr-to" type="date" name="preferred_to" class="trm-in">
+      </div>
+    </div>
+
+    <div class="trm-fld">
+      <label for="tr-com">Comments</label>
+      <textarea id="tr-com" name="comments" rows="2" class="trm-in"
+                placeholder="Anything else we should know"></textarea>
+    </div>
+
+    <div class="trm-fld">
+      <label for="tr-att">Supporting documents</label>
+      <input id="tr-att" type="file" name="attachments" multiple style="font-size:13px">
+      <div class="trm-hint">Course outline, quotation, agenda — anything that helps the decision.</div>
+    </div>
+
+    <div class="trm-acts">
+      <button type="submit" class="btn y">Submit expression of interest</button>
+      <button type="button" class="btn ghost" onclick="trClose()">Cancel</button>
+      <a href="{% url 'training_list' %}" class="btn ghost" style="margin-left:auto">My requests</a>
+    </div>
+  </form>
+</div>
+
+<script>
+function trOpen(){document.getElementById('trBg').classList.add('on');document.getElementById('trm').classList.add('on');document.getElementById('tr-course').focus();}
+function trClose(){document.getElementById('trBg').classList.remove('on');document.getElementById('trm').classList.remove('on');}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')trClose();});
+</script>

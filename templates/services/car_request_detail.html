@@ -1,0 +1,358 @@
+{# templates/services/car_request_detail.html #}
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Car Request — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'vendor/leaflet/leaflet.css' %}">
+<style>
+.cd-grid{display:grid;grid-template-columns:1fr .9fr;gap:22px;align-items:start}
+@media (max-width:1000px){.cd-grid{grid-template-columns:1fr}}
+.cd-def{display:grid;grid-template-columns:132px 1fr;gap:8px 14px;font-size:13.5px}
+.cd-def dt{color:var(--muted);font-size:11.5px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;padding-top:2px}
+.cd-def dd{margin:0}
+#cdMap{height:300px;border:1px solid var(--line);background:var(--paper-3);margin-top:14px}
+/* Same treatment as the booking screen: the basemap filtered back so the two
+   pins and the line between them are what the eye lands on. */
+.leaflet-tile-pane{filter:saturate(.32) contrast(.93) brightness(1.04)}
+:root[data-theme="dark"] .leaflet-tile-pane{
+  filter:invert(1) hue-rotate(180deg) saturate(.2) brightness(.86) contrast(.95)}
+.leaflet-container{background:var(--paper-3);font-family:inherit}
+.leaflet-control-attribution{font-size:9.5px;background:rgba(0,0,0,.4) !important;
+  color:#fff !important;padding:1px 6px}
+.leaflet-control-attribution a{color:#fff !important}
+.leaflet-bar a{background:var(--paper-2) !important;color:var(--ink) !important;
+  border-bottom-color:var(--line) !important}
+.cd-car{display:flex;gap:11px;align-items:center;padding:10px 12px;border:1px solid var(--line);
+  background:var(--paper);margin-bottom:7px}
+.cd-car.taken{opacity:.55;background:var(--paper-3)}
+.cd-car.chosen{border-color:var(--ink);background:var(--yellow-soft)}
+/* Swapping a car is a decision about a car, so the desk should be looking at
+   one. Small here on purpose — this is a list to scan, not a showroom. */
+.cd-shot{width:74px;height:49px;object-fit:cover;flex:none;background:var(--paper-3);
+  border:1px solid var(--line)}
+.cd-noshot{display:flex;align-items:center;justify-content:center;
+  font-size:12px;color:var(--muted)}
+.cd-asked{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+  background:var(--ink);color:var(--yellow);padding:2px 6px;margin-left:6px;
+  vertical-align:1px}
+.cd-car-main{flex:1;min-width:0}
+.cd-car-main b{display:block;font-size:13px}
+.cd-car-main span{display:block;font-size:11.5px;color:var(--muted)}
+.cd-when{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px}
+.cd-when label{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.cd-when input,.cd-when select{width:100%;padding:9px 11px;border:1px solid var(--line);
+  background:var(--paper);font-family:inherit;font-size:13px;color:var(--ink)}
+
+/* ══ the odometer ════════════════════════════════════════════════════════ */
+.cd-odo{grid-column:1/-1;border:1px solid var(--line);background:var(--paper);
+  padding:20px;margin-top:16px}
+.cd-odo h2{margin:0 0 4px;font-size:16px}
+.cd-odo-lede{margin:0 0 16px;font-size:12.5px;color:var(--muted);line-height:1.55}
+.cd-trip{border:1px solid var(--line);background:var(--paper-2);padding:14px 16px;
+  margin-bottom:12px}
+.cd-trip:last-of-type{margin-bottom:0}
+.cd-trip-car{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+.cd-trip-car img{width:86px;height:57px;object-fit:cover;flex:none;
+  border:1px solid var(--line);background:var(--paper-3)}
+.cd-trip-car b{font-size:14px}
+.cd-trip-car span{display:block;font-size:11.5px;color:var(--muted)}
+.cd-odo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media (max-width:760px){.cd-odo-grid{grid-template-columns:1fr 1fr}}
+.cd-odo-grid label{display:block;font-size:10px;font-weight:800;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.cd-odo-grid input{width:100%;padding:10px 11px;border:1px solid var(--line-2);
+  background:var(--paper);font-family:inherit;font-size:14px;font-weight:600;
+  color:var(--ink)}
+.cd-odo-grid input:focus{outline:none;border-color:var(--ink);
+  box-shadow:0 0 0 3px rgba(252,215,0,.24)}
+.cd-odo-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.cd-odo-foot input[type=text]{flex:1;min-width:190px;padding:9px 11px;
+  border:1px solid var(--line);background:var(--paper);font-family:inherit;
+  font-size:12.5px;color:var(--ink)}
+.cd-km{font-size:13px;font-weight:800;background:var(--yellow-soft);
+  border-left:3px solid var(--yellow);padding:6px 10px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow"><a href="{% url 'services:car_requests' %}" style="color:inherit">Car Requests</a> / {{ b.date|date:"d M" }}</div>
+    <h1>{{ b.booked_by.get_full_name|default:b.booked_by.username }}</h1>
+    <p>{{ b.from_address }} &rarr; {{ b.to_address }}</p>
+  </div>
+  <a href="{% url 'services:car_requests' %}" class="btn">Back</a>
+</div>
+
+<div class="cd-grid rise">
+  {# ── what was asked for ────────────────────────────────────────────── #}
+  <div class="card" style="padding:20px">
+    <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+      {% if b.status == 'approved' %}<span class="pill ok">Approved</span>
+      {% elif b.status == 'pending' %}<span class="pill warn">Waiting</span>
+      {% elif b.status == 'rejected' %}<span class="pill bad">Declined</span>
+      {% else %}<span class="pill mut">Cancelled</span>{% endif %}
+      <span class="pill mut" style="font-size:10px">{{ b.entity.code }}</span>
+      {% if b.is_over_capacity %}
+        <span class="pill bad" style="font-size:10px">
+          {{ b.attendees }} people, {{ b.seats_available }} seats</span>
+      {% endif %}
+    </div>
+
+    <dl class="cd-def">
+      <dt>When</dt><dd>{{ b.date|date:"D, d M Y" }} at {{ b.departure_time|time:"H:i" }}</dd>
+      <dt>Back about</dt><dd>{{ b.return_time|time:"H:i" }} · {{ b.duration_label }}</dd>
+      <dt>From</dt><dd>{{ b.from_address }}</dd>
+      <dt>To</dt><dd>{{ b.to_address }}</dd>
+      <dt>Travelling</dt><dd>{{ b.attendees }}</dd>
+      <dt>Driver</dt><dd>{% if b.driver_required %}<b>Requested</b>{% else %}Not needed{% endif %}</dd>
+      {% if b.purpose %}<dt>Purpose</dt><dd>{{ b.purpose }}</dd>{% endif %}
+      {% if b.notes %}<dt>Notes</dt><dd>{{ b.notes|linebreaksbr }}</dd>{% endif %}
+      <dt>Asked</dt><dd>{{ b.created_at|date:"d M Y, H:i" }}</dd>
+      {% if b.reviewed_by %}
+        <dt>Decided by</dt>
+        <dd>{{ b.reviewed_by.get_full_name|default:b.reviewed_by.username }}
+            {% if b.reviewed_at %}· {{ b.reviewed_at|date:"d M, H:i" }}{% endif %}</dd>
+      {% endif %}
+    </dl>
+
+    <div id="cdMap"></div>
+    {% if b.map_url %}
+      <a href="{{ b.map_url }}" target="_blank" rel="noopener" class="btn btn-sm"
+         style="margin-top:10px">Driving directions</a>
+    {% endif %}
+  </div>
+
+  {# ── the decision ──────────────────────────────────────────────────── #}
+  <form method="post" action="{% url 'services:car_request_review' b.pk %}"
+        class="card" style="padding:20px">
+    {% csrf_token %}
+    <h2 style="margin:0 0 14px;font-size:16px">Decide</h2>
+
+    <div class="cd-when">
+      <div>
+        <label for="cdDate">Leaving on</label>
+        <input type="date" id="cdDate" name="date" value="{{ b.date|date:'Y-m-d' }}">
+      </div>
+      <div>
+        <label for="cdTime">Leaving at</label>
+        <input type="time" id="cdTime" name="departure_time" step="900"
+               value="{{ b.departure_time|time:'H:i' }}">
+      </div>
+      <div>
+        <label for="cdRetTime">Back at</label>
+        <input type="time" id="cdRetTime" name="return_time" step="900"
+               value="{{ b.return_time|time:'H:i' }}">
+      </div>
+    </div>
+    <div class="cd-when" style="grid-template-columns:1fr 1fr">
+      <div>
+        <label for="cdRetDate">Back on</label>
+        <input type="date" id="cdRetDate" name="return_date"
+               value="{{ b.return_date|date:'Y-m-d' }}">
+      </div>
+      <div style="display:flex;align-items:flex-end;padding-bottom:9px">
+        <span class="muted" style="font-size:12px">
+          Currently {{ b.duration_label }}{% if b.is_multi_day %}, over more than one day{% endif %}.</span>
+      </div>
+    </div>
+    <p class="muted" style="font-size:11.5px;margin:-6px 0 14px">
+      Changing the times here is re-checked against the other trips when you save.</p>
+
+    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.06em;
+                  text-transform:uppercase;color:var(--muted);margin-bottom:3px">Car</label>
+    <p class="muted" style="font-size:11.5px;margin:0 0 9px">
+      Ticked is what they asked for. Tick a different one to send that car
+      instead — anything not greyed out is free for this trip.</p>
+    {% for r in rows %}
+      <label class="cd-car {% if not r.free and not r.chosen %}taken{% endif %} {% if r.chosen %}chosen{% endif %}">
+        <input type="checkbox" name="cars" value="{{ r.vehicle.pk }}"
+               {% if r.chosen %}checked{% endif %}
+               {% if not r.free and not r.chosen %}disabled{% endif %}
+               style="width:16px;height:16px;accent-color:var(--ink)">
+        {% if r.vehicle.photo %}
+          <img src="{{ r.vehicle.photo.url }}" alt="" class="cd-shot">
+        {% else %}
+          <span class="cd-shot cd-noshot">—</span>
+        {% endif %}
+        <div class="cd-car-main">
+          <b>{{ r.vehicle.make }} {{ r.vehicle.model }}
+            {% if r.chosen %}<span class="cd-asked">asked for</span>{% endif %}</b>
+          <span>{{ r.vehicle.plate|default:"No plate" }} · {{ r.vehicle.seats }} seats
+            {% if r.reason %} · {{ r.reason }}{% elif r.free %} · free{% endif %}</span>
+          {% for kind, text in r.alerts %}
+            <span style="color:var(--bad);font-weight:600">{{ text }}</span>
+          {% endfor %}
+        </div>
+      </label>
+    {% empty %}
+      <p class="muted" style="font-size:13px">This division has no cars.</p>
+    {% endfor %}
+
+    {% if b.driver_required %}
+      <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.06em;
+                    text-transform:uppercase;color:var(--muted);margin:16px 0 7px">Drivers</label>
+      {% for a in b.assignments.all %}
+        <div style="display:flex;gap:9px;align-items:center;margin-bottom:7px">
+          <span style="font-size:12.5px;min-width:110px">{{ a.vehicle.make }} {{ a.vehicle.model }}</span>
+          <select name="driver_{{ a.vehicle_id }}"
+                  style="flex:1;padding:8px 11px;border:1px solid var(--line);
+                         background:var(--paper);font-size:13px">
+            <option value="">No driver</option>
+            {% for d in drivers %}
+              <option value="{{ d.pk }}" {% if a.driver_id == d.pk %}selected{% endif %}>
+                {{ d.full_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      {% empty %}
+        <p class="muted" style="font-size:12.5px">Assign a car first, then a driver for it.</p>
+      {% endfor %}
+    {% endif %}
+
+    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:.06em;
+                  text-transform:uppercase;color:var(--muted);margin:16px 0 6px"
+           for="cdComment">Note back to them</label>
+    <input type="text" id="cdComment" name="review_comment" maxlength="300"
+           value="{{ b.review_comment }}" placeholder="Optional — goes in the email"
+           style="width:100%;padding:9px 11px;border:1px solid var(--line);
+                  background:var(--paper);font-family:inherit;font-size:13px">
+
+    <div style="display:flex;gap:8px;margin-top:18px;flex-wrap:wrap">
+      <button name="action" value="approve" class="btn btn-primary" style="flex:1">Approve</button>
+      <button name="action" value="save" class="btn">Save only</button>
+      <button name="action" value="reject" class="btn" style="color:var(--bad)">Decline</button>
+    </div>
+    <p class="muted" style="font-size:11.5px;margin:10px 0 0">
+      Approving emails them, and puts the trip on the company calendar.</p>
+  </form>
+</div>
+
+{# ── the odometer ──────────────────────────────────────────────────────── #}
+{# Filled in by whoever hands over the keys. Out when the car leaves, in when #}
+{# it comes back; the difference is the trip, and the reading back is what    #}
+{# moves the car's own odometer and brings its next service closer.           #}
+{% if b.status == 'approved' or trips %}
+<div class="cd-odo rise">
+  <h2>Odometer</h2>
+  <p class="cd-odo-lede">Taken at the desk, per car. The reading back sets the
+    car's mileage, which is what the next service is measured against.</p>
+
+  {% for t in trips %}
+    <form class="cd-trip" method="post"
+          action="{% url 'services:car_trip_save' b.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="vehicle" value="{{ t.vehicle.pk }}">
+      <div class="cd-trip-car">
+        {% if t.vehicle.photo %}<img src="{{ t.vehicle.photo.url }}" alt="">{% endif %}
+        <div>
+          <b>{{ t.vehicle.make }} {{ t.vehicle.model }}</b>
+          <span>{{ t.vehicle.plate|default:"No plate" }} ·
+            now reads {{ t.vehicle.odometer|default:0|floatformat:0 }} km</span>
+          {% if t.log.driver %}<span>Driver: {{ t.log.driver.full_name }}</span>{% endif %}
+        </div>
+      </div>
+
+      <div class="cd-odo-grid">
+        <div>
+          <label for="out{{ t.vehicle.pk }}">Reading out (km)</label>
+          <input type="number" min="0" step="1" id="out{{ t.vehicle.pk }}"
+                 name="odometer_out" inputmode="numeric"
+                 value="{{ t.log.odometer_out|default_if_none:'' }}"
+                 placeholder="{{ t.vehicle.odometer|default:0|floatformat:0 }}">
+        </div>
+        <div>
+          <label for="left{{ t.vehicle.pk }}">Left at</label>
+          <input type="datetime-local" id="left{{ t.vehicle.pk }}" name="left_at"
+                 value="{{ t.left_value }}">
+        </div>
+        <div>
+          <label for="in{{ t.vehicle.pk }}">Reading back (km)</label>
+          <input type="number" min="0" step="1" id="in{{ t.vehicle.pk }}"
+                 name="odometer_in" inputmode="numeric"
+                 value="{{ t.log.odometer_in|default_if_none:'' }}">
+        </div>
+        <div>
+          <label for="back{{ t.vehicle.pk }}">Back at</label>
+          <input type="datetime-local" id="back{{ t.vehicle.pk }}" name="returned_at"
+                 value="{{ t.back_value }}">
+        </div>
+      </div>
+
+      <div class="cd-odo-foot">
+        {% if t.log.distance_km is not None %}
+          <span class="cd-km">{{ t.log.distance_km|floatformat:0 }} km on this trip</span>
+        {% elif t.log.odometer_out %}
+          <span class="muted">Out on {{ t.log.odometer_out|floatformat:0 }} km — still out.</span>
+        {% else %}
+          <span class="muted">Nothing recorded yet.</span>
+        {% endif %}
+        <input type="text" name="note" maxlength="300" value="{{ t.log.notes }}"
+               placeholder="Optional note — fuel, a scratch, a late return">
+        <button class="btn btn-sm btn-primary">Save reading</button>
+      </div>
+    </form>
+  {% empty %}
+    <p class="muted" style="font-size:13px;margin:0">
+      No car is assigned to this booking yet.</p>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_body %}
+<script src="{% static 'vendor/leaflet/leaflet.js' %}"></script>
+<script>
+(function () {
+  'use strict';
+  var from = [{{ b.from_lat|default_if_none:"null" }}, {{ b.from_lng|default_if_none:"null" }}];
+  var to   = [{{ b.to_lat|default_if_none:"null" }}, {{ b.to_lng|default_if_none:"null" }}];
+  var box = document.getElementById('cdMap');
+
+  /* Only the addresses are compulsory, so a booking can arrive with no pins on
+     it at all — typed by hand, or made when the search was unreachable. Say so
+     rather than showing an empty map of the world. */
+  if (from[0] === null && to[0] === null) {
+    box.style.display = 'flex';
+    box.style.alignItems = 'center';
+    box.style.justifyContent = 'center';
+    box.innerHTML = '<span class="muted" style="font-size:12.5px">'
+      + 'No pins on this one — the addresses were typed.</span>';
+    return;
+  }
+
+  var map = L.map('cdMap', {scrollWheelZoom: false}).setView({{ map_home }}, 12);
+  L.tileLayer('{{ map_tiles }}', {
+    maxZoom: 19, subdomains: '{{ map_subdomains }}',
+    attribution: '{{ map_attribution|escapejs }}'
+  }).addTo(map);
+
+  function dot(colour) {
+    return L.divIcon({className: '',
+      html: '<div style="width:22px;height:22px;border-radius:50%;border:4px solid #fff;'
+          + 'box-shadow:0 2px 8px rgba(0,0,0,.55);background:' + colour + '"></div>',
+      iconSize: [22, 22], iconAnchor: [11, 11]});
+  }
+
+  var marks = [];
+  if (from[0] !== null) {
+    marks.push(L.marker(from, {icon: dot('#111111')}).addTo(map)
+                .bindPopup('{{ b.from_address|escapejs }}'));
+  }
+  if (to[0] !== null) {
+    marks.push(L.marker(to, {icon: dot('#FCD700')}).addTo(map)
+                .bindPopup('{{ b.to_address|escapejs }}'));
+  }
+  if (marks.length === 2) {
+    L.polyline([from, to], {color: '#111', weight: 7, opacity: .22}).addTo(map);
+    L.polyline([from, to], {color: '#FCD700', weight: 4, opacity: .95}).addTo(map);
+    map.fitBounds(L.latLngBounds([from, to]), {padding: [40, 40]});
+  } else {
+    map.setView(marks[0].getLatLng(), 14);
+  }
+})();
+</script>
+{% endblock %}

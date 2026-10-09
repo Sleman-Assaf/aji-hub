@@ -1,0 +1,396 @@
+{# templates/portal/hr_content_manage.html #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}People & Culture — Manage{% endblock %}
+
+{% block extra_head %}
+<style>
+.hm-section{border:1px solid var(--line);background:var(--paper-2);margin-bottom:20px}
+.hm-sec-head{padding:14px 18px;background:var(--raised);color:var(--raised-fg);display:flex;align-items:center;gap:12px}
+.hm-sec-head h3{margin:0;font-size:15px;font-weight:700;flex:1}
+.hm-row{border-bottom:1px solid var(--line);padding:14px 18px;display:flex;align-items:flex-start;gap:14px}
+.hm-row:last-child{border-bottom:none}
+.hm-info{flex:1;min-width:0}
+.hm-edit-form{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}
+.hm-edit-form input[type=text],.hm-edit-form textarea,.hm-edit-form select{
+  border:1px solid var(--line-2);padding:7px 10px;font-family:inherit;font-size:13px;outline:none;background:var(--paper-2)
+}
+.hm-edit-form input:focus,.hm-edit-form textarea:focus{border-color:var(--ink)}
+.hm-edit-form textarea{min-height:50px;width:100%;resize:vertical}
+.add-form{padding:16px 18px;background:var(--paper);border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.add-form input,.add-form select,.add-form textarea{border:1px solid var(--line-2);padding:8px 12px;font-family:inherit;font-size:13px;outline:none;background:var(--paper-2);min-width:160px}
+.add-form input:focus,.add-form textarea:focus{border-color:var(--ink)}
+.del-btn{background:none;border:none;cursor:pointer;color:var(--bad);padding:4px;opacity:.6;transition:opacity .12s;flex:none}
+.del-btn:hover{opacity:1}
+.del-btn svg{width:15px;height:15px}
+.hm-pill-row{display:flex;flex-wrap:wrap;gap:8px;padding:16px 18px}
+.hm-pill{display:flex;align-items:center;gap:7px;border:1px solid var(--line-2);padding:5px 6px 5px 12px;font-size:13px;font-weight:600;background:var(--paper)}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-head rise" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
+  <div>
+    {# The eyebrow said "People & Culture" on a screen that also held onboarding #}
+    {# content and lived under /onboarding/. It now names the page it belongs to. #}
+    <div class="eyebrow">{% if scope == "pc" %}People &amp; Culture{% else %}Onboarding{% endif %}</div>
+    <h1>{{ scope_title }}</h1>
+    <p>
+      {% if scope == "pc" %}
+      The records behind the People &amp; Culture page: the Employee Handbook, wellness
+      programmes, childcare partners, certifications, WhatsApp channels and the Explore
+      tabs. Everything else on that page is edited on the page itself.
+      {% else %}
+      The records behind the Onboarding module: the handbook tabs and the CEO letter.
+      People &amp; Culture content moved to its own page.
+      {% endif %}
+      Only HR can open this screen.
+    </p>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    {# One way back, to the page this content actually appears on. Offering both #}
+    {# was part of what made it unclear which page the screen belonged to. #}
+    <a href="{{ scope_back }}" class="btn ghost">&larr; Back to the page</a>
+    {% if scope == "pc" %}
+    <a href="{% url 'hr_content_manage' %}" class="btn ghost sm">Onboarding content</a>
+    {% else %}
+    <a href="/people-culture/manage/" class="btn ghost sm">People &amp; Culture content</a>
+    {% endif %}
+  </div>
+</div>
+
+{# CEO Letter #}
+{% if scope == "onboarding" %}
+<div class="sec-head rise" id="ceo"><h2>Words from our CEO</h2></div>
+<div class="hm-section rise">
+  <div class="hm-sec-head"><h3>CEO Letter</h3></div>
+  <div style="padding:18px">
+    <form data-save method="post" action="{% url 'ceo_letter_save' %}" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:12px">
+      {% csrf_token %}
+      <div style="display:flex;gap:16px;align-items:flex-start">
+        <div style="flex:none">
+          {% if ceo_letter.photo %}
+          <img src="{{ ceo_letter.photo.url }}" alt="" style="width:90px;height:120px;object-fit:cover;border:1px solid var(--line);display:block;margin-bottom:8px">
+          {% else %}
+          <div style="width:90px;height:120px;background:var(--paper-3);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;margin-bottom:8px">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.3"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          {% endif %}
+          <input type="file" name="photo" accept="image/*" style="font-size:11px;max-width:100px">
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:10px;min-width:260px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input type="text" name="name" value="{{ ceo_letter.name }}" placeholder="Name" style="border:1px solid var(--line-2);padding:8px 11px;font-family:inherit;font-size:13.5px;outline:none;flex:1;min-width:160px">
+            <input type="text" name="title" value="{{ ceo_letter.title }}" placeholder="Title" style="border:1px solid var(--line-2);padding:8px 11px;font-family:inherit;font-size:13.5px;outline:none;flex:1;min-width:160px">
+          </div>
+          <textarea name="body" placeholder="Letter body — separate paragraphs with a blank line" style="border:1px solid var(--line-2);padding:10px 12px;font-family:inherit;font-size:13.5px;outline:none;min-height:160px;resize:vertical">{{ ceo_letter.body }}</textarea>
+          <input type="text" name="sign_off" value="{{ ceo_letter.sign_off }}" placeholder="Sign-off (e.g. 'Sincerely, Hamzah Awwad')" style="border:1px solid var(--line-2);padding:8px 11px;font-family:inherit;font-size:13.5px;outline:none">
+        </div>
+      </div>
+      <div><button type="submit" class="btn y sm">Save CEO letter</button></div>
+    </form>
+  </div>
+</div>
+
+{# Employee Handbook File #}
+{% endif %}
+{% if scope == "pc" %}
+<div class="sec-head rise" id="handbook"><h2>Employee Handbook</h2></div>
+<div class="hm-section rise">
+  <div class="hm-sec-head"><h3>Handbook Document</h3></div>
+  <div style="padding:18px">
+    <form data-save method="post" action="{% url 'handbook_file_save' %}" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:10px">
+      {% csrf_token %}
+      <input type="text" name="title" value="{{ handbook_file.title }}" placeholder="Title" style="border:1px solid var(--line-2);padding:8px 11px;font-family:inherit;font-size:13.5px;outline:none">
+      <textarea name="description" placeholder="Description" style="border:1px solid var(--line-2);padding:10px 12px;font-family:inherit;font-size:13.5px;outline:none;min-height:70px;resize:vertical">{{ handbook_file.description }}</textarea>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        {% if handbook_file.file %}
+        <a href="{{ handbook_file.file.url }}" target="_blank" class="btn ghost sm">Current file ↗</a>
+        {% else %}
+        <span style="font-size:12.5px;color:var(--muted)">No file uploaded yet.</span>
+        {% endif %}
+        <input type="file" name="file" style="font-size:12.5px">
+        <button type="submit" class="btn y sm">Save handbook</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# Onboarding handbook, per tab #}
+{% endif %}
+{% if scope == "onboarding" %}
+<div class="sec-head rise" id="ob-items"><h2>Onboarding Handbook</h2></div>
+{% for tab_id, tab_label, items in onboarding_sections %}
+<div class="hm-section rise">
+  <div class="hm-sec-head"><h3>{{ tab_label }}</h3></div>
+
+  {% for item in items %}
+  <div class="hm-row">
+    <form data-save method="post" action="{% url 'onboarding_item_save' %}" class="hm-edit-form" style="flex:1">
+      {% csrf_token %}
+      <input type="hidden" name="pk" value="{{ item.pk }}">
+      <input type="hidden" name="tab" value="{{ tab_id }}">
+      <input type="text" name="title" value="{{ item.title }}" placeholder="Title *" required style="min-width:220px">
+      <textarea name="body" placeholder="Body text *" style="flex:1;min-width:300px">{{ item.body }}</textarea>
+      <input type="number" name="order" value="{{ item.order }}" style="width:70px">
+      <button type="submit" class="btn ghost sm">Save</button>
+    </form>
+    <form data-save="reload" method="post" action="{% url 'onboarding_item_delete' item.pk %}"
+          onsubmit="return confirm('Delete {{ item.title|escapejs }}?')" style="margin:0">
+      {% csrf_token %}
+      <button type="submit" class="del-btn" title="Delete">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </button>
+    </form>
+  </div>
+  {% empty %}
+  <div style="padding:16px 18px;font-size:13px;color:var(--muted)">No items yet. Add one below.</div>
+  {% endfor %}
+
+  <form data-save="reload" method="post" action="{% url 'onboarding_item_save' %}" class="add-form">
+    {% csrf_token %}
+    <input type="hidden" name="tab" value="{{ tab_id }}">
+    <input type="text" name="title" placeholder="Title *" required style="min-width:200px">
+    <textarea name="body" placeholder="Body text *" style="flex:1;min-width:280px;min-height:38px"></textarea>
+    <input type="number" name="order" placeholder="Order" value="99" style="width:70px">
+    <button type="submit" class="btn y sm">+ Add item</button>
+  </form>
+</div>
+{% endfor %}
+
+{# Wellness Program #}
+{% endif %}
+{% if scope == "pc" %}
+<div class="sec-head rise" id="wellness"><h2>Wellness Program</h2></div>
+<div class="hm-section rise">
+  <div class="hm-sec-head"><h3>Programs</h3></div>
+
+  {% for w in wellness_items %}
+  <div class="hm-row">
+    <form data-save method="post" action="{% url 'wellness_item_save' %}" class="hm-edit-form" style="flex:1">
+      {% csrf_token %}
+      <input type="hidden" name="pk" value="{{ w.pk }}">
+      <input type="text" name="name" value="{{ w.name }}" placeholder="Name *" required style="min-width:200px">
+      <textarea name="description" placeholder="Description *" style="flex:1;min-width:280px">{{ w.description }}</textarea>
+      <input type="text" name="period" value="{{ w.period }}" placeholder="Period (e.g. Jun 2024)" style="min-width:160px">
+      {# data-icon-field turns this into the shared picker, so any icon in the #}
+      {# library can be chosen -- including one uploaded as an image. #}
+      <input type="text" name="icon" value="{{ w.icon }}" data-icon-field
+             placeholder="Icon" style="width:130px" aria-label="Icon">
+      <input type="number" name="order" value="{{ w.order }}" style="width:70px">
+      <button type="submit" class="btn ghost sm">Save</button>
+    </form>
+    <form data-save="reload" method="post" action="{% url 'wellness_item_delete' w.pk %}"
+          onsubmit="return confirm('Delete {{ w.name|escapejs }}?')" style="margin:0">
+      {% csrf_token %}
+      <button type="submit" class="del-btn" title="Delete">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </button>
+    </form>
+  </div>
+  {% empty %}
+  <div style="padding:16px 18px;font-size:13px;color:var(--muted)">No wellness programs yet.</div>
+  {% endfor %}
+
+  <form data-save="reload" method="post" action="{% url 'wellness_item_save' %}" class="add-form">
+    {% csrf_token %}
+    <input type="text" name="name" placeholder="Program name *" required style="min-width:200px">
+    <textarea name="description" placeholder="Description *" style="flex:1;min-width:280px;min-height:38px"></textarea>
+    <input type="text" name="period" placeholder="Period">
+    <input type="text" name="icon" data-icon-field placeholder="Icon" style="width:130px"
+           aria-label="Icon">
+    <input type="number" name="order" placeholder="Order" value="99" style="width:70px">
+    <button type="submit" class="btn y sm">+ Add program</button>
+  </form>
+</div>
+
+{# Childcare Partners #}
+{% endif %}
+{% if scope == "pc" %}
+<div class="sec-head rise" id="childcare"><h2>Childcare Partners</h2></div>
+<div class="hm-section rise">
+  <div class="hm-sec-head"><h3>Partners</h3></div>
+  <div class="hm-pill-row">
+    {% for c in childcare_partners %}
+    <div class="hm-pill">
+      {{ c.name }}
+      <form data-save="reload" method="post" action="{% url 'childcare_partner_delete' c.pk %}"
+            onsubmit="return confirm('Remove {{ c.name|escapejs }}?')" style="margin:0">
+        {% csrf_token %}
+        <button type="submit" class="del-btn" style="padding:2px" title="Remove">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+      </form>
+    </div>
+    {% empty %}
+    <div style="font-size:13px;color:var(--muted)">No partners yet.</div>
+    {% endfor %}
+  </div>
+  <form data-save="reload" method="post" action="{% url 'childcare_partner_save' %}" class="add-form">
+    {% csrf_token %}
+    <input type="text" name="name" placeholder="Partner name *" required style="min-width:220px">
+    <input type="number" name="order" placeholder="Order" value="99" style="width:80px">
+    <button type="submit" class="btn y sm">+ Add partner</button>
+  </form>
+</div>
+
+{# Certifications #}
+{% endif %}
+{% if scope == "pc" %}
+<div class="sec-head rise" id="certifications"><h2>Growth Certifications</h2></div>
+<div class="hm-section rise">
+  <div class="hm-sec-head"><h3>Certifications</h3></div>
+  <div class="hm-pill-row">
+    {% for cert in certifications %}
+    <div class="hm-pill">
+      <span class="hm-pill-ic">{% cms_icon cert.icon|default:"award-ribbon" 13 1.7 %}</span>
+      {{ cert.name }}
+      {# The icon box. Submitting it saves the name unchanged alongside, so the #}
+      {# row is edited in one place rather than two. #}
+      <form data-save method="post" action="{% url 'certification_save' %}" class="hm-pill-ed">
+        {% csrf_token %}
+        <input type="hidden" name="pk" value="{{ cert.pk }}">
+        <input type="hidden" name="name" value="{{ cert.name }}">
+        <input type="hidden" name="order" value="{{ cert.order }}">
+        <input type="text" name="icon" value="{{ cert.icon }}" data-icon-field
+               placeholder="Icon" aria-label="Icon for {{ cert.name }}">
+        <button type="submit" title="Save icon">Set</button>
+      </form>
+      <form data-save="reload" method="post" action="{% url 'certification_delete' cert.pk %}"
+            onsubmit="return confirm('Remove {{ cert.name|escapejs }}?')" style="margin:0">
+        {% csrf_token %}
+        <button type="submit" class="del-btn" style="padding:2px" title="Remove">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+      </form>
+    </div>
+    {% empty %}
+    <div style="font-size:13px;color:var(--muted)">No certifications yet.</div>
+    {% endfor %}
+  </div>
+  <form data-save="reload" method="post" action="{% url 'certification_save' %}" class="add-form">
+    {% csrf_token %}
+    <input type="text" name="name" placeholder="Certification (e.g. PMP) *" required style="min-width:200px">
+    <input type="text" name="icon" data-icon-field placeholder="Icon" style="width:130px"
+           aria-label="Icon">
+    <input type="number" name="order" placeholder="Order" value="99" style="width:80px">
+    <button type="submit" class="btn y sm">+ Add certification</button>
+  </form>
+</div>
+
+{% endif %}
+{% if scope == "pc" %}
+<div class="sec-head rise" id="whatsapp"><h2>WhatsApp Channels</h2></div>
+<div class="hm-section rise">
+  <div class="hm-sec-head"><h3>Official groups</h3></div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 14px">
+    These appear behind “WhatsApp Channels” on People &amp; Culture. Each one shows
+    its QR code for employees to scan. Codes expire, so replace the image here when
+    a group is recreated.
+  </p>
+
+  <div class="hm-wa-list">
+    {% for ch in whatsapp_channels %}
+    <form data-save method="post" action="{% url 'whatsapp_channel_save' %}"
+          enctype="multipart/form-data" class="hm-wa-row">
+      {% csrf_token %}
+      <input type="hidden" name="pk" value="{{ ch.pk }}">
+      <div class="hm-wa-qr">
+        {% if ch.qr_image %}
+        <img src="{{ ch.qr_image.url }}" alt="QR code for {{ ch.title }}">
+        {% else %}
+        <span>No QR yet</span>
+        {% endif %}
+      </div>
+      <div class="hm-wa-fields">
+        <input type="text" name="title" value="{{ ch.title }}"
+               placeholder="Group name *" required>
+        <input type="text" name="description" value="{{ ch.description }}"
+               placeholder="Short description (optional)">
+        <input type="url" name="join_url" value="{{ ch.join_url }}"
+               placeholder="Invite link (optional)">
+        <div class="hm-wa-meta">
+          <label>Replace QR
+            <input type="file" name="qr_image" accept="image/*">
+          </label>
+          <label>Order
+            <input type="number" name="order" value="{{ ch.order }}" style="width:70px">
+          </label>
+          <label class="hm-wa-chk">
+            <input type="checkbox" name="is_active" {% if ch.is_active %}checked{% endif %}>
+            Shown to employees
+          </label>
+        </div>
+      </div>
+      <div class="hm-wa-acts">
+        <button type="submit" class="btn y sm">Save</button>
+      </div>
+    </form>
+    <form data-save="reload" method="post" action="{% url 'whatsapp_channel_delete' ch.pk %}"
+          onsubmit="return confirm('Remove {{ ch.title|escapejs }}?')"
+          class="hm-wa-del">
+      {% csrf_token %}
+      <button type="submit" class="del-btn">Remove this channel</button>
+    </form>
+    {% empty %}
+    <div style="font-size:13px;color:var(--muted)">
+      No channels yet. Add one below, then upload its QR code.
+    </div>
+    {% endfor %}
+  </div>
+
+  <form data-save="reload" method="post" action="{% url 'whatsapp_channel_save' %}"
+        enctype="multipart/form-data" class="add-form">
+    {% csrf_token %}
+    <input type="text" name="title" placeholder="Group name *" required style="min-width:200px">
+    <input type="text" name="description" placeholder="Short description" style="min-width:200px">
+    <input type="file" name="qr_image" accept="image/*">
+    <input type="number" name="order" placeholder="Order" value="0" style="width:80px">
+    <input type="hidden" name="is_active" value="1">
+    <button type="submit" class="btn y sm">+ Add channel</button>
+  </form>
+</div>
+
+{% endif %}
+<div class="sec-head rise" id="tabs"><h2>{% if scope == "pc" %}Explore tabs{% else %}Handbook tabs{% endif %}</h2></div>
+<div class="hm-section rise">
+  <div class="hm-sec-head"><h3>{% if scope == "pc" %}Side tabs on People &amp; Culture{% else %}Handbook tabs{% endif %}</h3></div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 14px">
+    {% if scope == "pc" %}The tabs down the side of “Explore People &amp; Culture”.
+    {% else %}The tabs across the Employee Handbook.{% endif %} Rename them, pick a
+    different icon, reorder them, or untick one to hide it. Click the icon box to
+    choose from the library — anything in there works, including an icon you
+    uploaded yourself.
+  </p>
+
+  {% for tab in explore_tabs %}
+  <div class="hm-row">
+    <form data-save method="post" action="{% url 'explore_tab_save' %}" class="hm-edit-form" style="flex:1">
+      {% csrf_token %}
+      <input type="hidden" name="pk" value="{{ tab.pk }}">
+      <span class="hm-tab-prev">{% cms_icon tab.icon|default:"heart" 16 1.7 %}</span>
+      <input type="text" name="label" value="{{ tab.label }}" placeholder="Label *"
+             required style="min-width:170px">
+      <input type="text" name="icon" value="{{ tab.icon }}" data-icon-field
+             placeholder="Icon" style="width:130px" aria-label="Icon">
+      <input type="number" name="order" value="{{ tab.order }}" style="width:70px">
+      <label class="hm-wa-chk">
+        <input type="checkbox" name="is_active" {% if tab.is_active %}checked{% endif %}>
+        Shown
+      </label>
+      <span class="muted" style="font-size:11px">panel: {{ tab.key }}</span>
+      <button type="submit" class="btn ghost sm">Save</button>
+    </form>
+  </div>
+  {% empty %}
+  <div style="padding:16px 18px;font-size:13px;color:var(--muted)">No tabs yet.</div>
+  {% endfor %}
+  <p class="muted" style="font-size:11.5px;margin:12px 0 0">
+    A tab opens the panel matching its <b>panel</b> key, so the key is not editable
+    here — renaming it would leave the tab opening nothing. Adding a brand-new tab
+    needs a panel built for it; ask and it can be made to hold ordinary page blocks.
+  </p>
+</div>
+
+{% endblock %}

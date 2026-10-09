@@ -1,0 +1,210 @@
+{# templates/includes/hero_fx.html — the masthead's script: the greeting is #}
+{# written on, and the two clocks. #}
+{#                                                                              #}
+{# Shipped with the greeting block rather than sitting in base.html, because it  #}
+{# is the only thing on the page that uses it and every other page would carry   #}
+{# a script it never runs. Everything below is guarded on its own element        #}
+{# existing, so the block can be removed from a page in the editor without       #}
+{# leaving a script throwing on every load.                                     #}
+<script>
+(function(){
+  const panel = document.querySelector('.hero-top');
+  if(!panel) return;
+
+  /* ── the greeting is written on ────────────────────────────────────────────
+     What was here was a canvas: a structural bay drifting sideways, a truss
+     drawing itself in and a survey line sweeping the nodes. It was the only
+     thing on the page that ran a requestAnimationFrame loop, it needed its own
+     palette read out of the stylesheet because a canvas does not restyle
+     itself, and it had to be rebuilt on every resize. All of that to decorate
+     the space behind a greeting.
+
+     The greeting is the thing worth animating, so it is the thing animated: the
+     line is written on once, on arrival, and then nothing on the page moves.
+
+     How, and why this way:
+       · the text is already in the DOM and stays there. Only opacity moves, so
+         a screen reader reads the whole line at once and the layout never
+         reflows — typing into an empty element would rewrap the heading on
+         nearly every character.
+       · characters are wrapped one span each, walking the text nodes, so the
+         two coloured spans inside the heading (.ht-greet and the name) keep
+         their own colours.
+       · the caret is a real element moved along behind the last revealed
+         character, rather than a border on it — a border would shift the
+         letter-spacing as it moved.
+       · prefers-reduced-motion gets the finished line and no caret. */
+  const name = panel.querySelector('.ht-name');
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  if(name && !still.matches && !name.dataset.written){
+    name.dataset.written = '1';
+    const chars = [];
+    (function wrap(node){
+      for(const child of [...node.childNodes]){
+        if(child.nodeType === 3){
+          const frag = document.createDocumentFragment();
+          for(const ch of child.nodeValue){
+            /* Spaces are left as text. Wrapping them adds nothing to see and
+               would let the line break inside a span. */
+            if(ch === ' ' || ch === '\n'){
+              frag.appendChild(document.createTextNode(ch));
+              continue;
+            }
+            const s = document.createElement('span');
+            s.className = 'ht-ch';
+            s.textContent = ch;
+            chars.push(s);
+            frag.appendChild(s);
+          }
+          child.parentNode.replaceChild(frag, child);
+        }else if(child.nodeType === 1){
+          wrap(child);
+        }
+      }
+    })(name);
+
+    if(chars.length){
+      name.classList.add('ht-writing');
+      const caret = document.createElement('span');
+      caret.className = 'ht-caret';
+      caret.setAttribute('aria-hidden', 'true');
+
+      /* A fixed rate would make a long name take twice as long as a short one,
+         so the whole line is given a budget and the step falls out of it.
+
+         1150ms, not 620. At the old budget a twenty-character greeting was
+         written in six tenths of a second, which is quick enough to look like a
+         flicker even when it is seen — and on this page it usually was not seen
+         at all. See `begin` below. */
+      const step = Math.max(30, Math.min(64, 1150 / chars.length));
+      let n = 0;
+      function write(){
+        const ch = chars[n++];
+        ch.classList.add('on');
+        ch.after(caret);
+        if(n < chars.length){
+          setTimeout(write, step);
+        }else{
+          /* It blinks a moment where a person would lift their hands, then
+             goes. The writing class comes off with it and not before: it is
+             what the reveal rule hangs on, so dropping it early would show the
+             rest of the line in one go. */
+          caret.classList.add('done');
+          setTimeout(() => {
+            caret.remove();
+            name.classList.remove('ht-writing');
+          }, 900);
+        }
+      }
+
+      /* ── when to start ──
+         Not at parse time, which is what it used to do. This script is inline
+         in the greeting block, so it ran the instant the parser reached it —
+         and on the homepage first paint lands well after that, behind the news
+         cover, the project pictures and the brand font. The line was written,
+         finished and its caret removed before there was anything on screen to
+         watch it happen on. The effect worked perfectly and nobody ever saw it.
+
+         So: wait for the font, because typing in a fallback face and then
+         reflowing into Draft B is worse than starting a moment later; then wait
+         for a painted frame. The font wait is capped, because a font that never
+         arrives must not mean a heading that never appears — every character is
+         at opacity 0 until this runs.
+
+         A hidden tab waits too. Browsers clamp timers in background tabs to a
+         second or more, which would draw the line one character per second, and
+         it would be over before somebody switching back could see any of it. */
+      let started = false;
+      function typeNow(){
+        if(started) return;
+        started = true;
+        write();
+      }
+
+      function begin(){
+        if(document.hidden){
+          document.addEventListener('visibilitychange', function once(){
+            if(document.hidden) return;
+            document.removeEventListener('visibilitychange', once);
+            begin();
+          });
+          return;
+        }
+        /* A painted frame is the nice path, and a timer is the floor under it.
+           requestAnimationFrame does not fire at all in some embedded and
+           background contexts, and on its own it left the heading blank
+           indefinitely — every character sits at opacity 0 until writing
+           starts, so "the animation never ran" and "the greeting is missing"
+           are the same bug. typeNow only runs once, whichever gets there. */
+        requestAnimationFrame(() => requestAnimationFrame(typeNow));
+        setTimeout(typeNow, 120);
+      }
+
+      let asked = false;
+      const ask = () => { if(!asked){ asked = true; begin(); } };
+      /* Whichever comes first: the font, or a short wait for it. */
+      setTimeout(ask, 400);
+      if(document.fonts && document.fonts.ready){
+        document.fonts.ready.then(ask);
+      }else{
+        ask();
+      }
+
+      /* Last resort. If nothing has typed a character three seconds in — a
+         tab that was never brought forward, a timer that never ran — the line
+         is shown as it is. A decoration must never be the reason a greeting
+         is not on the page. */
+      setTimeout(() => {
+        if(started) return;
+        started = true;
+        chars.forEach(c => c.classList.add('on'));
+        caret.remove();
+        name.classList.remove('ht-writing');
+      }, 3000);
+    }
+  }
+
+  /* ── the wall clock in the eyebrow ──────────────────────────────────────── */
+  const now  = document.getElementById('htNow');
+  const wall = document.getElementById('htWall');
+  function clock(){
+    if(!now && !wall) return;
+    const d = new Date();
+    const s = String(d.getHours()).padStart(2, '0') + ':' +
+              String(d.getMinutes()).padStart(2, '0');
+    if(now)  now.textContent  = s;
+    if(wall) wall.textContent = s;
+  }
+  clock();
+  /* Once a minute, on the minute, instead of once a second. The readout has no
+     seconds in it, so a per-second timer redrew the same two digits sixty times
+     over. */
+  if(now || wall){
+    setTimeout(function align(){
+      clock();
+      setInterval(clock, 60000);
+    }, (60 - new Date().getSeconds()) * 1000);
+  }
+
+  /* ── time since sign-in ─────────────────────────────────────────────────────
+     Counted up from a figure the server worked out, so it is right regardless of
+     what zone the machine reading it is set to. See _clocked_secs(). */
+  const el = document.getElementById('htElapsed');
+  const out = document.getElementById('htElapsedV');
+  if(el && out){
+    const from = parseInt(el.dataset.elapsed || '0', 10) || 0;
+    const started = Date.now();
+    function elapsed(){
+      const secs = from + Math.floor((Date.now() - started) / 1000);
+      const hrs = Math.floor(secs / 3600), mins = Math.floor(secs % 3600 / 60);
+      /* Under an hour it is the minutes that are interesting; over it, the
+         hours. "0h 07m" is a worse reading of a short morning than "7 min". */
+      out.textContent = hrs ? hrs + 'h ' + String(mins).padStart(2, '0') + 'm'
+                            : mins + ' min';
+    }
+    elapsed();
+    setInterval(elapsed, 30000);
+  }
+})();
+</script>

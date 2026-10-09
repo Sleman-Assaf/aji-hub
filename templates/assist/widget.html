@@ -1,0 +1,263 @@
+{# templates/assist/widget.html — AJi Assist, full page. #}
+{# #}
+{# Built on the same shell as Messages: a rounded surface in the page column, #}
+{# the list on the left, the conversation on the right. Two chat-shaped screens #}
+{# that looked like different products was one product too many. #}
+{# #}
+{# Messages use the same .ask-msg classes as the panel in base.html, and the #}
+{# same sender, markdown and copy toolbar — one set of components, two shells. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}AJi Assist{% endblock %}
+{% block body_class %}asst-page{% endblock %}
+
+{% block extra_head %}
+<style>
+/* Critical layout, inlined so a stale cached aji_hub.css can never break this
+   page again. These duplicate — and, loading after the stylesheet, win over —
+   the .asst rules in the CSS file. The shell is exactly the space under the
+   header: the body is a non-scrolling column, the header keeps its natural
+   height, and the surface takes what remains — at every zoom level, since
+   nothing is guessed in pixels any more. min-height:0 down the chain is what
+   lets a long answer scroll inside .asst-scroll instead of growing the whole
+   card past the viewport. */
+body.asst-page{height:100vh;height:100dvh;overflow:hidden;
+  display:flex;flex-direction:column}
+body.asst-page .topnav{flex:none}
+body.asst-page main.content{padding:0;max-width:none;
+  flex:1;min-height:0;display:flex;overflow:hidden}
+.asst{flex:1 1 auto;height:auto;min-height:0;
+  grid-template-rows:minmax(0,1fr)}
+.asst-side,.asst-main{min-height:0;overflow:hidden}
+.asst-scroll{flex:1;min-height:0;overflow-y:auto}
+@media(max-width:900px){
+  .asst{margin:0;border-radius:0;border:none;height:auto}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="asst" id="asst">
+
+  {# ── the conversations ── #}
+  <aside class="asst-side" id="asstSide">
+    <div class="asst-head">
+      <span class="asst-head-t">AJi Assist</span>
+      <a href="{% url 'assist_new' %}" class="asst-newbtn" title="New conversation"
+         aria-label="New conversation">{% icon "plus" 16 %}</a>
+    </div>
+
+    <div class="asst-list">
+      {% for s in sessions %}
+      {# A conversation with nothing in it yet is named for what it is. #}
+      {# auto_name() would call it "Session 11 Aug 2026 13:23". #}
+      <a href="?s={{ s.pk }}" class="asst-sess{% if s.pk == session.pk %} on{% endif %}"
+         data-sess="{{ s.pk }}" data-date="{{ s.started_at|date:'j M' }}">
+        <span class="asst-sess-t">
+          {% if s.message_count %}{{ s.name|default:s.auto_name }}{% else %}New conversation{% endif %}
+        </span>
+        <span class="asst-sess-m">
+          {% if s.message_count %}{{ s.started_at|date:"j M" }} · {{ s.message_count }} question{{ s.message_count|pluralize }}
+          {% else %}Nothing asked yet{% endif %}
+        </span>
+      </a>
+      {% empty %}
+      <p class="asst-none">Your conversations will be listed here once you have asked something.</p>
+      {% endfor %}
+    </div>
+
+    {% if sessions %}
+    {# The confirmation is the Hub's own dialog, not the browser's. A grey OS #}
+    {# alert box is the one piece of chrome on the page nobody designed, and #}
+    {# this is the only irreversible thing in here. #}
+    <form method="post" action="{% url 'assist_clear_history' %}" class="asst-side-foot"
+          id="asstClearForm">
+      {% csrf_token %}
+      <button type="submit" class="asst-clear">{% icon "trash" 14 1.8 %} Clear history</button>
+    </form>
+    {% endif %}
+  </aside>
+
+  {# ── the conversation ── #}
+  <main class="asst-main">
+    <header class="asst-bar">
+      <button type="button" class="asst-show" id="asstShow"
+              aria-label="Show conversations" title="Show conversations">
+        {% icon "menu" 18 2 %}
+      </button>
+      {# auto_name() titles a conversation after its first question, and falls #}
+      {# back to a timestamp when there is none yet. "Session 11 Aug 13:23" is #}
+      {# a worse name for an empty conversation than saying it is a new one. #}
+      <span class="asst-bar-t">
+        {% if assist_msgs %}{{ session.name|default:session.auto_name }}
+        {% else %}New conversation{% endif %}
+      </span>
+      {% if viewing_past %}<span class="asst-tag">Past</span>{% endif %}
+
+      {% if assist_msgs %}
+      {# Saving the conversation out. One segmented control, each format named #}
+      {# and carrying its own document mark — the same three marks the panel #}
+      {# uses in its header, so a format looks the same wherever it is offered. #}
+      <span class="asst-save">
+        <span class="asst-save-l">Save as</span>
+        <span class="asst-fmts">
+          <a href="{% url 'assist_export_session_docx' session.pk %}" class="asst-fmt"
+             title="Download this conversation as a Word document">{% icon "file-text" 14 1.8 %} Word</a>
+          <a href="{% url 'assist_export_session_pdf' session.pk %}" class="asst-fmt"
+             title="Download this conversation as a PDF">{% icon "file-pdf" 14 1.8 %} PDF</a>
+          <a href="{% url 'assist_export_session_xlsx' session.pk %}" class="asst-fmt"
+             title="Download this conversation as an Excel workbook">{% icon "file-x" 14 1.8 %} Excel</a>
+        </span>
+      </span>
+      {% endif %}
+    </header>
+
+    <div class="asst-scroll" id="askBody">
+      <div class="asst-thread">
+        {% for m in assist_msgs %}
+          <div class="ask-msg ask-user">{{ m.question }}</div>
+          {% if m.answer and m.answer.strip %}
+          {# data-md, not rendered here: the markdown renderer lives in the #}
+          {# browser and is the same one the streaming answer goes through, so #}
+          {# a saved answer and a live one cannot look different. #}
+          <div class="ask-msg ask-bot" data-md="{{ m.answer|escapejs }}" data-msg-id="{{ m.pk }}"></div>
+          {% endif %}
+        {% empty %}
+          <div class="asst-hello" id="asstHello">
+            <span class="asst-hello-av">{% icon "sparkle" 24 1.6 %}</span>
+            <h1>How can I help you today?</h1>
+            <p>
+              Ask about people, policies, projects, leave, pay or the calendar.
+              I answer from AJi's own documents and directory.
+            </p>
+            {% if assist_prompts %}
+            {# The same suggestions the panel offers, so the two agree about what #}
+            {# is worth asking first. They are records in Global Settings, not #}
+            {# markup, so an admin changes them in both places at once. #}
+            <div class="asst-starters">
+              {% for p in assist_prompts %}
+              <button type="button" class="asst-starter" data-ask="{{ p.prompt }}">
+                {{ p.label }}
+              </button>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="asst-composer">
+      <div class="asst-field">
+        <textarea id="askInput" rows="1" placeholder="Ask anything about AJi…"
+                  aria-label="Ask AJi Assist"></textarea>
+        <button type="button" class="asst-send" id="asstSend" aria-label="Send">
+          {% icon "send" 17 %}
+        </button>
+      </div>
+      <p class="asst-fine">
+        Answers come from AJi's documents and directory. Check anything important before acting on it.
+      </p>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  const body  = document.getElementById('askBody');
+  const input = document.getElementById('askInput');
+  const shell = document.getElementById('asst');
+
+  /* The row for this conversation is in the sidebar from the moment the
+     conversation exists, before anything has been asked in it. So it has to
+     stop saying "New conversation" as soon as something is — otherwise the list
+     disagrees with the screen until the next page load. */
+  function syncSidebarRow() {
+    const row = document.querySelector('.asst-sess.on');
+    const asked = document.querySelectorAll('.asst-thread .ask-msg.ask-user');
+    if (!row || !asked.length) return;
+    const n = asked.length;
+    row.querySelector('.asst-sess-t').textContent = asked[0].textContent.trim();
+    row.querySelector('.asst-sess-m').textContent =
+      `${row.dataset.date} · ${n} question${n === 1 ? '' : 's'}`;
+  }
+
+  function ask(q) {
+    Promise.resolve(window.AJiAssist.send(q, {
+      body: document.querySelector('.asst-thread'),
+      input: input,
+      chips: null,
+      empty: document.getElementById('asstHello'),
+    })).then(syncSidebarRow, syncSidebarRow);
+    syncSidebarRow();   // the question is on screen before the answer is
+    // The thread grows inside the scroller, so the scroller is what moves.
+    setTimeout(() => { body.scrollTop = body.scrollHeight; }, 30);
+  }
+
+  document.getElementById('asstSend').addEventListener('click', () => ask());
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(); }
+  });
+
+  /* Grows with what is typed, up to a point, then scrolls — a composer that can
+     only show one line of a five-line question is hiding the question. */
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 180) + 'px';
+  });
+
+  // A suggestion is a question somebody has not had to type.
+  document.addEventListener('click', e => {
+    const el = e.target.closest('[data-ask]');
+    if (el) ask(el.dataset.ask);
+  });
+
+  /* Clearing the history is the only thing in here that cannot be undone, so
+     it gets the Hub's dialog rather than the browser's alert box. Submitting
+     the form directly is deliberate: form.submit() does not fire this handler
+     again, so there is no loop to guard against. */
+  const clearForm = document.getElementById('asstClearForm');
+  if (clearForm) clearForm.addEventListener('submit', e => {
+    e.preventDefault();
+    openModal(`
+      <div class="mh">
+        <h2>Clear conversation history?</h2>
+        <span class="x" onclick="closeModal()" role="button" aria-label="Cancel">&times;</span>
+      </div>
+      <div class="mb">
+        <p>This removes every AJi Assist conversation saved for your account,
+           along with the answers in them. It cannot be undone.</p>
+      </div>
+      <div class="mf">
+        <button type="button" class="btn ghost" onclick="closeModal()">Cancel</button>
+        <button type="button" class="btn" id="asstClearGo">Clear history</button>
+      </div>`);
+    document.getElementById('asstClearGo').addEventListener('click', () => {
+      closeModal();
+      clearForm.submit();
+    });
+  });
+
+  /* On a narrow screen the list is a drawer over the conversation. Not the
+     button that opens it, though — that sits in the header the tap closes. */
+  document.getElementById('asstShow').addEventListener('click',
+    () => shell.classList.add('side-in'));
+  document.querySelector('.asst-main').addEventListener('click', e => {
+    if (e.target.closest('#asstShow')) return;
+    if (shell.classList.contains('side-in')) shell.classList.remove('side-in');
+  });
+
+  /* The shared sender is defined further down base.html than this block is
+     printed, so it does not exist yet while this script is parsed. Waiting for
+     the document means it does. Without this the first line threw, and the two
+     lines after it — the scroll to the end and the focus — never ran. */
+  function boot() {
+    window.AJiAssist.hydrate(body);   // saved answers are markdown until rendered
+    body.scrollTop = body.scrollHeight;
+    input.focus();
+  }
+  if (window.AJiAssist) boot();
+  else document.addEventListener('DOMContentLoaded', boot);
+})();
+</script>
+{% endblock %}

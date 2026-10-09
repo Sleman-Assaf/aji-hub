@@ -1,0 +1,70 @@
+{% load cms_tags %}
+{# content/_portfolio_manage_results.html — the count, the note and the panels. #}
+{# Split out of portfolio_manage.html so typing in the search box can replace #}
+{# just this part. The search field itself stays where it is, which is the #}
+{# whole point: swap it out mid-word and the caret goes with it. #}
+{# #}
+{# The panels carry data-save, and that handler is delegated from base.html, so #}
+{# forms that arrive here after a search save in place like any other. #}
+
+<div class="sec-head">
+  <h2>
+    {% if q %}{{ found }} match{{ found|pluralize:"es" }}{% else %}{{ total }} project{{ total|pluralize }}{% endif %}
+  </h2>
+  <span class="muted pjx-find-note">
+    {% if q %}
+      Showing {{ showing }} of {{ found }}{% if more_hidden %} — narrow the search to reach the rest{% endif %}
+    {% else %}
+      Showing the {{ showing }} most recent of {{ total }} — search to find any other
+    {% endif %}
+  </span>
+</div>
+
+<div class="pjx-list">
+  {% for p in projects %}
+  <details class="pjx-item">
+    <summary>
+      <span class="pjx-thumb">
+        {% if p.image %}<img src="{{ p.image.url }}" alt="">{% else %}<i>no image</i>{% endif %}
+      </span>
+      <span class="pjx-sum">
+        <b>{{ p.title }}</b>
+        <i>{{ p.location|default:"— no location —" }}</i>
+      </span>
+      <span class="pjx-tags">
+        {% if p.division %}<span class="pill mut">{{ p.division }}</span>{% endif %}
+        {% if p.type %}<span class="pill mut">{{ p.type }}</span>{% endif %}
+        {# Most projects have no year. A pill saying "None" is worse than none. #}
+        {% if p.year %}<span class="pill mut">{{ p.year }}</span>{% endif %}
+        <span class="pill{% if p.status == 'Completed' %} ok{% elif p.status == 'On site' %} warn{% else %} info{% endif %}">{{ p.status }}</span>
+      </span>
+      <svg class="pjx-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+
+    <div class="pjx-body">
+      <form method="post" action="{% url 'project_save' %}" enctype="multipart/form-data"
+            class="pjx-card" data-save>
+        {% csrf_token %}
+        <input type="hidden" name="pk" value="{{ p.pk }}">
+        {% include 'content/_project_fields.html' with p=p statuses=statuses divisions=divisions types=types %}
+        <div class="pjx-foot">
+          <span class="muted" style="font-size:11.5px">Ref {{ p.pk }}</span>
+          <button type="submit" class="btn y sm">Save changes</button>
+        </div>
+      </form>
+      <div class="pjx-extra">
+        <form method="post" action="{% url 'project_delete' p.pk %}" class="pjx-del"
+              onsubmit="return confirm('Delete “{{ p.title|escapejs }}” permanently?\n\nThis cannot be undone.')">
+          {% csrf_token %}
+          <button type="submit" class="btn ghost danger sm">Delete this project</button>
+        </form>
+      </div>
+    </div>
+  </details>
+  {% empty %}
+  <div class="pjx-none">
+    {% if q %}Nothing matches “{{ q }}”.
+    {% else %}No projects yet. Add the first one above.{% endif %}
+  </div>
+  {% endfor %}
+</div>

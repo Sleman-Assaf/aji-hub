@@ -1,0 +1,873 @@
+{# templates/services/car_booking.html #}
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Car Booking — AJi Hub{% endblock %}
+
+{% block extra_head %}
+{# Leaflet is served by the Hub, the way cropperjs already is. The office #}
+{# network is not always out to the internet, and a map library fetched from #}
+{# a CDN that fails to answer would take the whole form down with it. #}
+<link rel="stylesheet" href="{% static 'vendor/leaflet/leaflet.css' %}">
+<style>
+/* ══ the page ════════════════════════════════════════════════════════════
+   One column, one measure. The previous version put the map and the cars in
+   a second column and nothing lined up with anything: three different left
+   edges down the page. Everything now starts on the same line and is the
+   same width, which is most of what "tidy" means.                        */
+.cb{max-width:940px}
+.cb-block{background:var(--paper-2);border:1px solid var(--line);
+  padding:26px 28px;margin-bottom:18px}
+.cb-block.locked{opacity:.5;pointer-events:none}
+.cb-head{display:flex;align-items:baseline;gap:12px;margin-bottom:22px}
+.cb-head h2{margin:0;font-size:16px;letter-spacing:-.01em}
+.cb-head p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.5}
+.cb-step{flex:none;width:26px;height:26px;border:1px solid var(--line-2);
+  display:flex;align-items:center;justify-content:center;font-size:12px;
+  font-weight:750;color:var(--muted);align-self:center}
+.cb-block.done .cb-step{background:var(--ink);color:var(--paper-2);
+  border-color:var(--ink)}
+
+/* ══ fields ══════════════════════════════════════════════════════════════
+   The Hub's own newer pattern: the label lives inside the box at the top
+   left and the value sits under it, so a filled form is a column of values
+   rather than a column of alternating grey captions and boxes. Focus is the
+   ink border and the yellow ring used everywhere else.                   */
+.f{position:relative}
+.f > label{position:absolute;top:8px;left:14px;font-size:9.5px;font-weight:800;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+  pointer-events:none;z-index:1}
+.f input[type=text],.f input[type=date],.f input[type=time],
+.f input[type=number],.f select,.f textarea{
+  width:100%;border:1px solid var(--line-2);background:var(--paper-2);
+  padding:24px 14px 10px;outline:none;font-family:inherit;font-size:14px;
+  font-weight:600;color:var(--ink);
+  transition:border-color .14s,box-shadow .14s}
+.f select{appearance:none;-webkit-appearance:none;padding-right:34px;cursor:pointer}
+.f textarea{padding-top:26px;min-height:92px;resize:vertical;font-weight:500;
+  line-height:1.6}
+.f input:focus,.f select:focus,.f textarea:focus{
+  border-color:var(--ink);box-shadow:0 0 0 3px rgba(252,215,0,.24)}
+.f input::placeholder,.f textarea::placeholder{font-weight:500;color:var(--muted)}
+.f .chev{position:absolute;right:14px;top:60%;transform:translateY(-50%);
+  pointer-events:none;color:var(--muted);font-size:11px}
+.f-grid{display:grid;gap:14px;margin-bottom:14px}
+.f-grid:last-child{margin-bottom:0}
+.f-2{grid-template-columns:1fr 1fr}
+.f-3{grid-template-columns:1fr 1fr 1fr}
+@media (max-width:640px){.f-2,.f-3{grid-template-columns:1fr}}
+.cb-hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:10px}
+.f .cb-hint{display:block;margin-top:7px}
+/* A required field that was left empty when they tried to send. Marked on the
+   attempt, not on load — every required field is empty on load. */
+.f.missing input,.f.missing textarea{border-color:var(--bad)}
+.f.missing > label{color:var(--bad)}
+
+/* a real switch, not a bare checkbox */
+.cb-switch{display:flex;align-items:center;gap:12px;padding:14px 16px;
+  border:1px solid var(--line-2);background:var(--paper-2);cursor:pointer;
+  margin-bottom:14px;transition:border-color .14s}
+.cb-switch:hover{border-color:var(--ink)}
+.cb-switch input{position:absolute;opacity:0;pointer-events:none}
+.cb-switch .box{flex:none;width:19px;height:19px;border:1.5px solid var(--line-2);
+  display:flex;align-items:center;justify-content:center;color:transparent;
+  font-size:12px;font-weight:900;transition:.14s}
+.cb-switch input:checked ~ .box{background:var(--ink);border-color:var(--ink);
+  color:var(--yellow)}
+.cb-switch b{font-size:13.5px;font-weight:650;display:block}
+.cb-switch span{font-size:12px;color:var(--muted);display:block;margin-top:2px}
+
+/* ══ the two ends of the route ═══════════════════════════════════════════ */
+.cb-end{border:1px solid var(--line-2);background:var(--paper);padding:16px 18px}
+.cb-end + .cb-end{margin-top:12px}
+.cb-end.aiming{border-color:var(--ink);box-shadow:0 0 0 3px rgba(252,215,0,.18)}
+.cb-end-top{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+.cb-dot{width:12px;height:12px;border-radius:50%;flex:none;
+  box-shadow:0 0 0 3px var(--paper)}
+.cb-dot.from{background:var(--ink)}
+.cb-dot.to{background:var(--yellow)}
+.cb-end-top b{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase}
+.cb-end-top .cb-pin{margin-left:auto;font-size:11px;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.cb-chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+.cb-chip{padding:7px 12px;border:1px solid var(--line-2);background:var(--paper-2);
+  font-family:inherit;font-size:12px;font-weight:650;cursor:pointer;color:var(--ink);
+  display:inline-flex;align-items:center;gap:7px;transition:.13s}
+.cb-chip:hover{border-color:var(--ink);background:var(--yellow-soft)}
+.cb-chip i{width:6px;height:6px;border-radius:50%;background:var(--yellow);
+  flex:none;font-style:normal}
+.cb-search{position:relative}
+.cb-results{position:absolute;left:0;right:0;top:100%;z-index:1200;
+  background:var(--paper-2);border:1px solid var(--ink);max-height:250px;
+  overflow:auto;display:none;box-shadow:0 12px 34px rgba(0,0,0,.24)}
+.cb-results button{display:block;width:100%;text-align:left;padding:12px 15px;
+  border:none;background:none;font-family:inherit;font-size:12.5px;cursor:pointer;
+  color:var(--ink);border-bottom:1px solid var(--line);line-height:1.45}
+.cb-results button:hover{background:var(--paper)}
+
+/* ══ the map ═════════════════════════════════════════════════════════════
+   OpenStreetMap's raster style is loud — full-saturation motorways, pink
+   hospitals — against an interface that is three colours. Filtered back to
+   near-grey so the two pins and the line between them carry; inverted in
+   dark mode, which is how you get a dark basemap from light tiles without
+   paying for a second tile server.                                       */
+.cb-map-wrap{border:1px solid var(--line-2);overflow:hidden;margin-top:14px}
+#cbMap{height:360px;background:var(--paper-3)}
+.leaflet-tile-pane{filter:saturate(.32) contrast(.93) brightness(1.04)}
+:root[data-theme="dark"] .leaflet-tile-pane{
+  filter:invert(1) hue-rotate(180deg) saturate(.2) brightness(.86) contrast(.95)}
+.leaflet-container{background:var(--paper-3);font-family:inherit}
+.leaflet-control-attribution{font-size:9.5px;background:rgba(0,0,0,.4) !important;
+  color:#fff !important;padding:1px 6px}
+.leaflet-control-attribution a{color:#fff !important}
+.leaflet-bar a{background:var(--paper-2) !important;color:var(--ink) !important;
+  border-bottom-color:var(--line) !important}
+.cb-map-bar{display:flex;gap:8px;align-items:center;padding:12px 14px;
+  border-top:1px solid var(--line-2);background:var(--paper-2);flex-wrap:wrap}
+.cb-map-bar > span{font-size:11.5px;color:var(--muted)}
+.cb-tgt{padding:7px 13px;border:1px solid var(--line-2);background:var(--paper);
+  font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;
+  color:var(--ink);letter-spacing:.04em;transition:.13s}
+.cb-tgt:hover{border-color:var(--ink)}
+.cb-tgt.on{background:var(--ink);color:var(--paper-2);border-color:var(--ink)}
+
+/* ══ the cars ════════════════════════════════════════════════════════════
+   The picture IS the card. A car was a hundred-pixel thumbnail beside a line
+   of text, which is not enough of a Sportage to recognise a Sportage — and
+   recognising it is the entire job this screen has. Two to a row, the
+   picture at its own 3:2 across the full width, and the words underneath.
+   One trip takes one car, so these are radios and not boxes. */
+.cb-cars{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:760px){.cb-cars{grid-template-columns:1fr}}
+.cb-car{display:block;position:relative;border:1px solid var(--line-2);
+  background:var(--paper);cursor:pointer;overflow:hidden;
+  transition:border-color .14s,box-shadow .14s}
+.cb-car:hover{border-color:var(--ink)}
+.cb-car.picked{border-color:var(--ink);box-shadow:0 0 0 3px rgba(252,215,0,.3)}
+.cb-car figure{margin:0;overflow:hidden;background:var(--paper-3)}
+.cb-car img{width:100%;aspect-ratio:3/2;object-fit:cover;display:block;
+  transition:transform .4s cubic-bezier(.2,.7,.3,1)}
+.cb-car:hover img{transform:scale(1.045)}
+.cb-car .noshot{width:100%;aspect-ratio:3/2;display:flex;align-items:center;
+  justify-content:center;font-size:11.5px;color:var(--muted);
+  background:var(--paper-3)}
+.cb-car-body{display:flex;gap:11px;align-items:center;padding:13px 14px;
+  border-top:1px solid var(--line);background:var(--paper-2)}
+.cb-car.picked .cb-car-body{background:var(--yellow-soft)}
+.cb-car input{flex:none;width:18px;height:18px;accent-color:var(--ink)}
+.cb-car-main{flex:1;min-width:0}
+.cb-car-main b{display:block;font-size:14.5px;line-height:1.3}
+.cb-car-main span{display:block;font-size:11.5px;color:var(--muted);margin-top:3px}
+.cb-seats{font-size:11px;font-weight:750;color:var(--muted);flex:none;
+  text-align:right;line-height:1.3}
+.cb-alert{font-size:10.5px;color:var(--bad);font-weight:700;margin-top:3px}
+/* A tick on the picture, so a chosen car reads from across the page and not
+   only from the checkbox. */
+.cb-tick{position:absolute;top:11px;right:11px;width:28px;height:28px;
+  border-radius:50%;background:var(--ink);color:var(--yellow);display:none;
+  align-items:center;justify-content:center;font-size:15px;font-weight:900;
+  box-shadow:0 3px 10px rgba(0,0,0,.45)}
+.cb-car.picked .cb-tick{display:flex}
+
+.cb-note{font-size:12.5px;padding:13px 15px;border-left:3px solid var(--yellow);
+  background:var(--paper);margin-top:16px;line-height:1.55}
+.cb-note.bad{border-left-color:var(--bad)}
+.cb-empty{grid-column:1/-1;font-size:13px;color:var(--muted);line-height:1.6;
+  padding:18px;border:1px dashed var(--line-2);background:var(--paper)}
+
+/* ══ your own trips ══════════════════════════════════════════════════════ */
+.cb-mine{margin-top:44px;max-width:940px}
+.cb-trip{border:1px solid var(--line);background:var(--paper-2);padding:17px 19px;
+  margin-bottom:11px}
+.cb-trip-top{display:flex;gap:11px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.cb-route{font-size:13.5px;line-height:1.5}
+.cb-route .ar{color:var(--muted);margin:0 8px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">My AJi / Workplace &amp; Facilities</div>
+    <h1>Car Booking</h1>
+    <p>Say when you are going and where. The cars free at that time appear
+       on the right.</p>
+  </div>
+  {% if is_desk %}
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a href="{% url 'services:car_requests' %}" class="btn">
+      Requests{% if pending_count %} · {{ pending_count }}{% endif %}</a>
+    <a href="{% url 'services:car_schedule' %}" class="btn">Schedule</a>
+    <a href="{% url 'services:car_log' %}" class="btn">Log</a>
+    <a href="{% url 'services:fleet_console' %}" class="btn">Fleet</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if not entities %}
+  <div class="card rise" style="padding:22px">
+    <b>No cars have been set up yet.</b>
+    <p class="muted" style="margin:6px 0 0;font-size:13px">
+      The Bookings desk adds them under Fleet.</p>
+  </div>
+{% else %}
+
+<form id="cbForm" class="cb rise" autocomplete="off">
+  {% csrf_token %}
+
+  {# ══ 1 · when ═══════════════════════════════════════════════════════ #}
+  <section class="cb-block" id="cbStep1">
+    <div class="cb-head">
+      <span class="cb-step">1</span>
+      <div><h2>When</h2>
+        <p>When the car goes out, and when it comes back.</p></div>
+    </div>
+
+    <div class="f-grid">
+      <div class="f">
+        <label for="cbEntity">Division the trip is for</label>
+        <select id="cbEntity" name="entity" required>
+          <option value="">Choose…</option>
+          {% for e in entities %}
+            <option value="{{ e.pk }}"
+              {% if default_entity and default_entity.pk == e.pk %}selected{% endif %}>
+              {{ e.code }}{% if e.name != e.code %} — {{ e.name }}{% endif %}</option>
+          {% endfor %}
+        </select>
+        <span class="chev">&#9662;</span>
+      </div>
+    </div>
+
+    <label class="cb-switch" for="cbMulti">
+      <input type="checkbox" id="cbMulti" name="is_multi_day" value="1">
+      <span class="box">&#10003;</span>
+      <span><b>This trip runs over more than one day</b>
+        <span>Tick it and you can set the day it comes back.</span></span>
+    </label>
+
+    <div class="f-grid f-2">
+      <div class="f">
+        <label for="cbDate">Leaving on</label>
+        <input type="date" id="cbDate" name="date" min="{{ today }}"
+               value="{{ today }}" required>
+      </div>
+      <div class="f">
+        <label for="cbTime">Leaving at</label>
+        <input type="time" id="cbTime" name="departure_time" step="900"
+               value="09:00" required>
+      </div>
+    </div>
+
+    <div class="f-grid f-2">
+      <div class="f" id="cbReturnDateWrap" style="display:none">
+        <label for="cbReturnDate">Coming back on</label>
+        <input type="date" id="cbReturnDate" name="return_date" min="{{ today }}"
+               value="{{ today }}">
+      </div>
+      <div class="f">
+        <label for="cbReturnTime">Coming back at</label>
+        <input type="time" id="cbReturnTime" name="return_time" step="900"
+               value="11:00" required>
+      </div>
+    </div>
+    <div class="cb-hint" id="cbWindow"></div>
+  </section>
+
+  {# ══ 2 · where ══════════════════════════════════════════════════════ #}
+  <section class="cb-block" id="cbStep2">
+    <div class="cb-head">
+      <span class="cb-step">2</span>
+      <div><h2>Where</h2>
+        <p>Pick a saved place, search an address, or click the map.</p></div>
+    </div>
+
+    <div class="cb-end" id="cbEndFrom">
+      <div class="cb-end-top">
+        <span class="cb-dot from"></span><b>Starting from</b>
+        <span class="cb-pin" id="cbFromPin">no pin</span>
+      </div>
+      {% if places %}
+      <div class="cb-chips">
+        {% for pl in places %}
+          <button type="button" class="cb-chip" data-place="from"
+                  data-label="{{ pl.label }}" data-lat="{{ pl.lat }}"
+                  data-lng="{{ pl.lng }}"><i></i>{{ pl.name }}</button>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div class="cb-search f">
+        <label for="cbFrom">Address</label>
+        <input type="text" id="cbFrom" name="from_address" required
+               placeholder="Search…"
+               value="{% if default_origin %}{{ default_origin.label }}{% endif %}">
+        <div class="cb-results" id="cbFromResults"></div>
+      </div>
+      <input type="hidden" name="from_lat" id="cbFromLat"
+             value="{% if default_origin %}{{ default_origin.lat }}{% endif %}">
+      <input type="hidden" name="from_lng" id="cbFromLng"
+             value="{% if default_origin %}{{ default_origin.lng }}{% endif %}">
+    </div>
+
+    <div class="cb-end" id="cbEndTo">
+      <div class="cb-end-top">
+        <span class="cb-dot to"></span><b>Going to</b>
+        <span class="cb-pin" id="cbToPin">no pin</span>
+      </div>
+      {% if places %}
+      <div class="cb-chips">
+        {% for pl in places %}
+          <button type="button" class="cb-chip" data-place="to"
+                  data-label="{{ pl.label }}" data-lat="{{ pl.lat }}"
+                  data-lng="{{ pl.lng }}"><i></i>{{ pl.name }}</button>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div class="cb-search f">
+        <label for="cbTo">Address</label>
+        <input type="text" id="cbTo" name="to_address" required
+               placeholder="Site, client office, airport…">
+        <div class="cb-results" id="cbToResults"></div>
+      </div>
+      <input type="hidden" name="to_lat" id="cbToLat">
+      <input type="hidden" name="to_lng" id="cbToLng">
+    </div>
+
+    <div class="cb-map-wrap">
+      <div id="cbMap"></div>
+      <div class="cb-map-bar">
+        <span>A click on the map sets</span>
+        <button type="button" class="cb-tgt" id="cbSetFrom">STARTING FROM</button>
+        <button type="button" class="cb-tgt on" id="cbSetTo">GOING TO</button>
+        <span style="margin-left:auto" id="cbDist"></span>
+      </div>
+    </div>
+  </section>
+
+  {# ══ 3 · who ════════════════════════════════════════════════════════ #}
+  <section class="cb-block" id="cbStep3">
+    <div class="cb-head">
+      <span class="cb-step">3</span>
+      <div><h2>Who, and what for</h2>
+        <p>How many seats you need decides which car fits.</p></div>
+    </div>
+    <div class="f-grid f-2">
+      <div class="f">
+        <label for="cbAttendees">People travelling</label>
+        <input type="number" id="cbAttendees" name="attendees" min="1" max="60"
+               value="1" required>
+      </div>
+      <div class="f">
+        <label for="cbDriver">Driver</label>
+        <select id="cbDriver" name="driver_required">
+          <option value="0">Not needed — one of us will drive</option>
+          <option value="1">Please assign a driver</option>
+        </select>
+        <span class="chev">&#9662;</span>
+      </div>
+    </div>
+    <div class="f-grid">
+      <div class="f">
+        <label for="cbPurpose">What the trip is for</label>
+        <input type="text" id="cbPurpose" name="purpose" maxlength="300" required
+               placeholder="Site visit, client meeting, delivery…">
+        <span class="cb-hint">Required — the desk decides between two requests
+          for the same car on this line.</span>
+      </div>
+    </div>
+    <div class="f-grid">
+      <div class="f">
+        <label for="cbNotes">Anything the desk should know</label>
+        <textarea id="cbNotes" name="notes"
+                  placeholder="Optional — luggage, an early start, a stop on the way"></textarea>
+      </div>
+    </div>
+  </section>
+
+  {# ══ 4 · the cars ═══════════════════════════════════════════════ #}
+  {# Locked until the three above are answered. A list of cars shown #}
+  {# before the dates are set is a list of cars for a time nobody has #}
+  {# chosen, and it is wrong the moment they choose one. #}
+  <section class="cb-block locked" id="cbStep4">
+    <div class="cb-head">
+      <span class="cb-step">4</span>
+      <div><h2>Choose a car</h2>
+        <p id="cbCarsLede">Fill in the three above and the cars free at that
+           time will appear here.</p></div>
+    </div>
+    <div class="cb-cars" id="cbCars"></div>
+    <div id="cbSeatWarn" class="cb-note bad" style="display:none"></div>
+    <div id="cbMsg" class="cb-note" style="display:none"></div>
+    <button type="submit" class="btn btn-primary" id="cbSubmit"
+            style="width:100%;margin-top:18px;padding:14px">Send to the Bookings desk</button>
+    <p class="cb-hint" style="text-align:center">
+      They confirm it. You get an email either way.</p>
+  </section>
+</form>
+
+<div class="cb-mine rise">
+  <h2 style="font-size:16px;margin:0 0 14px">Your bookings</h2>
+  {% for b in my_bookings %}
+    <div class="cb-trip" id="booking-{{ b.pk }}">
+      <div class="cb-trip-top">
+        {% if b.status == 'approved' %}<span class="pill ok">Approved</span>
+        {% elif b.status == 'pending' %}<span class="pill warn">Awaiting approval</span>
+        {% elif b.status == 'rejected' %}<span class="pill bad">Declined</span>
+        {% else %}<span class="pill mut">Cancelled</span>{% endif %}
+        <b>{{ b.date|date:"D, d M Y" }} · {{ b.departure_time|time:"H:i" }}</b>
+        <span class="muted" style="font-size:12.5px">back about
+          {{ b.return_time|time:"H:i" }} · {{ b.duration_label }}</span>
+        <span class="pill mut" style="font-size:10px">{{ b.entity.code }}</span>
+      </div>
+      <div class="cb-route">{{ b.from_address }}<span class="ar">&rarr;</span>{{ b.to_address }}</div>
+      <div class="muted" style="font-size:12.5px;margin-top:6px">
+        {{ b.cars_label }} · {{ b.attendees }} travelling{% if b.driver_required %} · driver requested{% endif %}
+        {% if b.purpose %} · {{ b.purpose }}{% endif %}
+      </div>
+      {% if b.review_comment %}
+        <div class="muted" style="font-size:12.5px;margin-top:6px">
+          Bookings desk: “{{ b.review_comment }}”</div>
+      {% endif %}
+      <div style="display:flex;gap:8px;margin-top:11px;flex-wrap:wrap">
+        {% if b.status == 'pending' or b.status == 'approved' %}
+          <button class="btn btn-sm" data-cancel="{{ b.pk }}">Cancel</button>
+        {% endif %}
+        {% if b.map_url %}
+          <a class="btn btn-sm" target="_blank" rel="noopener" href="{{ b.map_url }}">Route</a>
+        {% endif %}
+      </div>
+    </div>
+  {% empty %}
+    <p class="muted" style="font-size:13px">Nothing yet.</p>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_body %}
+<script src="{% static 'vendor/leaflet/leaflet.js' %}"></script>
+<script>
+(function () {
+  'use strict';
+  var form = document.getElementById('cbForm');
+  if (!form) return;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var csrf = form.querySelector('[name=csrfmiddlewaretoken]').value;
+  var URLS = {
+    avail:  "{% url 'services:car_availability_api' %}",
+    book:   "{% url 'services:car_booking_create' %}",
+    geo:    "{% url 'services:geocode_api' %}",
+    cancel: "{% url 'services:car_booking_cancel' 0 %}"
+  };
+
+  /* ── the map ────────────────────────────────────────────────────────────
+     Tiles come from the Hub's own proxy, which fetches from OpenStreetMap
+     with a User-Agent naming AJi and caches every one.                    */
+  var HOME = {{ map_home }};
+  var map = L.map('cbMap', {scrollWheelZoom: false}).setView(HOME, 13);
+  L.tileLayer('{{ map_tiles }}', {
+    maxZoom: 19, subdomains: '{{ map_subdomains }}',
+    attribution: '{{ map_attribution|escapejs }}'
+  }).addTo(map);
+
+  var pins = {from: null, to: null}, lines = [], aiming = 'to';
+
+  function icon(kind) {
+    return L.divIcon({
+      className: '',
+      html: '<div style="width:22px;height:22px;border-radius:50%;'
+          + 'border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.55);'
+          + 'background:' + (kind === 'from' ? '#111111' : '#FCD700') + '"></div>',
+      iconSize: [22, 22], iconAnchor: [11, 11]
+    });
+  }
+
+  /* Which end a map click lands on. It is set by the two buttons and by
+     putting the cursor in one of the address boxes, and then it STAYS there.
+     It used to flip to the other end after every pin, so the highlight moved
+     on its own and clicking the map twice put the second pin somewhere
+     nobody asked for — which is what "the buttons do not work" was. */
+  function aim(which) {
+    aiming = which;
+    $('cbSetFrom').classList.toggle('on', which === 'from');
+    $('cbSetTo').classList.toggle('on', which === 'to');
+    $('cbEndFrom').classList.toggle('aiming', which === 'from');
+    $('cbEndTo').classList.toggle('aiming', which === 'to');
+  }
+  $('cbSetFrom').addEventListener('click', function () { aim('from'); });
+  $('cbSetTo').addEventListener('click', function () { aim('to'); });
+
+  function setPlace(kind, label, lat, lng, recentre) {
+    var isFrom = kind === 'from';
+    $(isFrom ? 'cbFrom' : 'cbTo').value = label;
+    $(isFrom ? 'cbFromLat' : 'cbToLat').value = lat;
+    $(isFrom ? 'cbFromLng' : 'cbToLng').value = lng;
+    $(isFrom ? 'cbFromPin' : 'cbToPin').textContent =
+      lat.toFixed(4) + ', ' + lng.toFixed(4);
+
+    if (pins[kind]) map.removeLayer(pins[kind]);
+    pins[kind] = L.marker([lat, lng], {icon: icon(kind), draggable: true})
+                  .addTo(map);
+    pins[kind].on('drag', redraw);
+    pins[kind].on('dragend', function (e) {
+      var q = e.target.getLatLng();
+      setPlace(kind, $(isFrom ? 'cbFrom' : 'cbTo').value, q.lat, q.lng, false);
+    });
+    redraw();
+    if (recentre) fit();
+    gate();
+  }
+
+  function redraw() {
+    lines.forEach(function (l) { map.removeLayer(l); });
+    lines = [];
+    var out = $('cbDist');
+    if (!pins.from || !pins.to) { out.textContent = ''; return; }
+    var a = pins.from.getLatLng(), b = pins.to.getLatLng();
+    lines.push(L.polyline([a, b], {color: '#111', weight: 7, opacity: .22}).addTo(map));
+    lines.push(L.polyline([a, b], {color: '#FCD700', weight: 4, opacity: .95}).addTo(map));
+    /* Straight-line distance, and it says so: a number that looked like a
+       driving estimate and was not would be worse than no number. */
+    out.textContent = (map.distance(a, b) / 1000).toFixed(1) + ' km in a straight line';
+  }
+
+  function fit() {
+    if (pins.from && pins.to) {
+      map.fitBounds(L.latLngBounds([pins.from.getLatLng(), pins.to.getLatLng()]),
+                    {padding: [48, 48]});
+    } else if (pins.from || pins.to) {
+      map.setView((pins.from || pins.to).getLatLng(), 14);
+    }
+  }
+
+  map.on('click', function (e) {
+    var box = $(aiming === 'from' ? 'cbFrom' : 'cbTo');
+    setPlace(aiming, box.value || 'Pinned on the map', e.latlng.lat, e.latlng.lng, false);
+  });
+
+  /* ── address search ──────────────────────────────────────────────────── */
+  function wireSearch(inputId, panelId, kind) {
+    var input = $(inputId), panel = $(panelId), timer = null;
+    input.addEventListener('focus', function () { aim(kind); });
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      gate();
+      var q = input.value.trim();
+      if (q.length < 3) { panel.style.display = 'none'; return; }
+      /* The search asks for no more than a request a second, and a keystroke
+         is not a search. Half a second of quiet is. */
+      timer = setTimeout(function () {
+        fetch(URLS.geo + '?q=' + encodeURIComponent(q))
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            panel.innerHTML = '';
+            if (!d.results || !d.results.length) {
+              var msg = document.createElement('button');
+              msg.type = 'button'; msg.disabled = true;
+              msg.style.color = 'var(--muted)';
+              msg.textContent = d.offline
+                ? 'Search is offline — click the map instead'
+                : 'Nothing found — click the map instead';
+              panel.appendChild(msg);
+            } else {
+              d.results.forEach(function (r) {
+                var b = document.createElement('button');
+                b.type = 'button'; b.textContent = r.label;
+                b.onclick = function () {
+                  setPlace(kind, r.label, r.lat, r.lng, true);
+                  panel.style.display = 'none';
+                };
+                panel.appendChild(b);
+              });
+            }
+            panel.style.display = 'block';
+          })
+          .catch(function () { panel.style.display = 'none'; });
+      }, 500);
+    });
+    document.addEventListener('click', function (e) {
+      if (!panel.contains(e.target) && e.target !== input) panel.style.display = 'none';
+    });
+  }
+  wireSearch('cbFrom', 'cbFromResults', 'from');
+  wireSearch('cbTo', 'cbToResults', 'to');
+
+  /* Neither office is on the public map under its own name, so searching for
+     one was never going to find it. */
+  document.querySelectorAll('[data-place]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      setPlace(b.dataset.place, b.dataset.label,
+               parseFloat(b.dataset.lat), parseFloat(b.dataset.lng), true);
+    });
+  });
+
+  /* ── one day or several ──────────────────────────────────────────────── */
+  var multi = $('cbMulti');
+  function multiChanged() {
+    $('cbReturnDateWrap').style.display = multi.checked ? '' : 'none';
+    if (!multi.checked) $('cbReturnDate').value = $('cbDate').value;
+    gate();
+  }
+  multi.addEventListener('change', multiChanged);
+  $('cbDate').addEventListener('change', function () {
+    var d = $('cbDate').value;
+    $('cbReturnDate').min = d;
+    if (!multi.checked || $('cbReturnDate').value < d) $('cbReturnDate').value = d;
+    gate();
+  });
+  multiChanged();
+
+  function span() {
+    /* The two ends as real datetimes, so a trip that ends at 01:00 tomorrow
+       is longer than one that ends at 23:00 today rather than negative. */
+    var d = $('cbDate').value, t = $('cbTime').value;
+    var rd = multi.checked ? $('cbReturnDate').value : d;
+    var rt = $('cbReturnTime').value;
+    if (!d || !t || !rd || !rt) return null;
+    var a = new Date(d + 'T' + t), b = new Date(rd + 'T' + rt);
+    var mins = Math.round((b - a) / 60000);
+    return {mins: mins, a: a, b: b};
+  }
+
+  function label(mins) {
+    var days = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60),
+        m = mins % 60;
+    if (days) return days + 'd ' + h + 'h';
+    return h ? (m ? h + 'h ' + m + 'm' : h + 'h') : m + 'm';
+  }
+
+  /* ── what is filled in, and what that unlocks ────────────────────────── */
+  function ready() {
+    var s = span();
+    return !!($('cbEntity').value && s && s.mins > 0
+              && $('cbFrom').value.trim() && $('cbTo').value.trim()
+              && $('cbPurpose').value.trim());
+  }
+
+  var lastKey = '';
+  function gate() {
+    var s = span();
+    var note = $('cbWindow');
+    if (!s) { note.textContent = ''; }
+    else if (s.mins <= 0) {
+      note.innerHTML = '<b style="color:var(--bad)">The car has to come back '
+                     + 'after it leaves.</b>';
+    } else {
+      note.textContent = 'Out for ' + label(s.mins)
+        + (multi.checked ? ', over ' + (Math.floor(s.mins / 1440) + 1) + ' days' : '')
+        + '.';
+    }
+    [1, 2, 3].forEach(function (n) {
+      var el = $('cbStep' + n);
+      var ok = (n === 1) ? !!($('cbEntity').value && s && s.mins > 0)
+             : (n === 2) ? !!($('cbFrom').value.trim() && $('cbTo').value.trim())
+             : !!($('cbAttendees').value && $('cbPurpose').value.trim());
+      el.classList.toggle('done', ok);
+    });
+
+    var step4 = $('cbStep4');
+    if (!ready()) {
+      step4.classList.add('locked');
+      $('cbCars').innerHTML = '';
+      $('cbCarsLede').textContent =
+        'Fill in the three above and the cars free at that time will appear here.';
+      lastKey = '';
+      return;
+    }
+    step4.classList.remove('locked');
+    var key = [$('cbEntity').value, $('cbDate').value, $('cbTime').value, s.mins].join('|');
+    if (key !== lastKey) { lastKey = key; loadCars(s.mins); }
+  }
+
+  /* ── the cars ────────────────────────────────────────────────────────── */
+  /* One car or none: {id, seats, label}. */
+  var picked = {};
+
+  function loadCars(mins) {
+    var box = $('cbCars');
+    box.innerHTML = '<div class="cb-empty">Checking what is free…</div>';
+    fetch(URLS.avail + '?entity=' + $('cbEntity').value
+          + '&date=' + $('cbDate').value
+          + '&departure_time=' + $('cbTime').value
+          + '&duration_minutes=' + mins)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error) {
+          box.innerHTML = '<div class="cb-empty">' + d.error + '</div>';
+          return;
+        }
+        /* Only what is actually free. A greyed-out row for a car somebody else
+           has is a row you cannot do anything with, and four of them made the
+           list look twice as long as the choice really was. */
+        var free = d.cars.filter(function (c) { return c.free; });
+        var busy = d.cars.length - free.length;
+        $('cbCarsLede').textContent = free.length
+          ? free.length + ' free from ' + d.window.start + ' until ' + d.window.end
+            + (d.window.end_day ? ' on ' + d.window.end_day : '')
+            + (busy ? ' · ' + busy + ' already out' : '')
+          : 'Nothing free then' + (busy ? ' — all ' + busy + ' are already out.' : '.');
+
+        box.innerHTML = '';
+        if (!free.length) {
+          box.innerHTML = '<div class="cb-empty">No car of this division is free '
+            + 'at that time. Try another time, or another division.</div>';
+          picked = {}; checkSeats();
+          return;
+        }
+        free.forEach(function (c) {
+          var row = document.createElement('label');
+          row.className = 'cb-car';
+
+          var fig = document.createElement('figure');
+          if (c.photo) {
+            var pic = document.createElement('img');
+            pic.src = c.photo; pic.alt = '';
+            pic.loading = 'lazy';
+            fig.appendChild(pic);
+          } else {
+            var none = document.createElement('div');
+            none.className = 'noshot';
+            none.textContent = 'No picture yet';
+            fig.appendChild(none);
+          }
+          row.appendChild(fig);
+
+          var tick = document.createElement('span');
+          tick.className = 'cb-tick';
+          tick.textContent = '✓';
+          row.appendChild(tick);
+
+          var body = document.createElement('div');
+          body.className = 'cb-car-body';
+
+          var cb = document.createElement('input');
+          cb.type = 'radio'; cb.name = 'cars'; cb.value = c.id;
+          cb.checked = (picked.id === c.id);
+          cb.onchange = function () {
+            /* Choosing this car un-chooses the last one. The radio does that
+               to itself; the card it sits in has to be told. */
+            var was = box.querySelector('.cb-car.picked');
+            if (was) was.classList.remove('picked');
+            picked = {id: c.id, seats: c.seats, label: c.make};
+            row.classList.add('picked');
+            checkSeats();
+          };
+          if (cb.checked) row.classList.add('picked');
+          body.appendChild(cb);
+
+          var main = document.createElement('div');
+          main.className = 'cb-car-main';
+          main.innerHTML = '<b>' + c.make + (c.model ? ' ' + c.model : '') + '</b>'
+            + '<span>' + (c.plate || 'no plate recorded') + '</span>'
+            + (c.alerts.length
+               ? '<div class="cb-alert">' + c.alerts.join(' · ') + '</div>' : '');
+          body.appendChild(main);
+
+          var seats = document.createElement('div');
+          seats.className = 'cb-seats';
+          seats.innerHTML = c.seats + '<br>seats';
+          body.appendChild(seats);
+
+          row.appendChild(body);
+          box.appendChild(row);
+        });
+        checkSeats();
+      });
+  }
+
+  function checkSeats() {
+    var want = parseInt($('cbAttendees').value || '1', 10);
+    var have = picked.seats || 0;
+    var warn = $('cbSeatWarn');
+    if (have && want > have) {
+      warn.textContent = want + ' travelling, and the ' + picked.label
+        + ' seats ' + have + '. Choose a bigger car, or ask the desk for a second one.';
+      warn.style.display = 'block';
+    } else { warn.style.display = 'none'; }
+  }
+
+  ['cbEntity', 'cbDate', 'cbTime', 'cbReturnDate', 'cbReturnTime'].forEach(function (id) {
+    $(id).addEventListener('change', function () { picked = {}; gate(); });
+  });
+  ['cbFrom', 'cbTo'].forEach(function (id) {
+    $(id).addEventListener('change', gate);
+  });
+  $('cbAttendees').addEventListener('input', function () { checkSeats(); gate(); });
+  $('cbPurpose').addEventListener('input', function () {
+    $('cbPurpose').closest('.f').classList.remove('missing');
+    gate();
+  });
+
+  {% if default_origin %}
+  setPlace('from', '{{ default_origin.label|escapejs }}',
+           {{ default_origin.lat }}, {{ default_origin.lng }}, true);
+  {% endif %}
+  aim('to');
+  gate();
+
+  /* ── send it ─────────────────────────────────────────────────────────── */
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var msg = $('cbMsg'), btn = $('cbSubmit');
+    msg.style.display = 'none'; msg.className = 'cb-note';
+    if (!$('cbPurpose').value.trim()) {
+      var f = $('cbPurpose').closest('.f');
+      f.classList.add('missing');
+      msg.className = 'cb-note bad';
+      msg.textContent = 'Say what the trip is for — a site visit, a meeting, '
+        + 'a delivery. The desk needs it to choose between two requests for '
+        + 'the same car.';
+      msg.style.display = 'block';
+      $('cbPurpose').focus();
+      f.scrollIntoView({behavior: 'smooth', block: 'center'});
+      return;
+    }
+    if (!picked.id) {
+      msg.className = 'cb-note bad';
+      msg.textContent = 'Choose a car.';
+      msg.style.display = 'block';
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Sending…';
+    fetch(URLS.book, {method: 'POST', body: new FormData(form),
+                      headers: {'X-CSRFToken': csrf}})
+      .then(function (r) { return r.json().then(function (d) { return [r.ok, d]; }); })
+      .then(function (pair) {
+        var ok = pair[0], d = pair[1];
+        if (!ok) {
+          msg.className = 'cb-note bad';
+          msg.textContent = d.error || 'That did not go through.';
+          msg.style.display = 'block';
+          btn.disabled = false; btn.textContent = 'Send to the Bookings desk';
+          if (d.error && d.error.indexOf('Taken') === 0) {
+            picked = {}; lastKey = ''; gate();
+          }
+          return;
+        }
+        msg.textContent = d.message; msg.style.display = 'block';
+        btn.textContent = 'Sent';
+        setTimeout(function () { window.location.reload(); }, 900);
+      })
+      .catch(function () {
+        msg.className = 'cb-note bad';
+        msg.textContent = 'The Hub did not answer. Try again.';
+        msg.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Send to the Bookings desk';
+      });
+  });
+
+  document.querySelectorAll('[data-cancel]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (!confirm('Cancel this booking?')) return;
+      fetch(URLS.cancel.replace('/0/', '/' + b.dataset.cancel + '/'),
+            {method: 'POST', headers: {'X-CSRFToken': csrf}})
+        .then(function () { window.location.reload(); });
+    });
+  });
+
+  {% if focus_booking %}
+  var focus = document.getElementById('booking-{{ focus_booking }}');
+  if (focus) focus.scrollIntoView({behavior: 'smooth', block: 'center'});
+  {% endif %}
+})();
+</script>
+{% endblock %}

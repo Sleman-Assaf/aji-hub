@@ -1,0 +1,17 @@
+{# Live news, reusing the feed's own card language. #}
+<div class="card" style="max-width:900px">
+  {% for a in articles %}
+  <a href="{% url 'news_detail' a.slug %}"
+     style="display:flex;gap:12px;align-items:baseline;padding:11px 0;text-decoration:none;color:inherit;{% if not forloop.last %}border-bottom:1px solid var(--line){% endif %}">
+    <span style="flex:1;min-width:0">
+      <span style="display:block;font-weight:700;font-size:14px">{{ a.title }}</span>
+      <span class="muted" style="display:block;font-size:12px;margin-top:2px">
+        {{ a.category.name|default:"News" }} · {{ a.date|date:"j M Y" }} · {{ a.read_minutes }} min read
+      </span>
+    </span>
+    {% if a.pinned %}<span class="pill info">Pinned</span>{% endif %}
+  </a>
+  {% empty %}
+  <div class="muted" style="font-size:13px;padding:6px 0">No news published yet.</div>
+  {% endfor %}
+</div>

@@ -1,0 +1,63 @@
+{# templates/cms/sections/tabs.html — a sidebar of tabs switching panels. #}
+{# Reproduces the People & Culture explorer exactly, but each tab is a record: #}
+{# its label, icon, order and visibility are editable, and so is its content. #}
+{# Panel bodies are markup, so they follow the same rule as a Custom HTML block — #}
+{# rendered raw only once a system administrator has approved the block, escaped #}
+{# until then, because this content reaches every employee. #}
+{% load cms_tags %}
+{% if section.title %}
+<div class="sec-head">
+  {% if section|cfg:"label" %}<span class="sec-label">{{ section|cfg:"label" }}</span>{% endif %}
+  <h2 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title|aji }}</h2>
+</div>
+{% endif %}
+
+{% page_actions section as tabs %}
+{% if tabs %}
+<div class="pc-box" id="tabs{{ section.pk }}">
+  <div class="pc-side">
+    {% for t in tabs %}
+    <button type="button" class="pc-tab{% if forloop.first %} on{% endif %}{% if cms_edit_mode %} ed-item{% endif %}"
+            data-tab="t{{ t.pk }}" data-item="{{ t.pk }}" data-owner="{{ section.pk }}"
+            {% if cms_edit_mode %}draggable="true"{% endif %}
+            onclick="cmsTab({{ section.pk }},'t{{ t.pk }}')">
+      {% cms_icon t.icon|default:"info" 16 1.7 %}
+      <span {% if cms_edit_mode %}data-ed-item="{{ t.pk }}" data-ed-field="title" contenteditable="true"{% endif %}>{{ t.title }}</span>
+      {# The `icon` tag rather than `cms_icon`: only it takes a class, and the #}
+      {# chevron needs .chev for its hover shift. #}
+      {% icon "chevron-right" 14 2 "chev" %}
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="pc-content">
+    {% for t in tabs %}
+    <div class="pc-panel{% if forloop.first %} active{% endif %}" data-panel="t{{ t.pk }}">
+      {% if t.text %}{{ t.text|tab_body:section }}{% endif %}
+      {% if not t.text and cms_edit_mode %}
+      <p class="muted" style="font-size:12.5px;margin:0">
+        This tab has no content yet. Add it from the section form.
+      </p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+/* One switcher for every tabs block on the page, keyed by block id so two of
+   them never fight over each other's panels. */
+function cmsTab(block, key){
+  const box = document.getElementById('tabs' + block);
+  if(!box) return;
+  box.querySelectorAll('.pc-tab').forEach(b =>
+    b.classList.toggle('on', b.dataset.tab === key));
+  box.querySelectorAll('.pc-panel').forEach(p =>
+    p.classList.toggle('active', p.dataset.panel === key));
+}
+</script>
+{% elif cms_edit_mode %}
+<div class="card" style="border-style:dashed;font-size:12.5px;color:var(--muted)">
+  No tabs yet — add one from this block's settings.
+</div>
+{% endif %}

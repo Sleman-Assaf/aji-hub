@@ -1,0 +1,25 @@
+{% load cms_tags %}
+{% include 'cms/_section_head.html' %}
+{% with cols=section|cfg:"columns" %}
+<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax({% if cols == 2 %}380px{% elif cols == 4 %}220px{% else %}280px{% endif %},1fr))">
+  {% for item in section.visible_items %}
+  <div class="card">
+    {% if item.image %}
+    <img src="{{ item.image.url }}" alt="" style="display:block;width:calc(100% + 44px);margin:-22px -22px 16px;aspect-ratio:16/9;object-fit:cover">
+    {% endif %}
+    {% if item.badge %}<span class="pill info" style="margin-bottom:9px">{{ item.badge }}</span>{% endif %}
+    {% if item.icon %}<div style="color:var(--yellow-deep);margin-bottom:9px">{% cms_icon item.icon 22 %}</div>{% endif %}
+    {% if item.title %}<div style="font-weight:700;font-size:15.5px;letter-spacing:-.01em;margin-bottom:6px">{{ item.title }}</div>{% endif %}
+    {% if item.text %}<div class="muted" style="font-size:13px;line-height:1.6">{{ item.text|linebreaksbr }}</div>{% endif %}
+    {% if item.meta %}<div class="muted" style="font-size:11.5px;margin-top:8px">{{ item.meta }}</div>{% endif %}
+    {% if item.href %}
+    <div style="margin-top:13px">
+      <a href="{{ item.href }}" class="btn ghost sm" {% if item.file %}download{% endif %}>{{ item.button_label|default:"Open" }}</a>
+    </div>
+    {% endif %}
+  </div>
+  {% empty %}
+  <div class="muted" style="font-size:13px">No cards yet.</div>
+  {% endfor %}
+</div>
+{% endwith %}

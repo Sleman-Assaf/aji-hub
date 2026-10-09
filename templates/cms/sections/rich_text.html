@@ -1,0 +1,7 @@
+{% include 'cms/_section_head.html' %}
+{% if section.body %}
+<div class="card" style="max-width:820px">
+  <div style="font-size:14px;line-height:1.7;color:var(--ink-2)"
+       {% if cms_edit_mode %}data-ed-field="body" data-ed-rich contenteditable="true"{% endif %}>{{ section.body_rendered }}</div>
+</div>
+{% endif %}

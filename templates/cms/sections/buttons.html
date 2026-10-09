@@ -1,0 +1,29 @@
+{# templates/cms/sections/buttons.html — a row of action buttons. #}
+{# Each button is a SectionItem, so buttons are added, renamed, re-pointed, #}
+{# re-iconed and reordered from the editor without touching a template. #}
+{% load cms_tags %}
+{% include 'cms/_section_head.html' %}
+<div class="btn-row">
+  {% for item in section.visible_items %}
+  <a href="{{ item.href|default:'#' }}"
+     class="btn {% if item.variant == 'primary' or item.badge == 'primary' %}y{% else %}ghost{% endif %}{% if cms_edit_mode %} ed-item{% endif %}"
+     data-item="{{ item.pk }}" data-owner="{{ section.pk }}"
+     {% if cms_edit_mode %}draggable="true"{% endif %}
+     {% if item.file %}download{% endif %}
+     {% if item.url|slice:":4" == "http" %}target="_blank" rel="noopener"{% endif %}>
+    {% editable_icon item item.icon 15 1.7 kind="item" %}
+    <span {% if cms_edit_mode %}data-ed-item="{{ item.pk }}" data-ed-field="title" contenteditable="true"{% endif %}>{{ item.button_label|default:item.title }}</span>
+  </a>
+  {% empty %}
+  {% if cms_edit_mode %}
+  <div class="muted" style="font-size:12.5px">
+    No buttons yet — open this block's settings to add one.
+  </div>
+  {% else %}
+  <div class="muted" style="font-size:13px">No buttons yet.</div>
+  {% endif %}
+  {% endfor %}
+  {% if cms_edit_mode %}
+  <button type="button" data-ed-add-item="{{ section.pk }}">+ Add a button</button>
+  {% endif %}
+</div>

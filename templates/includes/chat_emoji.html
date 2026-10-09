@@ -1,0 +1,7 @@
+{% load static %}
+{# The emoji picker. #}
+{# The code lives in static/js/chat_emoji.js, not here — inlined it was 10 KB of #}
+{# uncacheable <script> on every page. Edit the .js file. #}
+{# Before chat_engine.js, which calls window.ajiEmoji. Both are deferred, and #}
+{# deferred scripts run in document order, so this one is ready first. #}
+<script src="{% static 'js/chat_emoji.js' %}?v={{ asset_version }}" defer></script>

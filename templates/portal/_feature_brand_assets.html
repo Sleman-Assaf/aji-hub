@@ -1,0 +1,185 @@
+{# _feature_brand_assets.html - one section of the brand page, as its own block. #}
+{# Split out so it can be moved, retitled or removed on its own, #}
+{# rather than the whole page being one locked lump. Its heading is #}
+{# rendered by the block, which is what makes it editable. #}
+{% load cms_tags %}
+{# ── Brand Assets ── #}
+<div class="btile-grid rise">
+
+  {% for asset in brand_assets %}
+  <button class="btile" data-name="{{ asset.name|escapejs }}" data-files="{{ asset.files_json|escape }}" onclick="openFilesFromBtn(this)">
+    <span class="btile-ic">
+      {# Chosen at /brand/manage/; blank keeps the book this grid has always had. #}
+      {% icon asset.icon|default:"book-spread" 16 1.7 %}
+    </span>
+    <span style="flex:1;min-width:0">
+      <span class="btile-name">{{ asset.name }}</span>
+      <span class="btile-type">{{ asset.description }}</span>
+    </span>
+    <span class="btile-dl">{% icon "download-tray" 2 2 %}</span>
+  </button>
+  {% endfor %}
+
+</div>
+
+{# ── Files Modal ── #}
+<div id="filesModal">
+  <div class="fm-box">
+    <div class="fm-head">
+      <h2 id="fmTitle"></h2>
+      <button onclick="closeFiles()" title="Close">×</button>
+    </div>
+    <div class="fm-body" id="fmBody"></div>
+    <div class="fm-foot">
+      <button class="btn ghost" onclick="closeFiles()">Close</button>
+      <button class="btn y" onclick="downloadAllFiles()">
+        {% icon "download-tray" 15 2 %}
+        Download all
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+function copyHex(hex, btn) {
+  function done() {
+    if (btn) {
+      var orig = btn.innerHTML;
+      btn.classList.add('copied');
+      btn.innerHTML = '{% icon "check-simple" 13 2 %} Copied';
+      setTimeout(function() { btn.innerHTML = orig; btn.classList.remove('copied'); }, 1200);
+    }
+    toast('Copied ' + hex);
+  }
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(hex).then(done).catch(function() { fallbackCopy(hex, done); });
+  } else {
+    fallbackCopy(hex, done);
+  }
+}
+
+function fallbackCopy(text, cb) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+    cb && cb();
+  } catch (e) {
+    toast('Copy failed — select and copy manually: ' + text);
+  }
+  document.body.removeChild(ta);
+}
+
+var EXT_ICON = {
+  svg: '🖼', png: '🖼', jpg: '🖼', jpeg: '🖼',
+  pdf: '📄', docx: '📝', doc: '📝', pptx: '📊',
+  xlsx: '📊', xls: '📊', html: '🌐', zip: '🗜',
+};
+
+function openFilesFromBtn(btn) {
+  var name  = btn.dataset.name || '';
+  var files = [];
+  try {
+    files = JSON.parse(btn.dataset.files || '[]');
+  } catch (e) {
+    files = [];
+  }
+  openFiles(name, files);
+}
+
+var _currentModalFiles = [];
+
+function openFiles(name, files) {
+  _currentModalFiles = files || [];
+  document.getElementById('fmTitle').textContent = name;
+  var body = document.getElementById('fmBody');
+
+  if (!files || !files.length) {
+    body.innerHTML = '<p class="fm-sub">No files uploaded yet — contact the Brand team or upload via admin.</p>';
+  } else {
+    function rowHtml(f) {
+      var label   = f.label || f;
+      var ext     = f.ext   || (label.split('.').pop() || '').toUpperCase();
+      var version = f.version ? '<span style="font-size:10px;color:var(--muted);margin-left:6px;background:var(--paper-2);padding:1px 6px">' + f.version + '</span>' : '';
+      var fileId  = f.id || '';
+      var has     = f.has_file;
+      /* Read only for what the viewer can actually show. A .docx opens on an
+         apology, so it is offered as a download and nothing else. */
+      var viewBtn = (has && (f.kind === 'pdf' || f.kind === 'image'))
+        {# "View" here, not "Read". A policy is read; a brand template is #}
+        {# looked at to check it is the right file before downloading it. #}
+        ? '<button type="button" class="btn ghost sm" data-doc="/policies/document/brandfile/' + fileId + '/">{% icon "eye" 13 2 %} View</button>'
+        : '';
+      var dlBtn   = (fileId && has)
+        ? '<a href="/brand/download/' + fileId + '/" class="btn ghost sm">{% icon "download-tray" 13 2 %} Download</a>'
+        : '<span style="font-size:12px;color:var(--muted);padding:6px 10px">Not yet uploaded</span>';
+      return '<div class="fm-row">' +
+        '<div class="fm-ic">{% icon "file-lines" 16 1.7 %}</div>' +
+        '<div style="flex:1;min-width:0"><div class="fm-row-name">' + label + version + '</div><div class="fm-row-type">' + ext + '</div></div>' +
+        viewBtn + dlBtn + '</div>';
+    }
+
+    // Split into ungrouped + grouped (preserving group order of first appearance)
+    var ungrouped = files.filter(function(f) { return !f.group; });
+    var groups = {};
+    var groupOrder = [];
+    files.forEach(function(f) {
+      if (f.group) {
+        if (!groups[f.group]) { groups[f.group] = []; groupOrder.push(f.group); }
+        groups[f.group].push(f);
+      }
+    });
+
+    var html = '<p class="fm-sub">' + files.length + ' file' + (files.length === 1 ? '' : 's') + ' — all downloadable.</p>';
+    ungrouped.forEach(function(f) { html += rowHtml(f); });
+    groupOrder.forEach(function(gName) {
+      html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:14px 0 6px;display:flex;align-items:center;gap:6px">' +
+        '{% icon "folder-tab" 12 2 %}' +
+        gName + '</div>';
+      groups[gName].forEach(function(f) { html += rowHtml(f); });
+    });
+    body.innerHTML = html;
+  }
+
+  document.getElementById('filesModal').classList.add('open');
+}
+
+function closeFiles() {
+  document.getElementById('filesModal').classList.remove('open');
+}
+
+function downloadAllFiles() {
+  var downloadable = (_currentModalFiles || []).filter(function(f) { return f.id && f.url; });
+
+  if (!downloadable.length) {
+    toast('No files available to download yet.');
+    return;
+  }
+
+  downloadable.forEach(function(f, i) {
+    setTimeout(function() {
+      var a = document.createElement('a');
+      a.href = '/brand/download/' + f.id + '/';
+      a.download = f.label || '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }, i * 350);  // stagger so the browser doesn't block multi-downloads
+  });
+
+  toast('Downloading ' + downloadable.length + ' file' + (downloadable.length === 1 ? '' : 's') + '…');
+}
+
+document.getElementById('filesModal').addEventListener('click', function(e) {
+  if (e.target === this) closeFiles();
+});
+</script>
+
+{# Sections added through the edit toolbar render here. #}
+
+

@@ -1,0 +1,45 @@
+{# templates/exchange/community_locked.html #}
+{# A private community you are not in. Listed rather than hidden: telling #}
+{# somebody a space exists and how to ask is more useful than a 404 that #}
+{# leaves them wondering whether they mistyped the address. What it does not #}
+{# show is anything the membership was protecting — no titles, no files, no #}
+{# member names, only the counts that were already on the card. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}{{ community.name }} — AJi Exchange{% endblock %}
+{% block content %}
+
+<a href="{% url 'exchange_home' %}" class="ctx-back" title="AJi Exchange"><span class="ctx-back-lab">AJi Exchange</span></a>
+
+<div class="cx-locked">
+  <div class="cx-locked-ic">{% icon "lock-simple" 28 %}</div>
+  <h1>{{ community.name }}</h1>
+  <span class="cx-tag priv">{% icon "lock-simple" 11 %} Private community</span>
+  {% if community.description %}<p class="cx-locked-desc">{{ community.description }}</p>{% endif %}
+  <div class="cx-locked-meta">
+    {{ member_count }} member{{ member_count|pluralize }} · {{ thread_count }} thread{{ thread_count|pluralize }}
+  </div>
+
+  {% if my_request and my_request.status == 'pending' %}
+    <div class="cx-locked-state">
+      {% icon "clock-counter-clockwise" 15 %}
+      Your request is with the community owner.
+    </div>
+  {% else %}
+    {% if my_request and my_request.status == 'declined' %}
+      <div class="cx-locked-state">Your last request was declined. You can ask again.</div>
+    {% endif %}
+    <form data-save="reload" method="post" action="{% url 'community_join_request' community.slug %}" class="cx-locked-form">
+      {% csrf_token %}
+      <textarea name="message" rows="2" maxlength="300"
+                placeholder="Add a note for the owner — why you would like to join (optional)"></textarea>
+      <button type="submit" class="btn y">{% icon "user-plus" 14 %} Ask to join</button>
+    </form>
+  {% endif %}
+
+  <p class="cx-locked-note">
+    Only members can read the threads, the documents and the member list.
+  </p>
+</div>
+
+{% endblock %}

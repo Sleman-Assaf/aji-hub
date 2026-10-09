@@ -1,0 +1,22 @@
+{# templates/cms/_bare.html — a page with no site chrome. #}
+{# Used when a form is shown inside the editing panel: the same template can #}
+{# then serve both the standalone screen and the embedded one. #}
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}AJi Hub{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'css/aji_hub.css' %}?v={{ asset_version }}">
+<style>
+  /* The panel supplies the padding and the scrolling, so this document adds
+     neither -- otherwise the form sits inside two nested scroll areas. */
+  body{background:transparent;padding:0;margin:0}
+  .page-head,.cms-crumbs,.tst-wrap{display:none}
+  .card{border:0;padding:0;background:none}
+</style>
+</head>
+<body class="cms-embed">
+{% block content %}{% endblock %}
+</body>
+</html>

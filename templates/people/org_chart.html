@@ -1,0 +1,479 @@
+{# templates/people/org_chart.html — the hierarchy, drawn. #}
+{# #}
+{# It was a drill-down: one box, its children, a request per click. That told #}
+{# you who reported to whom but never showed the shape, which is the only #}
+{# reason to draw a hierarchy rather than list it. #}
+{# #}
+{# The whole tree arrives with the page — 1,251 people is about 157 KB, less #}
+{# than one photograph on it — so expanding, collapsing and jumping to a #}
+{# searched name are all instant and none of them go back to the server. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}Organisational Hierarchy — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── the frame ── */
+.oc-wrap{position:relative;border:1px solid var(--line);background:var(--paper);
+  border-radius:14px;overflow:hidden;height:min(74vh,760px)}
+/* Nothing in the diagram is text to be selected — dragging across it was
+   highlighting every name it crossed, which is what a drag means on a page and
+   not what it means on a canvas. */
+.oc-stage{position:absolute;inset:0;overflow:hidden;cursor:grab;
+  user-select:none;-webkit-user-select:none}
+.oc-stage.dragging{cursor:grabbing}
+/* Belt and braces for the drag itself: some browsers begin a selection before
+   the pointerdown handler has had a chance to say otherwise. */
+.oc-stage.dragging *{user-select:none !important;-webkit-user-select:none !important}
+.oc-card,.oc-chip{-webkit-user-drag:none}
+/* The pannable surface. transform-origin at 0 0 so zoom maths stays simple. */
+.oc-pan{position:absolute;top:0;left:0;transform-origin:0 0;padding:40px;
+  transition:transform .16s ease-out}
+.oc-pan.no-anim{transition:none}
+
+/* ── controls ── */
+.oc-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.oc-find{position:relative;flex:1 1 260px;min-width:210px}
+.oc-find input{width:100%;box-sizing:border-box;border:1px solid var(--line-2);
+  border-radius:9px;padding:10px 12px 10px 36px;font-family:inherit;font-size:13.5px;
+  outline:none;background:var(--paper-2)}
+.oc-find input:focus{border-color:var(--ink)}
+.oc-find > svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  color:var(--muted);pointer-events:none}
+.oc-res{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;background:var(--paper-2);
+  border:1px solid var(--line-2);border-radius:10px;box-shadow:0 16px 40px rgba(18,18,16,.16);
+  max-height:280px;overflow:auto}
+.oc-res button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  border:none;background:none;padding:9px 12px;cursor:pointer;font-family:inherit}
+.oc-res button:hover{background:var(--paper)}
+.oc-res b{font-size:13px;display:block}
+.oc-res i{font-style:normal;font-size:11.5px;color:var(--muted);display:block}
+.oc-zoom{position:absolute;right:12px;bottom:12px;z-index:10;display:flex;gap:6px;
+  background:var(--paper-2);border:1px solid var(--line-2);border-radius:10px;padding:5px;
+  box-shadow:0 6px 20px rgba(18,18,16,.12)}
+.oc-zoom button{width:30px;height:30px;border:none;background:none;cursor:pointer;
+  border-radius:7px;font-size:15px;color:var(--ink-2);display:flex;align-items:center;
+  justify-content:center;font-family:inherit}
+.oc-zoom button:hover{background:var(--paper)}
+.oc-zoom .wide{width:auto;padding:0 10px;font-size:11.5px;font-weight:700}
+
+/* ── the tree: ul/li with drawn elbows ── */
+.oc-tree,.oc-tree ul{list-style:none;margin:0;padding:0}
+.oc-tree li{position:relative;padding:26px 8px 0;text-align:center;float:left}
+.oc-tree ul{display:flex;justify-content:center}
+/* Elbows. Each child draws its own half of the horizontal rule plus a stem up;
+   the first and last trim their outer half so the rule ends at the outer cards
+   rather than running off into space. */
+.oc-tree li::before,.oc-tree li::after{content:"";position:absolute;top:0;
+  width:50%;height:26px;border-top:2px solid var(--line-2)}
+.oc-tree li::before{right:50%}
+.oc-tree li::after{left:50%;border-left:2px solid var(--line-2)}
+.oc-tree li:only-child::before,.oc-tree li:only-child::after{display:none}
+.oc-tree li:only-child{padding-top:26px}
+.oc-tree li:first-child::before{border:0}
+.oc-tree li:last-child::after{border-right:0;border-top:0}
+.oc-tree li:last-child::before{border-radius:0 6px 0 0}
+.oc-tree li:first-child::after{border-radius:6px 0 0 0}
+/* The stem down from a parent that has children showing. */
+.oc-tree ul::before{content:"";position:absolute;top:0;left:50%;
+  border-left:2px solid var(--line-2);height:26px}
+.oc-branch{position:relative;display:inline-block}
+.oc-branch > ul{position:relative;padding-top:26px}
+
+/* ── a card ── */
+.oc-card{display:inline-flex;align-items:center;gap:10px;min-width:190px;max-width:250px;
+  text-align:left;background:var(--paper-2);border:1px solid var(--line-2);border-radius:12px;
+  padding:9px 12px;cursor:pointer;font-family:inherit;position:relative;
+  transition:border-color .12s,box-shadow .12s,transform .12s}
+.oc-card:hover{border-color:var(--ink);box-shadow:0 8px 22px rgba(18,18,16,.12)}
+.oc-card.is-found{border-color:var(--yellow);box-shadow:0 0 0 4px rgba(252,215,0,.32)}
+.oc-av{width:34px;height:34px;border-radius:50%;flex:none;object-fit:cover;
+  background:var(--disc);color:var(--yellow);display:flex;align-items:center;
+  justify-content:center;font-size:11.5px;font-weight:800;overflow:hidden}
+.oc-av img{width:100%;height:100%;object-fit:cover}
+.oc-t{min-width:0;flex:1}
+.oc-t b{display:block;font-size:12.5px;line-height:1.3;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.oc-t span{display:block;font-size:10.5px;color:var(--muted);line-height:1.35;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* How many sit underneath, and which way the branch is. */
+.oc-n{flex:none;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:20px;
+  background:var(--paper-3);color:var(--ink-2)}
+.oc-card.open .oc-n{background:var(--yellow);color:var(--on-yellow)}
+
+/* The top three ranks read as different things, not just boxes in a row. */
+.oc-card.board{background:var(--raised);border-color:var(--raised);color:var(--raised-fg);min-width:170px}
+.oc-card.board .oc-t span{color:rgba(255,255,255,.6)}
+.oc-card.board .oc-av{background:var(--yellow);color:var(--on-yellow)}
+.oc-card.board .oc-n{background:rgba(255,255,255,.16);color:#fff}
+.oc-card.ceo{border-color:var(--yellow);border-width:2px;min-width:210px}
+.oc-card.ceo .oc-t b{font-size:13.5px}
+.oc-card.entity .oc-av{background:var(--yellow);color:var(--on-yellow)}
+.oc-card.entity .oc-t b{letter-spacing:.01em}
+
+/* ── many leaf reports: a wrapped grid, not a 14,000px row ──
+   Seventy-seven people with nobody under them are a team, not seven levels of
+   hierarchy. Drawn as chips so the branch stays readable at one screen wide. */
+.oc-team{margin:26px auto 0;position:relative;display:flex;flex-wrap:wrap;gap:6px;
+  justify-content:center;max-width:760px;padding:12px;border:1px dashed var(--line-2);
+  border-radius:12px;background:rgba(255,255,255,.6)}
+.oc-team::before{content:"";position:absolute;top:-26px;left:50%;
+  border-left:2px solid var(--line-2);height:26px}
+/* When a branch has both — managers drawn as cards, then the people with no
+   reports of their own — the grid sits under the row rather than beside it, and
+   drops its stem so it does not look like a second parent. */
+.oc-team.after-tree{margin-top:18px}
+.oc-team.after-tree::before{display:none}
+.oc-chip{display:inline-flex;align-items:center;gap:7px;background:var(--paper-2);
+  border:1px solid var(--line-2);border-radius:20px;padding:4px 10px 4px 4px;
+  font-family:inherit;font-size:11.5px;cursor:pointer;max-width:210px}
+.oc-chip:hover{border-color:var(--ink)}
+.oc-chip .oc-av{width:22px;height:22px;font-size:9px}
+.oc-chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.oc-note{font-size:12px;color:var(--muted);line-height:1.6;margin:12px 0 0}
+.oc-note b{color:var(--ink-2)}
+@media(max-width:640px){.oc-wrap{height:64vh}.oc-team{max-width:none}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">Directory</div>
+    <h1>Organisational Hierarchy</h1>
+    <p>
+      {{ total_count }} people across {{ entity_count }} companies. Click a card to
+      open or close its branch; drag to move around.
+    </p>
+  </div>
+</div>
+
+<div class="oc-bar rise">
+  <div class="oc-find">
+    {% icon "magnifying-glass" 15 %}
+    <input type="text" id="ocFind" autocomplete="off"
+           placeholder="Find anyone and jump to them…">
+    <div class="oc-res" id="ocRes" hidden></div>
+  </div>
+  <button type="button" class="btn ghost sm" id="ocExpand">Expand companies</button>
+  <button type="button" class="btn ghost sm" id="ocCollapse">Collapse all</button>
+</div>
+
+<div class="oc-wrap rise">
+  <div class="oc-stage" id="ocStage">
+    <div class="oc-pan" id="ocPan">
+      <ul class="oc-tree" id="ocTree"></ul>
+    </div>
+  </div>
+  <div class="oc-zoom">
+    <button type="button" id="ocOut" aria-label="Zoom out">&minus;</button>
+    <button type="button" class="wide" id="ocFit">Fit</button>
+    <button type="button" id="ocIn" aria-label="Zoom in">+</button>
+  </div>
+</div>
+
+{% if unplaced %}
+<p class="oc-note">
+  <b>{{ unplaced }}</b> of these people sit directly under the CEO because no manager
+  is recorded for them, not because they report to him. Setting a manager on a
+  profile moves them into the right branch here.
+</p>
+{% endif %}
+
+<script id="ocData" type="application/json">{{ tree_json|safe }}</script>
+<script>
+(function () {
+  const TREE = JSON.parse(document.getElementById('ocData').textContent);
+  const tree  = document.getElementById('ocTree');
+  const pan   = document.getElementById('ocPan');
+  const stage = document.getElementById('ocStage');
+
+  /* Which branches are open. Ids, not object references, so the state survives
+     the tree being redrawn — which is how every change is applied. */
+  const open = new Set(['board', 'ceo']);
+  /* A manager whose reports are all leaves, and more than this many of them,
+     gets the wrapped chip grid instead of a row of cards. */
+  const TEAM_AT = 6;
+
+  const byId = new Map();
+  const parentOf = new Map();
+  (function index(node, parent) {
+    byId.set(node.id, node);
+    if (parent) parentOf.set(node.id, parent.id);
+    node.c.forEach(c => index(c, node));
+  })(TREE, null);
+
+  function avatar(node) {
+    const av = document.createElement('span');
+    av.className = 'oc-av';
+    if (node.p) {
+      const img = document.createElement('img');
+      img.src = node.p; img.alt = ''; img.loading = 'lazy';
+      av.appendChild(img);
+    } else {
+      av.textContent = node.i || '?';
+    }
+    return av;
+  }
+
+  function card(node) {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'oc-card ' + node.k + (open.has(node.id) ? ' open' : '');
+    el.dataset.id = node.id;
+    el.appendChild(avatar(node));
+
+    const t = document.createElement('span');
+    t.className = 'oc-t';
+    const b = document.createElement('b'); b.textContent = node.n;
+    const s = document.createElement('span'); s.textContent = node.r || node.d || '';
+    t.appendChild(b); t.appendChild(s);
+    el.appendChild(t);
+
+    /* The badge counts direct reports and says so. It read "N people
+       underneath", which invites you to read it as the whole subtree — and when
+       a Supervision Director genuinely has 516 people reporting straight to
+       him, the honest number looks like a bug unless it is labelled. The total
+       underneath is on the hover, where the difference is the useful part. */
+    if (node.c.length) {
+      const n = document.createElement('span');
+      n.className = 'oc-n';
+      n.textContent = node.c.length;
+      n.title = node.c.length + ' direct report' + (node.c.length === 1 ? '' : 's')
+              + (node.t > node.c.length ? ' · ' + node.t + ' in total below' : '');
+      el.appendChild(n);
+    }
+    el.title = node.c.length ? 'Click to ' + (open.has(node.id) ? 'close' : 'open')
+                             + ' this branch' : node.n;
+    return el;
+  }
+
+  function chip(node) {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'oc-chip';
+    el.dataset.id = node.id;
+    el.appendChild(avatar(node));
+    const s = document.createElement('span');
+    s.textContent = node.n;
+    s.title = node.n + (node.r ? ' · ' + node.r : '');
+    el.appendChild(s);
+    return el;
+  }
+
+  function draw(node) {
+    const li = document.createElement('li');
+    const branch = document.createElement('div');
+    branch.className = 'oc-branch';
+    branch.appendChild(card(node));
+
+    if (open.has(node.id) && node.c.length) {
+      /* Children are split, not treated alike. Somebody with reports of their
+         own is a branch and gets a card the tree can continue from; somebody
+         with none is a name, and forty of those in a row is a quarter of a mile
+         of diagram nobody can read — they go in a wrapped grid of chips.
+
+         Splitting rather than asking "are they all leaves" is what makes this
+         work on the real data: AJiWE has seventy-seven direct reports, a few of
+         whom manage people. One exception used to send the whole branch back to
+         a single row sixteen thousand pixels wide. */
+      const managers = node.c.filter(c => c.c.length);
+      const leaves   = node.c.filter(c => !c.c.length);
+      const gridded  = leaves.length > TEAM_AT;
+
+      const inTree = gridded ? managers : node.c;
+      if (inTree.length) {
+        const ul = document.createElement('ul');
+        inTree.forEach(c => ul.appendChild(draw(c)));
+        branch.appendChild(ul);
+      }
+      if (gridded) {
+        const team = document.createElement('div');
+        team.className = 'oc-team' + (managers.length ? ' after-tree' : '');
+        leaves.forEach(c => team.appendChild(chip(c)));
+        branch.appendChild(team);
+      }
+    }
+    li.appendChild(branch);
+    return li;
+  }
+
+  /* Redrawing is how every change is applied — opening a branch, collapsing
+     everything, jumping to a name. keepView leaves the pan and zoom alone, so
+     opening one branch does not throw the reader back to the top. */
+  function render(keepView) {
+    tree.innerHTML = '';
+    tree.appendChild(draw(TREE));
+    if (keepView) apply(); else fit();
+  }
+
+  // ── pan and zoom ──
+  const view = {x: 0, y: 0, z: 1};
+  function apply() {
+    pan.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.z})`;
+  }
+  function fit() {
+    // Measure unscaled, then scale to fit and centre horizontally.
+    pan.classList.add('no-anim');
+    view.x = 0; view.y = 0; view.z = 1; apply();
+    const w = pan.scrollWidth, h = pan.scrollHeight;
+    const box = stage.getBoundingClientRect();
+    /* Never below 0.62, even if that means the diagram does not all fit.
+       Eight companies side by side are about 1,900px, so a narrow window would
+       otherwise scale this to 0.47 — six-pixel text, which is a picture of an
+       org chart rather than one you can read. Past that point it pans. */
+    view.z = Math.min(1, Math.max(0.62, Math.min(box.width / w, box.height / h)));
+    view.x = Math.max(0, (box.width - w * view.z) / 2);
+    view.y = 12;
+    apply();
+    requestAnimationFrame(() => pan.classList.remove('no-anim'));
+  }
+  function zoom(by) {
+    view.z = Math.min(1.6, Math.max(0.25, view.z + by));
+    apply();
+  }
+  document.getElementById('ocIn').addEventListener('click', () => zoom(0.15));
+  document.getElementById('ocOut').addEventListener('click', () => zoom(-0.15));
+  document.getElementById('ocFit').addEventListener('click', fit);
+
+  let drag = null;
+  stage.addEventListener('pointerdown', e => {
+    if (e.target.closest('.oc-card, .oc-chip')) return;   // a click, not a drag
+    // Stops the browser starting a text selection the moment the drag begins.
+    e.preventDefault();
+    drag = {x: e.clientX - view.x, y: e.clientY - view.y};
+    stage.classList.add('dragging');
+    pan.classList.add('no-anim');
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener('pointermove', e => {
+    if (!drag) return;
+    view.x = e.clientX - drag.x;
+    view.y = e.clientY - drag.y;
+    apply();
+  });
+  ['pointerup', 'pointercancel'].forEach(ev => stage.addEventListener(ev, () => {
+    drag = null;
+    stage.classList.remove('dragging');
+    pan.classList.remove('no-anim');
+  }));
+  stage.addEventListener('wheel', e => {
+    if (!e.ctrlKey && Math.abs(e.deltaY) < 2) return;
+    e.preventDefault();
+    zoom(e.deltaY > 0 ? -0.08 : 0.08);
+  }, {passive: false});
+
+  // ── opening and closing ──
+  tree.addEventListener('click', e => {
+    const el = e.target.closest('.oc-card, .oc-chip');
+    if (!el) return;
+    const node = byId.get(el.dataset.id);
+    if (!node) return;
+    if (!node.c.length) {
+      // A leaf is a person, so it goes to the person.
+      if (node.k === 'person') location.href = '/people/' + node.id.slice(1) + '/';
+      return;
+    }
+    if (open.has(node.id)) open.delete(node.id); else open.add(node.id);
+    render(true);
+  });
+
+  document.getElementById('ocExpand').addEventListener('click', () => {
+    open.clear(); open.add('board'); open.add('ceo');
+    (byId.get('ceo') || {c: []}).c.forEach(n => open.add(n.id));
+    render(false);
+  });
+  document.getElementById('ocCollapse').addEventListener('click', () => {
+    open.clear(); open.add('board');
+    render(false);
+  });
+
+  // ── find somebody and go to them ──
+  const find = document.getElementById('ocFind');
+  const res  = document.getElementById('ocRes');
+
+  function matches(q) {
+    const out = [];
+    q = q.toLowerCase();
+    for (const node of byId.values()) {
+      if (node.k === 'board') continue;
+      if (node.n.toLowerCase().includes(q) || (node.r || '').toLowerCase().includes(q)) {
+        out.push(node);
+        if (out.length >= 12) break;
+      }
+    }
+    return out;
+  }
+
+  function revealTo(id) {
+    // Open every ancestor, then draw, then centre on the card.
+    let cur = parentOf.get(id);
+    while (cur) { open.add(cur); cur = parentOf.get(cur); }
+    render(true);
+    const el = tree.querySelector(`[data-id="${id}"]`);
+    if (!el) return;
+    const box = stage.getBoundingClientRect();
+    const spot = el.getBoundingClientRect();
+    // Where the card sits on the unscaled surface, then centred in the stage.
+    view.x += (box.left + box.width / 2) - (spot.left + spot.width / 2);
+    view.y += (box.top + box.height / 2) - (spot.top + spot.height / 2);
+    apply();
+    el.classList.add('is-found');
+    setTimeout(() => el.classList.remove('is-found'), 2600);
+  }
+
+  let timer = null;
+  find.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const q = find.value.trim();
+      res.innerHTML = '';
+      if (q.length < 2) { res.hidden = true; return; }
+      const hits = matches(q);
+      if (!hits.length) {
+        res.innerHTML = '<div style="padding:10px 12px;font-size:12.5px;color:var(--muted)">Nobody matches that.</div>';
+        res.hidden = false;
+        return;
+      }
+      hits.forEach(n => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.appendChild(avatar(n));
+        const t = document.createElement('span');
+        t.innerHTML = '';
+        const nm = document.createElement('b'); nm.textContent = n.n;
+        const rl = document.createElement('i'); rl.textContent = n.r || n.d || '';
+        t.appendChild(nm); t.appendChild(rl);
+        b.appendChild(t);
+        b.addEventListener('click', () => {
+          res.hidden = true;
+          find.value = n.n;
+          revealTo(n.id);
+        });
+        res.appendChild(b);
+      });
+      res.hidden = false;
+    }, 140);
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.oc-find')) res.hidden = true;
+  });
+  find.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { res.hidden = true; find.blur(); }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const first = res.querySelector('button');
+      if (first) first.click();
+    }
+  });
+
+  /* Opens on Board → the CEO → the eight companies. Opening their reports as
+     well was tried and is nine thousand pixels wide before anybody has clicked
+     anything, which at fit-zoom is a diagram of grey smudges. A company is one
+     click away, and "Expand companies" is there for the whole picture. */
+  render(false);
+  window.addEventListener('resize', () => fit());
+})();
+</script>
+{% endblock %}

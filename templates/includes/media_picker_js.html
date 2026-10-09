@@ -1,0 +1,584 @@
+{# templates/includes/media_picker_js.html — the shared image picker. #}
+{# Included once from base.html so any form can use it: give a file input a #}
+{# data-media-field attribute and it becomes "choose or upload an image". #}
+{# An included template does not inherit the parent's {% load %}. #}
+{% load cms_tags %}
+{% if user.is_authenticated %}
+<div class="ovl" id="mpOvl" role="dialog" aria-modal="true" aria-labelledby="mpTitle">
+  <div class="dlg" style="max-width:760px">
+    <div class="mp-hd">
+      <div>
+        <b id="mpTitle">Choose an image</b>
+        <p class="mp-sub">Uploaded once, available on every page.</p>
+      </div>
+      <button type="button" class="btn ghost sm" onclick="mpClose()">Close</button>
+    </div>
+
+    <div class="mp-drop" id="mpDrop">
+      {% icon "upload" 20 %}
+      <span>Drop images here, or <button type="button" class="mp-link"
+            onclick="document.getElementById('mpFile').click()">browse</button></span>
+      <input type="file" id="mpFile" multiple accept="image/*" hidden
+             onchange="mpUpload(this.files)">
+    </div>
+
+    <div class="mp-search">
+      {% icon "search" 15 %}
+      <input type="text" id="mpQ" placeholder="Search by name or description"
+             autocomplete="off" oninput="mpSearch(this.value)" aria-label="Search images">
+      <span class="mp-count" id="mpCount"></span>
+    </div>
+
+    <div class="mp-grid" id="mpGrid"><div class="skel" style="height:180px"></div></div>
+
+    {# Selected-image details. Alt text and focal point belong to the picture, #}
+    {# so they are edited here once, not at every place the image is used. #}
+    <div class="mp-detail" id="mpDetail">
+      <div class="mp-focal" id="mpFocal" onclick="mpSetFocal(event)"
+           title="Click the subject to keep it in frame when the image is cropped">
+        <img id="mpFocalImg" alt="">
+        <span class="mp-pin" id="mpPin"></span>
+      </div>
+      <div class="mp-fields">
+        <label class="fld"><span>Description for screen readers</span>
+          <input type="text" id="mpAlt" class="inp" maxlength="300"
+                 placeholder="What does this image show?">
+        </label>
+        <p class="muted mp-hint">
+          Click the subject on the left so a crop keeps it in frame instead of
+          cutting from the centre.
+        </p>
+        <p class="muted mp-hint" id="mpDims"></p>
+        <div class="mp-actions">
+          <button type="button" class="btn y sm" onclick="mpUse()">Use this image</button>
+          <button type="button" class="btn ghost sm" onclick="mpSaveMeta()">Save description</button>
+          <button type="button" class="btn ghost sm" id="mpCropBtn"
+                  onclick="mpCropOpen()">Crop &amp; resize</button>
+        </div>
+      </div>
+    </div>
+
+    {# The crop stage. Hidden until asked for, so the common case of picking an #}
+    {# existing image is not buried under tools nobody needed. #}
+    <div class="mp-cropstage" id="mpCropStage">
+      <div class="mp-crop" id="mpCrop">
+        <img id="mpCropImg" alt="" draggable="false">
+        <div class="mp-cropbox" id="mpCropBox">
+          <span class="mp-h nw" data-h="nw"></span><span class="mp-h ne" data-h="ne"></span>
+          <span class="mp-h sw" data-h="sw"></span><span class="mp-h se" data-h="se"></span>
+          <span class="mp-h n" data-h="n"></span><span class="mp-h s" data-h="s"></span>
+          <span class="mp-h w" data-h="w"></span><span class="mp-h e" data-h="e"></span>
+        </div>
+      </div>
+
+      <div class="mp-cropside">
+        <div class="fld">
+          <span>Shape</span>
+          <div class="mp-aspects" id="mpAspect" role="group" aria-label="Crop shape">
+            <button type="button" class="on" data-r="0"    onclick="mpAspectPick(this)">Free</button>
+            <button type="button"          data-r="1"      onclick="mpAspectPick(this)">1:1</button>
+            <button type="button"          data-r="1.7778" onclick="mpAspectPick(this)">16:9</button>
+            <button type="button"          data-r="1.3333" onclick="mpAspectPick(this)">4:3</button>
+            <button type="button"          data-r="0.75"   onclick="mpAspectPick(this)">3:4</button>
+            <button type="button"          data-r="0.8"    onclick="mpAspectPick(this)">4:5</button>
+          </div>
+        </div>
+
+        <div class="mp-size">
+          <label class="fld"><span>Width</span>
+            <input type="number" id="mpW" class="inp" min="16" max="8000"
+                   placeholder="auto" oninput="mpSizeTyped('w')">
+          </label>
+          <label class="fld"><span>Height</span>
+            <input type="number" id="mpH" class="inp" min="16" max="8000"
+                   placeholder="auto" oninput="mpSizeTyped('h')">
+          </label>
+        </div>
+        <label class="mp-lock">
+          <input type="checkbox" id="mpLock" checked>
+          <span>Keep the proportions</span>
+        </label>
+
+        {# Quality only exists for a lossy format, so the whole row is hidden #}
+        {# for a PNG rather than left there doing nothing. #}
+        <div class="fld mp-qual" id="mpQualRow">
+          <span>Quality <b id="mpQualVal">86</b></span>
+          <input type="range" id="mpQual" min="40" max="100" step="1" value="86"
+                 oninput="mpQualMoved()" aria-describedby="mpQualNote">
+          <p class="muted mp-hint" id="mpQualNote">
+            Lower makes a smaller file. Below about 70 the difference starts to show.
+          </p>
+        </div>
+
+        <p class="muted mp-hint" id="mpCropOut"></p>
+
+        <div class="mp-actions">
+          <button type="button" class="btn y sm" onclick="mpCropApply()">Apply</button>
+          <button type="button" class="btn ghost sm" onclick="mpCropReset()">Reset</button>
+          <button type="button" class="btn ghost sm" id="mpRestore"
+                  onclick="mpRestore()">Restore original</button>
+          <button type="button" class="btn ghost sm" onclick="mpCropClose()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* One image picker for every image field on the Hub. A field opts in with
+   data-media-field; the picker writes the chosen image's id into it and shows a
+   preview, so nothing downstream needs to know the picker exists. */
+const MP = {input: null, sel: null, loaded: false};
+
+async function mpOpen(input){
+  MP.input = input;
+  /* Both the overlay and the dialog inside it are shown by the `on` class --
+     that is the site's convention for every other dialog. This used to add
+     `show`, which matches no rule anywhere, and never gave the dialog a class at
+     all, so the picker was mounted and wired but permanently invisible. */
+  mpToggle(true);
+  if (!MP.loaded) await mpLoad('');
+  document.getElementById('mpQ')?.focus();
+}
+function mpClose(){ mpToggle(false); }
+
+function mpToggle(open){
+  const ovl = document.getElementById('mpOvl');
+  ovl.classList.toggle('on', open);
+  ovl.querySelector('.dlg')?.classList.toggle('on', open);
+}
+
+function mpIsOpen(){
+  return document.getElementById('mpOvl').classList.contains('on');
+}
+
+async function mpLoad(q){
+  const grid = document.getElementById('mpGrid');
+  try {
+    const r = await fetch('/p/media/?q=' + encodeURIComponent(q || ''));
+    const d = await r.json();
+    grid.innerHTML = d.html;
+    MP.loaded = true;
+    document.getElementById('mpCount').textContent =
+      d.assets.length ? `${d.assets.length} image${d.assets.length === 1 ? '' : 's'}` : '';
+  } catch (e) {
+    grid.innerHTML = '<p class="mp-none">The media library could not be loaded.</p>';
+  }
+}
+
+let mpTimer;
+function mpSearch(q){ clearTimeout(mpTimer); mpTimer = setTimeout(() => mpLoad(q), 220); }
+
+function mpPick(pk){
+  const cell = document.querySelector(`.mp-cell[data-pk="${pk}"]`);
+  if (!cell) return;
+  document.querySelectorAll('.mp-cell.on').forEach(c => c.classList.remove('on'));
+  cell.classList.add('on');
+  MP.sel = {pk: pk, url: cell.dataset.url, alt: cell.dataset.alt,
+            fx: +cell.dataset.fx, fy: +cell.dataset.fy,
+            width: +cell.dataset.w || 0, height: +cell.dataset.h || 0,
+            size: cell.dataset.size || '',
+            editable: cell.dataset.editable === '1',
+            has_original: cell.dataset.orig === '1',
+            lossy: cell.dataset.lossy === '1',
+            format: cell.dataset.format || '',
+            quality: 86};
+  document.getElementById('mpDetail').classList.add('on');
+  document.getElementById('mpFocalImg').src = MP.sel.url;
+  document.getElementById('mpAlt').value = MP.sel.alt || '';
+  mpPin(MP.sel.fx, MP.sel.fy);
+  mpDims();
+  /* A vector image has no pixels to crop, so the button says so rather than
+     opening a dialog that can only fail. */
+  const cropBtn = document.getElementById('mpCropBtn');
+  if (cropBtn) cropBtn.disabled = !MP.sel.editable;
+  mpCropClose();
+}
+
+function mpPin(x, y){
+  const pin = document.getElementById('mpPin');
+  pin.style.left = x + '%';
+  pin.style.top = y + '%';
+}
+
+/* Clicking the subject records where it is, as a percentage, so a crop to any
+   shape keeps it in frame. */
+function mpSetFocal(e){
+  if (!MP.sel) return;
+  const box = document.getElementById('mpFocal').getBoundingClientRect();
+  MP.sel.fx = Math.round(Math.max(0, Math.min(100, (e.clientX - box.left) / box.width * 100)));
+  MP.sel.fy = Math.round(Math.max(0, Math.min(100, (e.clientY - box.top) / box.height * 100)));
+  mpPin(MP.sel.fx, MP.sel.fy);
+}
+
+/* The token comes from the cookie, which is the only source present on every
+   page. The previous version looked for a form's hidden input and then for
+   window.ED -- but ED is declared with const, which never becomes a property of
+   window, so on a page with no form the header went out empty and every upload,
+   description and crop was rejected with a 403. */
+function mpCsrf(){
+  const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  if (m) return decodeURIComponent(m[1]);
+  return document.querySelector('[name=csrfmiddlewaretoken]')?.value
+         || (typeof ED !== 'undefined' && ED.csrf) || '';
+}
+
+async function mpPost(url, body){
+  const r = await fetch(url, {method: 'POST',
+    headers: {'X-CSRFToken': mpCsrf()},
+    body: body});
+  let d = {};
+  try { d = await r.json(); } catch (e) {}
+  if (!r.ok || d.error){ (window.showToast || alert)(d.error || 'That did not save'); return null; }
+  if (d.message && window.showToast) showToast(d.message);
+  return d;
+}
+
+async function mpSaveMeta(){
+  if (!MP.sel) return;
+  const fd = new FormData();
+  fd.append('alt', document.getElementById('mpAlt').value);
+  fd.append('focal_x', MP.sel.fx);
+  fd.append('focal_y', MP.sel.fy);
+  const d = await mpPost('/p/media/' + MP.sel.pk + '/update/', fd);
+  if (d) await mpLoad(document.getElementById('mpQ').value);
+}
+
+async function mpUpload(files){
+  if (!files || !files.length) return;
+  const fd = new FormData();
+  [...files].forEach(f => fd.append('files', f));
+  const d = await mpPost('/p/media/upload/', fd);
+  if (!d) return;
+  await mpLoad('');
+  if (d.assets && d.assets.length) mpPick(d.assets[0].pk);
+}
+
+/* Choosing writes the id into the field and shows a preview beside it. */
+function mpUse(){
+  if (!MP.sel || !MP.input) { mpClose(); return; }
+  MP.input.value = MP.sel.pk;
+  MP.input.dispatchEvent(new Event('change', {bubbles: true}));
+  mpPreview(MP.input, MP.sel);
+  mpClose();
+}
+
+function mpPreview(input, sel){
+  pickShow(input, sel
+    ? `<img src="${sel.url}" alt="" style="object-position:${sel.fx}% ${sel.fy}%">`
+    : '');
+}
+
+/* -- crop and resize ---------------------------------------------------- */
+/* Everything here works in percentages of the image, never screen pixels: the
+   preview is scaled to fit the dialog, so a rectangle in pixels would land
+   somewhere else on the real file. The server re-derives pixels from these. */
+const MPC = {box: {x: 5, y: 5, w: 90, h: 90}, ratio: 0, drag: null};
+
+function mpCropOpen(){
+  if (!MP.sel) return;
+  if (MP.sel.editable === false){
+    (window.showToast || alert)('Only photographs and other raster images can be cropped.');
+    return;
+  }
+  document.getElementById('mpCropStage').classList.add('on');
+  document.getElementById('mpCropImg').src = MP.sel.url;
+  document.getElementById('mpRestore').style.display =
+    MP.sel.has_original ? '' : 'none';
+  mpQualShow();
+  mpCropReset();
+  /* The stage opens below the fold of a scrolling dialog, so it has to be
+     brought into view -- otherwise Crop & resize appears to do nothing. */
+  document.getElementById('mpCropStage')
+    .scrollIntoView({block: 'nearest', behavior: 'smooth'});
+}
+
+function mpCropClose(){
+  document.getElementById('mpCropStage').classList.remove('on');
+}
+
+function mpCropReset(){
+  MPC.box = {x: 5, y: 5, w: 90, h: 90};
+  if (MPC.ratio) mpCropMaxRatio();
+  document.getElementById('mpW').value = '';
+  document.getElementById('mpH').value = '';
+  mpCropPaint();
+}
+
+/* The slider reads out its own value: a number from 40 to 100 means nothing on
+   its own, and a bare handle position means less. */
+function mpQualMoved(){
+  const q = document.getElementById('mpQual').value;
+  document.getElementById('mpQualVal').textContent = q;
+  const note = document.getElementById('mpQualNote');
+  note.textContent = q >= 90
+    ? 'Near-original quality, and the largest file.'
+    : q >= 75
+      ? 'A good balance for a photograph on a page.'
+      : q >= 60
+        ? 'Noticeably smaller. Fine for a background or a thumbnail.'
+        : 'Visibly softer, with blocky edges. Only for a very small image.';
+  mpCropPaint();
+}
+
+/* Whether the control applies at all depends on the format being written. */
+function mpQualShow(){
+  const row = document.getElementById('mpQualRow');
+  if (!row) return;
+  const lossy = MP.sel?.lossy === true;
+  row.style.display = lossy ? '' : 'none';
+  if (lossy){
+    const q = MP.sel.quality || 86;
+    document.getElementById('mpQual').value = q;
+    mpQualMoved();
+  }
+}
+
+function mpAspectPick(btn){
+  document.querySelectorAll('#mpAspect button').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  MPC.ratio = parseFloat(btn.dataset.r) || 0;
+  if (MPC.ratio) mpCropMaxRatio();
+  mpCropPaint();
+}
+
+/* Picking a shape gives the largest rectangle of that shape, centred on where the
+   crop already is. Shrinking the existing box instead meant every switch between
+   shapes lost area, so trying 16:9 and then going back to 1:1 left a much smaller
+   crop than 1:1 started with. */
+function mpCropMaxRatio(){
+  const want = MPC.ratio / mpImageRatio();      /* w/h in percentage space */
+  const cx = MPC.box.x + MPC.box.w / 2;
+  const cy = MPC.box.y + MPC.box.h / 2;
+  let w = 100, h = 100 / want;
+  if (h > 100){ h = 100; w = 100 * want; }
+  MPC.box = {
+    x: Math.max(0, Math.min(100 - w, cx - w / 2)),
+    y: Math.max(0, Math.min(100 - h, cy - h / 2)),
+    w: w, h: h,
+  };
+}
+
+/* The ratio is of the OUTPUT, so it has to account for the image's own shape:
+   a square crop of a 2:1 photo is half as wide in percentage terms as it is tall. */
+function mpImageRatio(){
+  const w = MP.sel?.width || 0, h = MP.sel?.height || 0;
+  return (w && h) ? w / h : 1;
+}
+
+function mpCropFitRatio(){
+  const want = MPC.ratio / mpImageRatio();     /* target w/h in percentage space */
+  let {x, y, w, h} = MPC.box;
+  if (w / h > want) w = h * want; else h = w / want;
+  /* Shrink to fit rather than sliding off the edge. */
+  if (x + w > 100){ const k = (100 - x) / w; w *= k; h *= k; }
+  if (y + h > 100){ const k = (100 - y) / h; w *= k; h *= k; }
+  MPC.box = {x, y, w, h};
+}
+
+function mpCropPaint(){
+  const b = MPC.box;
+  const el = document.getElementById('mpCropBox');
+  el.style.left = b.x + '%'; el.style.top = b.y + '%';
+  el.style.width = b.w + '%'; el.style.height = b.h + '%';
+
+  /* Report the real output in pixels, which is what the editor actually cares
+     about — a percentage means nothing when placing an image on a page. */
+  const iw = MP.sel?.width || 0, ih = MP.sel?.height || 0;
+  const cw = Math.round(iw * b.w / 100), ch = Math.round(ih * b.h / 100);
+  const tw = parseInt(document.getElementById('mpW').value, 10) || 0;
+  const th = parseInt(document.getElementById('mpH').value, 10) || 0;
+  let out = `Crop ${cw} × ${ch}`;
+  if (tw || th){
+    const fw = tw || Math.round(cw * th / ch);
+    const fh = th || Math.round(ch * tw / cw);
+    out += ` → saved as ${fw} × ${fh}`;
+  }
+  if (MP.sel?.lossy === true){
+    out += ` · ${MP.sel.format || 'JPEG'} quality ${document.getElementById('mpQual').value}`;
+  }
+  document.getElementById('mpCropOut').textContent = out;
+}
+
+/* Typing one side fills the other in, so the proportions are kept without
+   anyone having to do the arithmetic. */
+function mpSizeTyped(which){
+  const wEl = document.getElementById('mpW'), hEl = document.getElementById('mpH');
+  if (document.getElementById('mpLock').checked){
+    const b = MPC.box;
+    const cw = (MP.sel?.width || 0) * b.w / 100;
+    const ch = (MP.sel?.height || 0) * b.h / 100;
+    if (cw && ch){
+      if (which === 'w' && wEl.value) hEl.value = Math.round(+wEl.value * ch / cw);
+      if (which === 'h' && hEl.value) wEl.value = Math.round(+hEl.value * cw / ch);
+    }
+  }
+  mpCropPaint();
+}
+
+/* Dragging: the whole rectangle by its middle, or one edge/corner by a handle. */
+(function(){
+  const stage = document.getElementById('mpCrop');
+  if (!stage) return;
+
+  const pct = e => {
+    const r = stage.getBoundingClientRect();
+    return {x: (e.clientX - r.left) / r.width * 100,
+            y: (e.clientY - r.top) / r.height * 100};
+  };
+
+  stage.addEventListener('pointerdown', e => {
+    const handle = e.target.dataset?.h;
+    const onBox = e.target.id === 'mpCropBox' || handle;
+    if (!onBox) return;
+    e.preventDefault();
+    stage.setPointerCapture(e.pointerId);
+    MPC.drag = {handle: handle || 'move', from: pct(e), box: {...MPC.box}};
+  });
+
+  stage.addEventListener('pointermove', e => {
+    if (!MPC.drag) return;
+    const now = pct(e);
+    const dx = now.x - MPC.drag.from.x, dy = now.y - MPC.drag.from.y;
+    const s = MPC.drag.box;
+    let {x, y, w, h} = s;
+
+    if (MPC.drag.handle === 'move'){
+      x = Math.max(0, Math.min(100 - w, s.x + dx));
+      y = Math.max(0, Math.min(100 - h, s.y + dy));
+    } else {
+      const H = MPC.drag.handle;
+      if (H.includes('w')){ x = s.x + dx; w = s.w - dx; }
+      if (H.includes('e')){ w = s.w + dx; }
+      if (H.includes('n')){ y = s.y + dy; h = s.h - dy; }
+      if (H.includes('s')){ h = s.h + dy; }
+      /* Never let a drag invert the rectangle. */
+      if (w < 2){ w = 2; if (H.includes('w')) x = s.x + s.w - 2; }
+      if (h < 2){ h = 2; if (H.includes('n')) y = s.y + s.h - 2; }
+      x = Math.max(0, x); y = Math.max(0, y);
+      w = Math.min(w, 100 - x); h = Math.min(h, 100 - y);
+      if (MPC.ratio){
+        const want = MPC.ratio / mpImageRatio();
+        if (H === 'n' || H === 's') w = h * want; else h = w / want;
+        w = Math.min(w, 100 - x); h = Math.min(h, 100 - y);
+      }
+    }
+    MPC.box = {x, y, w, h};
+    mpCropPaint();
+  });
+
+  const stop = e => {
+    if (!MPC.drag) return;
+    MPC.drag = null;
+    try { stage.releasePointerCapture(e.pointerId); } catch (err) {}
+  };
+  stage.addEventListener('pointerup', stop);
+  stage.addEventListener('pointercancel', stop);
+})();
+
+async function mpCropApply(){
+  if (!MP.sel) return;
+  const b = MPC.box;
+  const fd = new FormData();
+  const whole = b.x < 0.5 && b.y < 0.5 && b.w > 99.5 && b.h > 99.5;
+  if (!whole){
+    fd.append('x', b.x.toFixed(3)); fd.append('y', b.y.toFixed(3));
+    fd.append('w', b.w.toFixed(3)); fd.append('h', b.h.toFixed(3));
+  }
+  const tw = document.getElementById('mpW').value;
+  const th = document.getElementById('mpH').value;
+  if (tw) fd.append('width', tw);
+  if (th) fd.append('height', th);
+
+  /* Quality is only sent when it applies and when it was actually moved:
+     re-encoding at the value it already had would spend a version for nothing. */
+  const qEl = document.getElementById('mpQual');
+  const moved = MP.sel?.lossy === true && +qEl.value !== (MP.sel.quality || 86);
+  if (MP.sel?.lossy === true) fd.append('quality', qEl.value);
+
+  if (whole && !tw && !th && !moved){
+    (window.showToast || alert)(
+      MP.sel?.lossy === true
+        ? 'Drag a crop, type a size, or move the quality slider first.'
+        : 'Drag a crop or type a size first.');
+    return;
+  }
+  const d = await mpPost('/p/media/' + MP.sel.pk + '/transform/', fd);
+  if (!d) return;
+  mpAfterEdit(d.asset);
+}
+
+async function mpRestore(){
+  if (!MP.sel) return;
+  const d = await mpPost('/p/media/' + MP.sel.pk + '/restore/', new FormData());
+  if (!d) return;
+  mpAfterEdit(d.asset);
+}
+
+/* The file changed, so every cached copy of it has to be replaced -- including
+   the browser's, which would otherwise keep showing the pre-crop picture. */
+function mpAfterEdit(asset){
+  const bust = '?v=' + Date.now();
+  MP.sel = {...MP.sel, ...asset, url: asset.url + bust};
+  document.getElementById('mpCropImg').src = MP.sel.url;
+  document.getElementById('mpFocalImg').src = MP.sel.url;
+  document.getElementById('mpRestore').style.display =
+    asset.has_original ? '' : 'none';
+  /* The output format can change -- a transparent JPEG is written as PNG -- so
+     whether quality still applies has to be asked again. */
+  mpQualShow();
+  mpDims();
+  mpCropReset();
+  mpLoad(document.getElementById('mpQ').value);
+}
+
+function mpDims(){
+  const el = document.getElementById('mpDims');
+  if (!el) return;
+  if (!MP.sel){ el.textContent = ''; return; }
+  el.textContent = MP.sel.width
+    ? `${MP.sel.width} × ${MP.sel.height} pixels · ${MP.sel.size || ''}`
+    : (MP.sel.kind === 'image' ? 'Vector image — cannot be cropped.' : '');
+}
+
+function mpWire(root){
+  (root || document).querySelectorAll('[data-media-field]').forEach(inp => {
+    if (inp.dataset.mpWired) return;
+    inp.dataset.mpWired = '1';
+    inp.readOnly = true;
+    inp.style.cursor = 'pointer';
+    inp.addEventListener('click', () => mpOpen(inp));
+    inp.addEventListener('focus', () => mpOpen(inp));
+    pickField(inp, 'media');
+  });
+}
+
+/* Drag files straight onto the picker. */
+(function(){
+  const drop = document.getElementById('mpDrop');
+  if (!drop) return;
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.add('over');
+  }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.remove('over');
+  }));
+  drop.addEventListener('drop', e => mpUpload(e.dataTransfer?.files));
+})();
+
+document.addEventListener('DOMContentLoaded', () => mpWire(document));
+document.getElementById('mpOvl').addEventListener('click', e => {
+  if (e.target.id === 'mpOvl') mpClose();
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!mpIsOpen()) return;
+  /* Back out one step at a time: cancelling a crop should not also shut the
+     picker and lose the selection. */
+  const crop = document.getElementById('mpCropStage');
+  if (crop && crop.classList.contains('on')){ mpCropClose(); return; }
+  mpClose();
+});
+window.mpWire = mpWire;
+</script>
+{% endif %}

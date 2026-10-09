@@ -1,0 +1,21 @@
+{# Shared heading for CMS sections — uses the Hub's existing .sec-head. #}
+{# Editable in place. It was read-only, so every block that used this shared #}
+{# heading -- most of the generic library -- had a title only reachable from a #}
+{# form, while the site's own blocks could be retyped on the page. #}
+{% load cms_tags %}
+{% if section.title or cms_edit_mode %}
+<div class="sec-head">
+  <h2 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"
+      data-ed-placeholder="Heading"{% endif %}>{{ section.title }}</h2>
+  {% sec_link_ok section as show_link %}
+  {% if show_link %}<a href="{{ section|cfg:"link_url" }}" class="lk">{{ section|cfg:"link_label"|default:"View all" }} &rarr;</a>{% endif %}
+</div>
+{% endif %}
+{# A block that already shows the subtitle itself -- the image block uses it #}
+{# as the caption under the picture -- asks for it to be left out here, so #}
+{# the same line is not printed twice. #}
+{% if not hide_subtitle %}{% if section.subtitle or cms_edit_mode %}
+<p class="muted sec-sub"
+   {% if cms_edit_mode %}data-ed-field="subtitle" contenteditable="true"
+   data-ed-placeholder="Optional intro line"{% endif %}>{{ section.subtitle }}</p>
+{% endif %}{% endif %}

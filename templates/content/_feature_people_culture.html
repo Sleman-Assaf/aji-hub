@@ -1,0 +1,21 @@
+{# content/_feature_people_culture.html — the working part of People & Culture, as a locked feature block. #}
+{# Lifted verbatim from content/people_culture.html when that page became builder-driven, so #}
+{# it renders the same markup with the same context as before. Its styles #}
+{# travel with it, which is what lets the feature be placed in a column. #}
+{# The CMS sections that used to be appended here are now blocks on this page itself, #}
+{# so the tag was removed: rendering it inside a feature block recursed forever. #}
+{% load cms_tags %}
+{# These few selectors are styled differently by another page, so they #}
+{# stay scoped here rather than being hoisted into the stylesheet. #}
+<style>
+.tile{border:1px solid var(--line);background:var(--paper-2);padding:22px 20px;cursor:pointer;transition:box-shadow .16s,border-color .16s;display:flex;flex-direction:column;gap:10px}
+.tile:hover{box-shadow:0 8px 22px rgba(18,18,16,.07);border-color:var(--line-2)}
+.tile .ic{width:42px;height:42px;background:var(--paper-2);display:flex;align-items:center;justify-content:center}
+.tile h4{font-weight:700;font-size:15px;margin:0}
+.tile p{font-size:13px;color:var(--muted);margin:0}
+</style>
+
+{# ── PAGE HEADER ── #}
+
+{# The sections that followed here are separate blocks now, one per section, #}
+{# so each can be moved, retitled or removed on its own. #}

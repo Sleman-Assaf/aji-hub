@@ -1,0 +1,33 @@
+{# templates/core/home.html #}
+{# The page content now comes from builder blocks rather than markup in this #}
+{# file, so opening the editor shows the real homepage with every block #}
+{# editable. The block templates in cms/sections/ carry the same markup this #}
+{# file used to hold, and the component CSS moved to aji_hub.css so the same #}
+{# blocks can be placed on any other page. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}Home — AJi Hub{% endblock %}
+
+{# Marks the page for the homepage-only rules in aji_hub.css — the full-width #}
+{# masthead and the tile strip. Nothing to do with light or dark: the theme is #}
+{# a data-theme attribute on <html>, set in base.html. #}
+{% block body_class %}home{% endblock %}
+
+{% block content %}
+
+{% cms_page_body %}
+
+{% if cms_can_edit and not cms_bound_page %}
+<div class="card" style="text-align:center;padding:44px">
+  <b style="display:block;font-size:15px;margin-bottom:6px">The homepage has no blocks yet</b>
+  <span class="muted" style="font-size:13px">
+    Run <code>manage.py import_home</code> to rebuild it from the original layout.
+  </span>
+</div>
+{% endif %}
+
+{# The birthday wish dialog used to be written out here, in the homepage, with #}
+{# its own copy of the send. It is a shared control now — the birthdays block #}
+{# and the header strip both bring it with them, so a cake pressed on any page #}
+{# opens the same editable dialog. #}
+{% endblock %}

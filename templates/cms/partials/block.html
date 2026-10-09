@@ -1,0 +1,41 @@
+{# templates/cms/partials/block.html — one block plus its editing chrome. #}
+{# The wrapper is always present so that turning edit mode on and off never #}
+{# reflows the page: only the toolbar and the dashed outline appear. #}
+<div class="cms-block" data-block="{{ section.pk }}" data-type="{{ section.type }}"
+     data-col="{{ section.column }}" data-parent="{{ section.parent_id|default:'' }}"
+     {% if cms_edit_mode %}draggable="false"{% endif %}>
+  {% if cms_edit_mode %}
+  <div class="ed-bar" aria-label="Block controls">
+    {# A real button, not a span: the grip was the only way to move a block #}
+    {# between columns and it could not be focused or operated by keyboard. #}
+    {# Arrow keys move the block; Left/Right cross columns. #}
+    <button type="button" class="ed-grip" draggable="true"
+            title="Drag to move, or use the arrow keys"
+            aria-label="Move this {{ section.get_type_display }} block. Use the arrow keys to move it; left and right move it between columns."
+            onmousedown="edArmDrag(this)" onkeydown="edGripKey(event,{{ section.pk }})">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+    </button>
+    <span class="ed-lbl">{{ section.get_type_display }}</span>
+    <button type="button" title="Move up"    onclick="edMove({{ section.pk }},-1)">↑</button>
+    <button type="button" title="Move down"  onclick="edMove({{ section.pk }},1)">↓</button>
+    <button type="button" title="Settings"    onclick="edOpen({{ section.pk }})">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+    </button>
+    <button type="button" title="Duplicate"  onclick="edDup({{ section.pk }})">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="1"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>
+    </button>
+    <button type="button" title="{% if section.is_visible %}Hide{% else %}Show{% endif %}"
+            onclick="edToggle({{ section.pk }})">
+      {% if section.is_visible %}
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+      {% else %}
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 3 18 18M10.6 10.6a3 3 0 0 0 4.2 4.2M9.4 5.3A9.9 9.9 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-2.4 3.3M6.3 6.7A17 17 0 0 0 2 12s3.6 7 10 7c1 0 1.8-.1 2.7-.4"/></svg>
+      {% endif %}
+    </button>
+    <button type="button" title="Delete" onclick="edDel({{ section.pk }})">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>
+    </button>
+  </div>
+  {% endif %}
+  {{ inner }}
+</div>

@@ -1,0 +1,166 @@
+{# templates/taqdeer/athar_manage.html — every quarter, and how each is going. #}
+{% extends 'base.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}Athar Management — AJi Taqdeer{% endblock %}
+
+{% block content %}
+<a href="{% url 'taqdeer_home' %}" class="ctx-back" title="AJi Taqdeer"><span class="ctx-back-lab">AJi Taqdeer</span></a>
+
+<div class="tq-nom-head">
+  <div>
+    <div class="eyebrow">HR</div>
+    <h1>Athar Management <span class="tq-ar">جائزة الأثر</span></h1>
+  </div>
+  {# Beside the settings link rather than at the foot of the page: creating a #}
+  {# period is the action this screen exists for, and it was below the list it #}
+  {# adds to — so on a page with several quarters you had to scroll past all of #}
+  {# them to reach it. #}
+  <span class="ap-head-acts">
+    <button class="btn y sm" type="button" data-new-period>
+      {% icon "plus" 14 %} Create a period</button>
+    <a class="btn ghost sm" href="{% url 'taqdeer_settings' %}">
+      {% icon "settings" 14 %} Taqdeer settings</a>
+  </span>
+</div>
+
+<p class="tq-nom-note">
+  One quarter takes nominations at a time. Opening a period notifies the
+  managers it names; closing it stops new submissions without touching what
+  has already come in.
+</p>
+
+{# ── the periods ──────────────────────────────────────────────────────── #}
+<div class="ap-list">
+  {% for cycle, s in rows %}
+  {# A row, not a link. The delete button cannot sit inside an anchor, so the #}
+  {# anchor covers the part of the row that is about opening the period and #}
+  {# the button sits beside it. #}
+  <div class="ap-row{% if cycle.is_open %} on{% endif %}">
+    <a class="ap-row-go" href="{% url 'taqdeer_athar_period' cycle.pk %}">
+      <span class="ap-q">{{ cycle.label }}</span>
+      <span class="ap-b">
+        <span class="ap-stage tq-chip {{ cycle.stage }}">{{ cycle.get_stage_display }}</span>
+        <span class="ap-when">
+          {% if cycle.opens_on %}{{ cycle.opens_on|date:"j M" }}{% else %}no start{% endif %}
+          &ndash;
+          {% if cycle.closes_on %}{{ cycle.closes_on|date:"j M Y" }}{% else %}no close{% endif %}
+          · {{ cycle.awards_per_manager }} per manager
+        </span>
+      </span>
+      <span class="ap-kpi">
+        <b>{{ s.total }}</b><i>nominations</i></span>
+      <span class="ap-kpi">
+        <b>{{ s.approved }}</b><i>approved</i></span>
+      <span class="ap-kpi{% if s.pending %} warn{% endif %}">
+        <b>{{ s.pending }}</b><i>pending</i></span>
+      <span class="ap-kpi">
+        <b>{{ s.submitters }}</b><i>managers</i></span>
+      {% icon "chevron-right" 15 %}
+    </a>
+    {# The confirmation names the count, because what makes this dangerous is #}
+    {# the nominations going with it rather than the quarter itself. #}
+    <form method="post" action="{% url 'taqdeer_athar_delete' cycle.pk %}"
+          class="ap-del"
+          data-confirm-kind="danger"
+        data-confirm-title="Delete {{ cycle.label }} for good?"
+        data-confirm-ok="Delete the period"
+        data-confirm="This is permanent — the period, its nominations {% if s.total %}({{ s.total }}){% endif %}, and everything submitted into it are deleted for good. Nobody can nominate again until you create a new period.{% if cycle.stage == 'issued' or cycle.stage == 'closed' %} Its winners leave the archive as well.{% endif %}">
+      {% csrf_token %}
+      <button class="cx-iconbtn danger" type="submit"
+              title="Delete {{ cycle.label }}">{% icon "trash" 13 %}<span>Delete</span></button>
+    </form>
+  </div>
+  {% empty %}
+  <div class="tq-none">
+    <span class="tq-none-ic">{% icon "calendar" 20 %}</span>
+    <b>No periods yet</b>
+    <span>Use <b>Create a period</b> above. It starts as a draft, so nothing is
+      announced until you open it.</span>
+  </div>
+  {% endfor %}
+</div>
+
+{# ── a new period, as a dialog ─────────────────────────────────────────── #}
+{# A native <dialog>, the same as the Kudos composer on the wall: Escape and #}
+{# the backdrop behave without writing either, and the page underneath is #}
+{# properly inert rather than merely covered. #}
+<dialog class="tk-modal ap-modal" id="periodDlg">
+  <form method="post" class="tk-give">
+    {% csrf_token %}
+    <div class="tk-give-h">
+      <span class="tq-badge">{% icon "plus" 13 %} New period</span>
+      <span class="tk-give-h-t">Everything here can be changed afterwards.</span>
+      <button type="button" class="tk-x" data-close aria-label="Close">
+        {% icon "x" 15 %}</button>
+    </div>
+
+    <div class="tk-give-b">
+      {# A clash with an existing quarter is a form-wide error, not a field one, #}
+      {# so it never appeared beside an input — the page just redisplayed and #}
+      {# the button looked broken. It has to be printed somewhere. #}
+      {% if form.non_field_errors %}
+      <div class="tq-err-box" style="margin:16px 20px 0">
+        {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+      </div>
+      {% endif %}
+      <div class="ap-form">
+        {% with preset=form.people_preset %}
+        {% for f in form %}
+        {% if f.name == 'authorised_managers' %}
+        <div class="tq-field ap-f wide">
+          <label class="tq-lab">{{ f.label }}</label>
+          {% url 'taqdeer_people_all' as ppl %}
+          {% include 'exchange/_people_picker.html' with search_url=ppl field='authorised_managers' preset=preset|lookup:f.name %}
+          {% if f.help_text %}<span class="tq-hint">{{ f.help_text }}</span>{% endif %}
+        </div>
+        {% else %}
+        <div class="tq-field ap-f{% if f.name == 'note' %} wide{% endif %}">
+          <label class="tq-lab" for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<span class="tq-hint">{{ f.help_text }}</span>{% endif %}
+          {% for e in f.errors %}<span class="tq-err">{{ e }}</span>{% endfor %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endwith %}
+      </div>
+    </div>
+
+    <div class="ap-foot">
+      <button class="btn y sm" type="submit">Create as draft</button>
+      <span class="tq-hint" style="flex:1">Nothing is sent until you open it.</span>
+    </div>
+  </form>
+</dialog>
+{% include 'includes/people_picker_js.html' %}
+
+<script>
+(function () {
+  var dlg = document.getElementById('periodDlg');
+  if (!dlg) return;
+
+  document.querySelectorAll('[data-new-period]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      dlg.showModal();
+      var first = dlg.querySelector('input, select');
+      if (first) first.focus();
+    });
+  });
+
+  dlg.querySelectorAll('[data-close]').forEach(function (b) {
+    b.addEventListener('click', function () { dlg.close(); });
+  });
+
+  /* Clicking the backdrop closes it. The dialog element covers the whole
+     viewport, so the test is whether the click landed outside the form. */
+  dlg.addEventListener('click', function (e) {
+    if (e.target === dlg) dlg.close();
+  });
+
+  /* A rejected submission comes back as a fresh page with the dialog shut, so
+     the reason — "that quarter already has a period" — would be written inside
+     something nobody can see. Reopen it when the form came back with errors. */
+  if (dlg.querySelector('.tq-err-box, .tq-err')) dlg.showModal();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,172 @@
+{# templates/messaging/messaging.html — the full-page chat. #}
+{# The same engine as the popup, in a shell that keeps the list and the #}
+{# conversation on screen together instead of swapping between them. base.html #}
+{# leaves the popup out on this route, so there is only ever one shell. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}Messages — AJi Hub{% endblock %}
+{% block body_class %}chat-page{% endblock %}
+
+{% block content %}
+<div id="chatPage" class="ch-shell mode-page" data-chat-shell data-mode="page"
+     data-view="list" data-max-bytes="{{ chat_max_bytes }}"
+     data-quick-set="{{ chat_quick }}"
+     data-popup="{% if chat_popup %}1{% else %}0{% endif %}"
+     {% if open_id %}data-open-id="{{ open_id }}"{% endif %}
+     {% if start_new %}data-start-new="1"{% endif %}>
+
+  {# ── the list, always on screen ── #}
+  <div class="ch-pane ch-pane-list">
+    <div class="ch-head">
+      <span class="ch-title">Messages</span>
+      {# The call log. On the full page only: it is a table of dates and #}
+      {# durations, and the popup is 380 pixels wide. #}
+      <button type="button" data-ch-calls title="Call history"
+              aria-label="Call history">{% icon "phone-call" 16 %}
+        <span class="ch-missedbadge" data-ch-missedcount hidden></span>
+      </button>
+      <button type="button" data-ch-new title="New chat" aria-label="New chat">
+        {% icon "plus" 16 %}
+      </button>
+    </div>
+    <div class="ch-search">
+      <div class="ch-search-in">
+        {% icon "magnifying-glass" 17 %}
+        <input data-ch-search aria-label="Search chats" placeholder="Search chats and messages" autocomplete="off">
+      </div>
+    </div>
+    <div class="ch-list" data-ch-list></div>
+  </div>
+
+  {# ── the conversation ── #}
+  <div class="ch-pane ch-pane-conv" data-ch-drop>
+    <div class="ch-conv-head">
+      <button class="ch-back" data-ch-back aria-label="Back to chats">{% icon "chevron-left" 18 %}</button>
+      <span data-ch-av></span>
+      <div class="ch-cv-meta">
+        <div class="ch-nm" data-ch-title></div>
+        <div class="ch-status" data-ch-sub></div>
+      </div>
+      <button type="button" class="ch-hbtn" data-ch-call
+              title="Start a voice call" aria-label="Start a voice call">{% icon "phone-call" 17 %}</button>
+      <button type="button" class="ch-hbtn" data-ch-convmenu
+              title="Pin, group info, delete" aria-label="Chat options">{% icon "dots-three" 17 %}</button>
+      <button type="button" class="ch-hbtn" data-ch-close
+              title="Close this chat" aria-label="Close this chat">{% icon "x" 16 %}</button>
+    </div>
+    <div class="ch-msgs" data-ch-msgs></div>
+    <div class="ch-strip" data-ch-strip hidden></div>
+    {# What is waiting to be sent. One tile per file, built by drawTray(). #}
+    <div class="ch-tray" data-ch-tray hidden></div>
+    <div class="ch-compose">
+      <button type="button" class="ch-cbtn" data-ch-emoji aria-label="Emoji">{% icon "smiley" 20 %}</button>
+      <button type="button" class="ch-cbtn"
+              onclick="this.parentNode.querySelector('[data-ch-file]').click()"
+              aria-label="Attach files">{% icon "paperclip" 19 %}</button>
+      <input type="file" data-ch-file multiple hidden>
+      <textarea data-ch-input rows="1" aria-label="Message"
+                placeholder="Type a message"></textarea>
+      <button class="ch-send" data-ch-send disabled aria-label="Send">{% icon "send" 19 %}</button>
+    </div>
+    <div class="ch-nothing">
+      {% icon "chat" 40 1.4 %}
+      <b>Pick a chat</b>
+      <span>Choose someone from the list, or start something new. Files up to {{ max_mb }} MB.</span>
+    </div>
+  </div>
+
+  {# ── new chat or new group ── #}
+  <div class="ch-pane ch-pane-new">
+    <div class="ch-conv-head">
+      <button class="ch-back" data-ch-back aria-label="Back to chats">{% icon "chevron-left" 18 %}</button>
+      <div class="ch-cv-meta">
+        <div class="ch-nm">New chat</div>
+        <div class="ch-status" data-ch-draftcount></div>
+      </div>
+    </div>
+    <label class="ch-groupswitch">
+      <input type="checkbox" data-ch-groupmode>
+      <span>{% icon "users-three" 15 %} Make a group instead</span>
+    </label>
+    <div class="ch-groupbox">
+      <input type="text" data-ch-groupname maxlength="120" placeholder="Group name" aria-label="Group name">
+      <div class="ch-draft" data-ch-draft></div>
+      <button type="button" class="btn y sm" data-ch-groupgo disabled>Create group</button>
+    </div>
+    <div class="ch-search">
+      <div class="ch-search-in">
+        {% icon "magnifying-glass" 17 %}
+        <input data-ch-peopleq aria-label="Search people" placeholder="Search anyone at AJi…" autocomplete="off">
+      </div>
+    </div>
+    <div class="ch-list" data-ch-people></div>
+  </div>
+
+  {# ── the call log ── #}
+  {# Its own pane rather than a second list beside the chats: a call row carries #}
+  {# a direction, an outcome, a time and a length, and none of that fits in the #}
+  {# column the conversation list lives in. #}
+  <div class="ch-pane ch-pane-calls">
+    <div class="ch-conv-head">
+      <button class="ch-back" data-ch-back aria-label="Back to chats">{% icon "chevron-left" 18 %}</button>
+      <div class="ch-cv-meta">
+        <div class="ch-nm"><span>Calls</span></div>
+        <div class="ch-status" data-ch-callsub>Voice calls and screen shares</div>
+      </div>
+      <div class="ch-seg" role="tablist" aria-label="Which calls to show">
+        <button type="button" class="on" data-ch-callfilter="all" role="tab"
+                aria-selected="true">All</button>
+        <button type="button" data-ch-callfilter="missed" role="tab"
+                aria-selected="false">Missed</button>
+      </div>
+      {% if can_manage_settings %}
+      {# Capacity monitor and stress test. Same gate as Global Settings, and the #}
+      {# view checks it again — this only decides whether the door is drawn. #}
+      <a class="ch-hbtn" href="{% url 'call_stress' %}" title="Call capacity &amp; stress test"
+         aria-label="Call capacity and stress test" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 15a8 8 0 1 1 16 0"/><path d="M12 15l3.5-3.5"/><path d="M3.5 19h17"/>
+        </svg>
+      </a>
+      {% endif %}
+      {# Not data-ch-close: that one puts the open conversation down as well, and #}
+      {# leaving the call log should give you back the chat you were reading. #}
+      <button type="button" class="ch-hbtn" data-ch-callclose
+              title="Close the call log" aria-label="Close the call log">{% icon "x" 16 %}</button>
+    </div>
+    <div class="ch-list ch-calls" data-ch-calllist></div>
+  </div>
+
+  {# ── group info ── #}
+  <div class="ch-pane ch-pane-info">
+    <div class="ch-conv-head">
+      <button class="ch-back" data-ch-back aria-label="Back to the chat">{% icon "chevron-left" 18 %}</button>
+      <div class="ch-cv-meta"><div class="ch-nm">Group info</div></div>
+    </div>
+    <div class="ch-info" data-ch-info></div>
+    {# Adding people. Hidden until asked for, so the screen is the group and its #}
+    {# members rather than the group, its members and the whole staff list. #}
+    {# Nothing is added until "Add to group": what you pick collects in the #}
+    {# basket, and the only way out of the basket is the x beside a name. #}
+    <div class="ch-info-add" data-ch-info-add hidden>
+      <div class="ch-add-head">
+        <b>Add people</b>
+        <button type="button" class="ch-hbtn" data-ch-addclose
+                title="Stop adding" aria-label="Stop adding">{% icon "x" 15 %}</button>
+      </div>
+      <div class="ch-search">
+        <div class="ch-search-in">
+          {% icon "magnifying-glass" 17 %}
+          <input data-ch-info-q aria-label="Search people to add" placeholder="Search anyone at AJi…" autocomplete="off">
+        </div>
+      </div>
+      <div class="ch-list" data-ch-info-people></div>
+      <div class="ch-basket">
+        <div class="ch-basket-in" data-ch-basket></div>
+        <button type="button" class="btn y sm" data-ch-basketgo disabled>Add to group</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,1603 @@
+{# templates/base.html #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}AJi Hub{% endblock %}</title>
+{% load static cms_tags %}
+
+{# The theme, settled before anything is drawn. It has to be an inline script #}
+{# in the head and not a stylesheet or a class from the view: a saved choice #}
+{# lives in the browser, so the server does not know it, and applying it after #}
+{# first paint means every page opens with a flash of the other theme. #}
+{# No preference saved yet means follow the operating system, which is what a #}
+{# reader who has set their laptop to dark has already asked for once. #}
+<script>
+(function(){
+  var r = document.documentElement, t;
+  try{ t = localStorage.getItem('aji-theme'); }catch(e){}
+  if(t !== 'dark' && t !== 'light'){
+    t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark' : 'light';
+  }
+  r.setAttribute('data-theme', t);
+})();
+</script>
+{# The AJi mark, lifted from the wordmark itself rather than redrawn, so the #}
+{# shape and the yellow are the brand's own. The Hub had no favicon at all, so #}
+{# every tab showed the browser's blank-page glyph. #}
+{# ?v= for the same reason as the stylesheet: a favicon is cached hard. #}
+{# An uploaded tab icon wins, and is listed first so a browser that takes the #}
+{# first usable one takes that. The bundled set stays as the fallback. #}
+{% if site_branding.favicon %}<link rel="icon" href="{{ site_branding.favicon.url }}">{% endif %}
+<link rel="icon" href="{% static 'img/favicon/favicon.ico' %}?v={{ asset_version }}" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/favicon/favicon-32.png' %}?v={{ asset_version }}">
+<link rel="icon" type="image/png" sizes="16x16" href="{% static 'img/favicon/favicon-16.png' %}?v={{ asset_version }}">
+<link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/favicon/apple-touch-icon.png' %}?v={{ asset_version }}">
+{# A static file rather than a view: it never varies per request, and the icon #}
+{# paths inside it are relative to the manifest's own folder. #}
+<link rel="manifest" href="{% static 'img/favicon/site.webmanifest' %}">
+<meta name="theme-color" content="#FCD700">
+{# ?v= is the stylesheet mtime: DEBUG disables static hashing, so without it browsers keep a stale aji_hub.css. #}
+<link rel="stylesheet" href="{% static 'css/aji_hub.css' %}?v={{ asset_version }}">
+{# Half-screen AJiAssist panel. Inlined in the template — not the compiled #}
+{# stylesheet — so it applies even when static files are cached stale. The #}
+{# panel opened from the avatar takes the right half of the viewport, from #}
+{# just under the header to the bottom edge. #}
+<style>
+#askWrap{width:min(50vw,calc(100vw - 36px));
+  min-width:min(560px,calc(100vw - 36px));
+  right:18px;bottom:18px;
+  height:calc(100vh - var(--nav-h,68px) - 36px);
+  height:calc(100dvh - var(--nav-h,68px) - 36px);
+  max-height:calc(100dvh - var(--nav-h,68px) - 36px);border-radius:16px}
+@media(max-width:640px){
+  #askWrap{right:10px;left:10px;width:auto;min-width:0;bottom:10px;
+    height:calc(100dvh - var(--nav-h,68px) - 20px);
+    max-height:calc(100dvh - var(--nav-h,68px) - 20px)}
+}
+</style>
+{% block extra_head %}{% endblock %}
+</head>
+{# A page can label the body when it needs whole-page styling — the full-page #}
+{# chat hides the floating chat button, for one. #}
+<body class="{% block body_class %}{% endblock %}">
+<a href="#hubMain" class="skip-link">Skip to main content</a>
+
+<!-- TOP NAV -->
+
+<nav class="topnav">
+  <div class="topnav-in">
+    {# The logo is a record now, so it can be replaced without a deploy. The #}
+    {# bundled file is the fallback, so the header is never empty. #}
+    <a href="/" class="logo" aria-label="{{ site_branding.site_name|default:'AJi Hub' }} home">
+      {# Two files for the bundled mark, one shown at a time by CSS. The #}
+      {# wordmark is black ink on transparency, so on the homepage's dark bar it #}
+      {# disappeared entirely — logo-dark.png is the same artwork with the ink #}
+      {# turned white and the yellow ring left alone. An uploaded logo gets no #}
+      {# such pair: whoever replaces the mark chooses one that works on both. #}
+      {% if site_branding.logo %}
+      <img src="{{ site_branding.logo.url }}"
+           alt="{{ site_branding.site_name|default:'AJi Hub' }}" class="logo-img logo-on-light">
+      {# An uploaded mark has no hand-made dark counterpart, so one is derived #}
+      {# from it — see SiteBranding.logo_dark_url. Without this the wordmark is #}
+      {# black ink on a dark bar, on every page. #}
+      <img src="{{ site_branding.logo_dark_url }}"
+           alt="" aria-hidden="true" class="logo-img logo-on-dark">
+      {% else %}
+      <img src="{% static 'img/logo.png' %}"
+           alt="{{ site_branding.site_name|default:'AJi Hub' }}" class="logo-img logo-on-light">
+      <img src="{% static 'img/logo-dark.png' %}"
+           alt="" aria-hidden="true" class="logo-img logo-on-dark">
+      {% endif %}
+    </a>
+
+    {# Built here rather than by JavaScript from a hardcoded array. It renders #}
+    {# with the page, so the menu is present for a reader with no JS, is in the #}
+    {# markup for a screen reader immediately, and does not flash in after load. #}
+    <div class="tnav" id="tnav">
+      {% for item, kids in site_nav %}
+      <div class="tnav-item{% if item.pk in nav_active %} active{% endif %}">
+        {% if kids %}
+        <button type="button" aria-expanded="false">
+          {{ item.label }}{% icon "chevron-down" 16 2 "chev" %}
+        </button>
+        <div class="dropdown">
+          {% for k in kids %}
+          <a href="{{ k.url }}"{% if k.new_tab %} target="_blank" rel="noopener"{% endif %}>
+            {% cms_icon k.icon 16 1.7 %} <span>{{ k.label }}</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <button type="button"
+                onclick="location.href='{{ item.url|escapejs }}'">{{ item.label }}</button>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="tnav-right">
+      <!-- Global Search -->
+      <div class="search" id="gsearchWrap">
+        {% icon "search" 18 %}
+        {# The placeholder was empty, so the box gave no clue what it searched #}
+        {# or that a number would work in it. Kept short: the field is 190px, #}
+        {# and anything longer than about twenty characters is clipped mid-word. #}
+        <input type="text" id="gsearch" placeholder="Name, extension…"
+               autocomplete="off"
+               aria-label="Search the Hub — people, pages, documents, extensions">
+        <div class="res" id="gres"></div>
+      </div>
+
+      <!-- Notifications -->
+      {# `tnav-notif`, not `tnav-right`. The bell's wrapper used to carry the same #}
+      {# class as the whole right-hand group that contains it, so the two picked up #}
+      {# each other's rules — and the outside-click handler below, which asked #}
+      {# closest('.tnav-right'), matched the group. Clicking the avatar, the gear #}
+      {# or Logout therefore counted as clicking inside the notifications and left #}
+      {# the panel open: the two were wired together by a name collision. #}
+      <div class="tnav-notif">
+        <button class="bell" id="bellBtn" aria-label="Notifications"
+                aria-haspopup="true" aria-expanded="false">
+          {% icon "bell" 18 1.7 %}
+          {% if notif_unread_count %}<span class="nbadge" id="nBadge">{{ notif_unread_count }}</span>{% else %}<span class="nbadge" id="nBadge" style="display:none"></span>{% endif %}
+        </button>
+        <div class="notif-panel" id="notifPanel">
+          <div class="notif-h">
+            <b>Notifications</b>
+            <span class="mark" onclick="markAllRead()">Mark all read</span>
+          </div>
+          <div class="notif-list" id="notifList"><div class="notif-empty">Loading…</div></div>
+          <a href="{% url 'alerts_history' %}" class="notif-footer">View all alerts &rarr;</a>
+        </div>
+      </div>
+
+      <!-- User -->
+      {# Everything that belongs to *you* now lives under your own face: My AJi, #}
+      {# your profile, the settings, and the way out. They were four separate #}
+      {# things spread along the row, which is four things competing for the same #}
+      {# corner and no way to tell which of them was about you. #}
+      {% if request.user.is_authenticated %}
+      <div class="tnav-user">
+        <button class="tnav-me" id="userBtn" aria-haspopup="true" aria-expanded="false"
+                title="{{ current_employee.full_name|default:request.user.get_full_name }}">
+          {% if current_employee and current_employee.photo %}
+          <span class="avatar" style="overflow:hidden;padding:0;background:none">
+            <img src="{{ current_employee.photo.url }}" alt="">
+          </span>
+          {% else %}
+          <span class="avatar">{% if current_employee %}{{ current_employee.initials }}{% else %}{{ request.user.first_name.0 }}{{ request.user.last_name.0 }}{% endif %}</span>
+          {% endif %}
+          {% if pending_approvals_count %}<span class="nbadge tnav-me-badge">{{ pending_approvals_count }}</span>{% endif %}
+          {% icon "chevron-down" 13 %}
+        </button>
+
+        <div class="user-panel" id="userPanel">
+          <div class="user-h">
+            {% if current_employee and current_employee.photo %}
+            <span class="avatar lg" style="overflow:hidden;padding:0;background:none">
+              <img src="{{ current_employee.photo.url }}" alt="">
+            </span>
+            {% else %}
+            <span class="avatar lg">{% if current_employee %}{{ current_employee.initials }}{% else %}{{ request.user.first_name.0 }}{{ request.user.last_name.0 }}{% endif %}</span>
+            {% endif %}
+            <span class="user-who">
+              <b>{{ current_employee.full_name|default:request.user.get_full_name|default:request.user.username }}</b>
+              {% if current_employee.role %}<i>{{ current_employee.role }}</i>{% endif %}
+            </span>
+          </div>
+
+          <a href="{% url 'my_aji' %}" class="user-i">
+            {% icon "briefcase-2" 16 1.7 %}
+            <span>My AJi</span>
+            {% if pending_approvals_count %}<em>{{ pending_approvals_count }}</em>{% endif %}
+          </a>
+          <a href="{% url 'profile_edit' %}" class="user-i">
+            {% icon "user" 16 1.7 %}<span>My profile</span>
+          </a>
+          {# Everyone's own switches: what they are told about, and how. The #}
+          {# page has existed since notifications were built and was reachable #}
+          {# only from the alerts history, so almost nobody found it. #}
+          <a href="{% url 'notification_settings' %}" class="user-i">
+            {% icon "alert" 16 1.7 %}<span>Notifications</span>
+          </a>
+          {# Global settings is a tab inside the portal now, not a page of its #}
+          {# own — one entry, so there is only one way in and always a way back. #}
+          {% if can_manage_settings %}
+          <a href="{% url 'it_home' %}" class="user-i">
+            {% icon "shield" 16 1.7 %}<span>IT portal</span>
+          </a>
+          {% endif %}
+          {# Light or dark, for this browser. Kept next to the person's own #}
+          {# settings rather than in Global Settings, because it is a choice #}
+          {# about this reader's eyes and not about the Hub. #}
+          <button type="button" class="user-sw" id="themeSwBtn"
+                  aria-label="Dark mode" role="switch" aria-checked="false">
+            {% icon "moon" 16 1.7 %}
+            <span>Dark mode</span>
+            <span class="ns-sw" aria-hidden="true">
+              <input type="checkbox" id="themeSw" tabindex="-1">
+              <span class="ns-sw-track"><span class="ns-sw-knob"></span></span>
+            </span>
+          </button>
+          <a href="{% url 'logout' %}" class="user-i danger">
+            {% icon "sign-out" 16 1.7 %}<span>Log out</span>
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Mobile menu -->
+      <button class="menu-btn" id="menuBtn" aria-label="Menu">
+        {% icon "menu" 18 %}
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile nav -->
+  <div id="mnav">
+    {% for item, kids in site_nav %}
+    {% if item.url %}<a href="{{ item.url }}">{{ item.label }}</a>
+    {% else %}<span class="mnav-head">{{ item.label }}</span>{% endif %}
+    {% for k in kids %}
+    <a class="sub" href="{{ k.url }}"{% if k.new_tab %} target="_blank" rel="noopener"{% endif %}>{{ k.label }}</a>
+    {% endfor %}
+    {% endfor %}
+  </div>
+</nav>
+
+{# Preview: the draft rendered exactly as a reader will see it, with a bar #}
+{# saying so. Without the bar there is no way to tell a preview from the real #}
+{# page, which is the one thing a preview must never be ambiguous about. #}
+{% if cms_preview and cms_has_draft %}
+<div class="pv-bar">
+  <span><b>Preview</b> — this is the draft. Readers still see the published page.</span>
+  <span class="pv-acts">
+    <a href="{{ cms_bound_path }}?edit=1">Back to editing</a>
+    <a href="{{ cms_bound_path }}">See what readers see</a>
+  </span>
+</div>
+{% endif %}
+
+<!-- MAIN CONTENT -->
+<main class="content" id="hubMain" tabindex="-1">
+{# The breadcrumb trail used to render here. It was removed: on most routes it #}
+{# repeated the page heading directly beneath it, and the back button already #}
+{# names where you came from. templates/includes/breadcrumbs.html is kept but #}
+{# no longer included — restore this line to bring the trail back. #}
+  {# Notifications are the toast stack at the foot of the window now, not a #}
+  {# banner here. See #toasts near the end of this file. #}
+  {% block content %}{% endblock %}
+</main>
+
+{% include 'includes/cms_toolbar.html' %}
+{% include 'includes/cms_editor.html' %}
+{# The editing sidebar. Loaded after the editor so it can drive edUndo and #}
+{# reuse its status strip rather than growing a second set of both. #}
+{% include 'includes/cms_shell.html' %}
+{# How a picker field looks, shared by both. Before them, since they call #}
+{# into it. #}
+{% include 'includes/picker_field_js.html' %}
+{% include 'includes/icon_picker_js.html' %}
+{% include 'includes/media_picker_js.html' %}
+{% include 'includes/cms_fragment_nav.html' %}
+{# Touch dragging. After the shell, because it calls into both the #}
+{# editor's drop helpers and the sidebar's insert. #}
+{% include 'includes/cms_touch_drag.html' %}
+{# Editing where you are looking: insert between blocks, click an icon to #}
+{# change it, add a row from the page. After the editor and the shell, whose #}
+{# functions it calls. #}
+{% include 'includes/cms_inplace.html' %}
+{# Saving without throwing the page away. Site-wide rather than per-screen: a #}
+{# form asks for it by carrying data-save, and every other form on the page #}
+{# submits exactly as it did before. #}
+{% include 'includes/manage_forms_js.html' %}
+{# One carousel for the whole Hub: the article gallery and the older-news #}
+{# strip are the same behaviour, and two of them would drift apart. #}
+{% include 'includes/carousel_js.html' %}
+
+<!-- MODAL SHELL -->
+<div class="modal-bg" id="modalbg">
+  <div class="modal" id="modal"></div>
+</div>
+
+<!-- TOAST -->
+{# ── Site-wide notifications ──────────────────────────────────────────── #}
+{# One stack, bottom-centre. Server-side messages are written straight into it #}
+{# so they are on the page before any script runs; the script only schedules #}
+{# their leaving. Pages must not render `messages` themselves. #}
+{# aria-live=polite so a notice is announced without interrupting; the stack #}
+{# is the live region, not each notice, so ones added later are announced too. #}
+<div class="tst-wrap" id="toasts" role="status" aria-live="polite">
+  {% for message in messages %}
+  <div class="tst{% if message.tags == 'error' %} bad{% elif message.tags == 'warning' %} warn{% endif %}" data-toast>
+    <span class="tst-ic">
+      {% if message.tags == 'error' or message.tags == 'warning' %}{% icon "warning" 16 %}{% else %}{% icon "check-circle" 16 %}{% endif %}
+    </span>
+    <span class="tst-t">{{ message }}</span>
+    <button type="button" class="tst-x" aria-label="Dismiss">&times;</button>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- AJiAssist FAB -->
+<button id="askFab" onclick="askToggle()" aria-label="AJiAssist" style="padding:0">
+  <img src="{% static 'img/ajiassist_mascot.png' %}" alt="" width="58" height="58" style="width:100%;height:100%;object-fit:cover;object-position:center 30%;border-radius:50%;display:block">
+  <span class="abadge" id="askBadge"></span>
+</button>
+
+<!-- AJiAssist Panel -->
+<div id="askWrap">
+  <div class="ask-head">
+    <div class="ask-h-av">
+      {% icon "sparkle" 18 1.7 %}
+    </div>
+    <div class="ask-title">AJiAssist <small>Powered by AJi-prop KB</small></div>
+    {% if assist_session and assist_messages %}
+    <a href="{% url 'assist_export_session_docx' assist_session.pk %}" title="Export conversation to Word" class="ask-export-btn">
+      {% icon "file-blank" 15 1.8 %}
+    </a>
+    <a href="{% url 'assist_export_session_pdf' assist_session.pk %}" title="Export conversation to PDF" class="ask-export-btn">
+      {% icon "file-pdf" 15 1.8 %}
+    </a>
+    <a href="{% url 'assist_export_session_xlsx' assist_session.pk %}" title="Export conversation to Excel" class="ask-export-btn">
+      {% icon "file-x" 15 1.8 %}
+    </a>
+    {% endif %}
+    <button onclick="askShowHistory()" title="Past conversations" aria-label="Past conversations"
+            id="askHistBtn">
+      {% icon "clock-2" 16 %}
+    </button>
+    {# Named rather than an icon alone: this is the one control in the panel #}
+    {# somebody looks for on purpose, once an answer outgrows the corner. #}
+    <a href="{% url 'assist_widget' %}" class="ask-export-btn ask-full"
+       title="Open AJi Assist full screen">
+      {% icon "external-link" 14 1.8 %} Full screen
+    </a>
+    <button onclick="askToggle()" aria-label="Close AJi Assist" title="Close">×</button>
+  </div>
+
+  {# ── Current session view ── #}
+  <div id="askMain" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+    <div class="ask-body" id="askBody">
+      {% if assist_messages %}
+        {% for msg in assist_messages %}
+        <div class="ask-msg ask-user">{{ msg.question }}</div>
+        {% if msg.answer and msg.answer.strip %}
+        <div class="ask-msg ask-bot" data-md="{{ msg.answer|escapejs }}" data-msg-id="{{ msg.pk }}"></div>
+        {% endif %}
+        {% endfor %}
+      {% else %}
+        {# The same welcome the full page opens with, same classes and all. It #}
+        {# was a paragraph of grey text at the top and a row of buttons above #}
+        {# the field — two halves of one idea, at opposite ends of the panel. #}
+        <div class="asst-hello" id="askHello">
+          <span class="asst-hello-av">{% icon "sparkle" 22 1.6 %}</span>
+          <h1>How can I help you today?</h1>
+          <p>
+            Ask about people, policies, projects, leave, pay or the calendar.
+            I answer from AJi's own documents and directory.
+          </p>
+          {% if assist_prompts %}
+          <div class="asst-starters">
+            {% for p in assist_prompts %}
+            <button type="button" class="asst-starter" data-ask="{{ p.prompt }}">
+              {{ p.label }}
+            </button>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+    <div class="ask-input-row">
+      <input type="text" id="askInput" aria-label="Ask AJiAssist" placeholder="Ask anything about AJi…" onkeydown="if(event.key==='Enter')askSend()">
+      <button onclick="askSend()" aria-label="Send">
+        {% icon "send" 18 %}
+      </button>
+    </div>
+  </div>
+
+  {# ── History view ── #}
+  <div id="askHistView" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div style="padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;flex:none">
+      <button onclick="askShowMain()" style="background:none;border:none;cursor:pointer;color:var(--ink);display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;font-family:inherit;padding:0">
+        {% icon "chevron-left" 15 %}
+        Back to current session
+      </button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:10px 14px" id="askHistList">
+      {% if assist_past %}
+        {% for s in assist_past %}
+        <div onclick="askLoadSession({{ s.pk }})"
+             style="padding:11px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;margin-bottom:8px;transition:background .12s;background:var(--paper-2)">
+          <div style="font-weight:700;font-size:13px;margin-bottom:3px">{{ s.name|default:s.auto_name }}</div>
+          <div style="font-size:11px;color:var(--muted)">{{ s.started_at|date:"j M Y · H:i" }} · {{ s.messages.count }} message{{ s.messages.count|pluralize }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="text-align:center;color:var(--muted);font-size:13px;padding:30px 10px">No past sessions yet.<br>They're saved when you log out.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Past session replay view ── #}
+  <div id="askReplayView" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div style="padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;flex:none">
+      <button onclick="askShowHistory()" style="background:none;border:none;cursor:pointer;color:var(--ink);display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;font-family:inherit;padding:0">
+        {% icon "chevron-left" 15 %}
+        Back
+      </button>
+      <span id="askReplayTitle" style="font-size:13px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+    </div>
+    <div class="ask-body" id="askReplayBody" style="flex:1"></div>
+  </div>
+
+</div>
+
+{# The chat popup. Left out on /messaging/: that page is the same engine in a #}
+{# bigger shell, and two shells on one page would fight over the same hooks. #}
+{% if request.resolver_match.url_name != 'messaging' %}
+  {% include 'includes/chat_panel.html' %}
+{% endif %}
+
+{# The switch. The theme itself is already on <html> by the time this runs; #}
+{# this only reflects it into the control and writes the reader's choice. The #}
+{# `aji:theme` event is for anything that has to redraw rather than restyle — #}
+{# the masthead's canvas reads its colours from CSS and listens for it. #}
+<script>
+(function(){
+  var btn = document.getElementById('themeSwBtn');
+  var box = document.getElementById('themeSw');
+  if(!btn || !box) return;
+  var root = document.documentElement;
+
+  function reflect(){
+    var dark = root.getAttribute('data-theme') === 'dark';
+    box.checked = dark;
+    btn.setAttribute('aria-checked', dark ? 'true' : 'false');
+  }
+  reflect();
+
+  btn.addEventListener('click', function(e){
+    e.preventDefault();
+    e.stopPropagation();          /* the panel closes on any click inside it */
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try{ localStorage.setItem('aji-theme', next); }catch(err){}
+    reflect();
+    document.dispatchEvent(new CustomEvent('aji:theme', {detail: next}));
+  });
+
+  /* Somebody who has never touched the switch follows their machine, and keeps
+     following it if they change it while the page is open. */
+  if(window.matchMedia){
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(ev){
+      var saved; try{ saved = localStorage.getItem('aji-theme'); }catch(err){}
+      if(saved === 'dark' || saved === 'light') return;
+      root.setAttribute('data-theme', ev.matches ? 'dark' : 'light');
+      reflect();
+      document.dispatchEvent(new CustomEvent('aji:theme',
+        {detail: ev.matches ? 'dark' : 'light'}));
+    });
+  }
+})();
+</script>
+{# ── the confirmation dialog ────────────────────────────────────────────── #}
+{# One implementation, on every page, for every form that carries a #}
+{# data-confirm. It used to be window.confirm() written out again in the IT #}
+{# shell and in the Exchange — which meant it existed on those two screens and #}
+{# nowhere else. Taqdeer's "Delete this period" carried the attribute and had no #}
+{# handler behind it, so HR deleting a quarter and every nomination in it got no #}
+{# confirmation at all. #}
+{# #}
+{# data-confirm       the sentence to show. Absent or blank submits straight through. #}
+{# data-confirm-title an optional heading; defaults to "Are you sure?" #}
+{# data-confirm-ok    the label on the button that goes ahead #}
+{# data-confirm-kind  "danger" for a destructive action: red, and "Delete" by #}
+{#                    default on the button. Anything else is a neutral ask. #}
+{# A <dialog>, not a div, and this is the whole reason: a dialog opened with #}
+{# showModal() is promoted to the browser's top layer, which paints above the #}
+{# entire normal stacking order — no z-index reaches it. So this panel, a div #}
+{# at z-index 2000, was drawn *underneath* the recognition post whenever it #}
+{# was asked for from inside it. Deleting a comment looked like it did nothing #}
+{# while an invisible question waited behind the post for an answer. Top-layer #}
+{# elements stack in the order they are promoted, so a dialog shown second #}
+{# sits above one already open. #}
+<dialog class="cfm" id="cfm">
+  <div class="cfm-box" id="cfmBox" role="dialog" aria-modal="true" aria-labelledby="cfmT">
+    <span class="cfm-ic" id="cfmIcQ" aria-hidden="true">{% icon "help" 18 %}</span>
+    <span class="cfm-ic danger" id="cfmIcD" aria-hidden="true" hidden>{% icon "alert" 18 %}</span>
+    <b class="cfm-t" id="cfmT"></b>
+    <p class="cfm-m" id="cfmM"></p>
+    {# An optional line from whoever is answering. Only drawn when the thing #}
+    {# being confirmed asks for one — a comment box on a plain "are you sure?" #}
+    {# reads as a field that has to be filled in. #}
+    <label class="cfm-note" id="cfmNoteWrap" hidden>
+      <span id="cfmNoteLabel"></span>
+      <textarea id="cfmNote" rows="3" maxlength="300"></textarea>
+    </label>
+    <div class="cfm-acts">
+      <button type="button" class="btn ghost" id="cfmNo">Cancel</button>
+      <button type="button" class="btn" id="cfmYes"></button>
+    </div>
+  </div>
+</dialog>
+<script>
+(function(){
+  const wrap = document.getElementById('cfm');
+  if(!wrap) return;
+  const title = document.getElementById('cfmT');
+  const msg   = document.getElementById('cfmM');
+  const yes   = document.getElementById('cfmYes');
+  const no    = document.getElementById('cfmNo');
+  const noteWrap  = document.getElementById('cfmNoteWrap');
+  const noteLabel = document.getElementById('cfmNoteLabel');
+  const noteBox   = document.getElementById('cfmNote');
+  /* {form, src, submitter}. src is whatever carried the data-confirm — the
+     form, or one individual button. submitter is the button to press again once
+     the question has been answered. */
+  let pending = null, lastFocus = null;
+
+  function close(){
+    if(wrap.open) wrap.close();
+    pending = null;
+    if(lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  function open(form, src, submitter){
+    pending = {form: form, src: src, submitter: submitter};
+    /* Most confirmations are not deletions — releasing a quarter, reopening
+       nominations, sending something. The first cut of this dialog framed every
+       one of them in red with "Delete" on the button, which is alarming and
+       wrong. Destructive is opt-in, with data-confirm-kind="danger". */
+    const danger = src.dataset.confirmKind === 'danger';
+    document.getElementById('cfmBox').classList.toggle('danger', danger);
+    document.getElementById('cfmIcQ').hidden = danger;
+    document.getElementById('cfmIcD').hidden = !danger;
+    yes.classList.toggle('danger', danger);
+    yes.classList.toggle('y', !danger);
+    title.textContent = src.dataset.confirmTitle
+      || (danger ? 'Are you sure?' : 'Just to confirm');
+    msg.textContent = src.dataset.confirm;
+    yes.textContent = src.dataset.confirmOk || (danger ? 'Delete' : 'Continue');
+    /* data-confirm-note asks for a line to go with the answer. Cleared every
+       time: a box still holding the last request's reason would send it again. */
+    const note = (src.dataset.confirmNote || '').trim();
+    noteWrap.hidden = !note;
+    noteLabel.textContent = note;
+    noteBox.value = '';
+    noteBox.placeholder = src.dataset.confirmNotePlaceholder || '';
+    lastFocus = document.activeElement;
+    if(!wrap.open) wrap.showModal();
+    if(note){
+      /* Where somebody is being asked to write something, the cursor belongs in
+         the box. Enter inside a textarea is a newline, so this does not put the
+         action one keystroke away the way focusing Yes would. */
+      noteBox.focus();
+    } else {
+      /* Cancel takes the focus, not the button that goes ahead: this dialog is
+         almost always in front of something irreversible, and a stray Enter
+         should not be what carries it out. */
+      no.focus();
+    }
+  }
+
+  /* Capture, so a form with its own submit handler still asks first.
+     preventDefault() is not enough on its own. It stops the browser submitting
+     the form; it does not stop anybody else's listener from running, and the
+     recognition dialog has one — a submit handler on the dialog element that
+     posts the form itself with fetch(). So a comment's Delete asked the
+     question and deleted the comment at the same moment, and the dialog was
+     still sitting there, over a comment that had already gone, when the reader
+     closed the post. Nothing else may act on this submit until the question is
+     answered, which is what stopImmediatePropagation buys.
+
+     On the way back through — the Yes button re-submits — this handler sees its
+     own pending form and returns without stopping anything, so the dialog's
+     fetch handler runs then and the delete happens once. */
+  document.addEventListener('submit', function(e){
+    const form = e.target;
+    if(!form.matches || !form.matches('form')) return;
+    /* The attribute may sit on the button rather than the form, and on a form
+       with several submit buttons it has to: the certifications row posts to one
+       action with Publish, Hide and Remove beside each other, and only Remove is
+       worth asking about. This looked at the form alone, so the Remove button's
+       own data-confirm was read by nobody and a certification went the moment
+       it was pressed. */
+    const submitter = e.submitter || null;
+    const src = (submitter && submitter.dataset && submitter.dataset.confirm)
+      ? submitter : form;
+    const text = (src.dataset.confirm || '').trim();
+    if(!text) return;                    /* a conditional attribute, left empty */
+    if(pending && pending.src === src) return;    /* already answered */
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    open(form, src, submitter);
+  }, true);
+
+  yes.addEventListener('click', function(){
+    const p = pending;
+    if(!p) return;
+    if(wrap.open) wrap.close();
+    /* Pressed through the element rather than by calling submit(), so any
+       handler the page has of its own still runs — and the *same* button, not
+       merely the first submit in the form. Clicking the first one would turn a
+       confirmed Remove into a Publish on any row with more than one action. */
+    /* The note travels as a hidden field on the form being submitted, so the
+       view reads it from request.POST like any other input and knows nothing
+       about the dialog. Reused rather than appended each time — asking twice
+       without reloading would otherwise send two values under one name. */
+    if(!noteWrap.hidden){
+      const name = p.src.dataset.confirmNoteName || 'message';
+      let field = p.form.querySelector('input[data-cfm-note]');
+      if(!field){
+        field = document.createElement('input');
+        field.type = 'hidden';
+        field.setAttribute('data-cfm-note', '');
+        p.form.appendChild(field);
+      }
+      field.name = name;
+      field.value = noteBox.value.trim();
+    }
+    const go = p.submitter || p.form.querySelector('[type=submit]');
+    if(go){ go.click(); } else { p.form.submit(); }
+    pending = null;
+  });
+  no.addEventListener('click', close);
+  wrap.addEventListener('click', e => { if(e.target === wrap) close(); });
+  /* Escape belongs to the dialog now. `close` fires however it was dismissed —
+     the button, the backdrop, or Escape — so nothing is left pending. */
+  wrap.addEventListener('close', function(){ pending = null; });
+})();
+</script>
+
+{% block extra_body %}{% endblock %}
+
+{# The icon set, from its own cacheable URL. The stamp is a hash of the icons #}
+{# themselves, so the file is cached for a year and still changes the instant #}
+{# somebody edits one. Not deferred: the scripts below call svgIcon() and this #}
+{# has to be in place first — but it is a cache hit after the first page. #}
+<script src="{% url 'cms_icons_js' %}?v={% icon_json_version %}"></script>
+
+<script>
+
+/* ── NAV ── */
+/* The navigation is rendered by the server from NavItem records. It used to be
+   a hardcoded array here plus a builder that wrote innerHTML, which meant
+   renaming a link needed a template edit and the menu did not exist until the
+   script had run. All that is left is opening the mobile drawer. */
+/* Render a library icon. An unknown name yields an empty string rather than a
+   broken glyph, and callers always have a shape because the server falls back to
+   the built-in one.
+
+   The set itself is loaded from /p/icons.js, above. It used to be written into
+   every page as a 58 KB literal — identical every time, impossible to cache, and
+   re-parsed on every navigation, which made it the largest single thing the Hub
+   sent. Read off window each call rather than captured in a const, so it does not
+   matter whether the script has landed by the time this function is defined. */
+function svgIcon(name, size, stroke, cls){
+  const it = (window.AJI_ICONS || {})[name];
+  if(!it) return '';
+  const s = size || 16;
+  /* An uploaded picture icon is an <img> in the same box as a drawn one, so the
+     two are interchangeable wherever the interface builds its own markup. */
+  if (it.img) {
+    return `<img class="ic-img${cls ? ` ${cls}` : ''}" src="${it.img}" alt="" width="${s}" height="${s}" loading="lazy" decoding="async">`;
+  }
+  const box = it.v || '0 0 24 24';
+  const fill = it.f ? 'currentColor' : 'none';
+  /* Stroke width is scaled to the icon's own grid: a 2px line drawn on a 512
+     grid is invisible, which is what made an uploaded icon look blank. */
+  let w = stroke || it.w || 2;
+  const span = parseFloat(box.split(' ')[2]);
+  if (span && span !== 24) w = Math.round(w * span / 24 * 100) / 100;
+  const st = it.f ? '' : ` stroke="currentColor" stroke-width="${w}"`;
+  return `<svg${cls ? ` class="${cls}"` : ''} width="${s}" height="${s}" viewBox="${box}" fill="${fill}"${st} stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${it.d}</svg>`;
+}
+
+
+document.getElementById('menuBtn')?.addEventListener('click',()=>{
+  const m=document.getElementById('mnav');
+  m.style.display=m.style.display==='block'?'none':'block';
+});
+
+/* ── GLOBAL SEARCH ──
+   The panel used to be hidden whenever there was nothing to show: one letter
+   typed, no matches, or a request still in flight all looked identical to a
+   search box that does nothing. It says which of those it is now, because
+   "nothing found" is an answer and silence is not.
+
+   Enter opens the first result, and the arrow keys walk the list. Before, the
+   box was reachable by keyboard and its results were not. */
+const gs = document.getElementById('gsearch');
+const gres = document.getElementById('gres');
+let searchTimer, searchSeq = 0, searchHits = [], searchAt = -1;
+
+/* One per result type in core/search.py PROVIDERS. A type with no icon here
+   falls back to a bullet rather than disappearing. */
+const SEARCH_ICONS = {place:'🧭',person:'👤',page:'📄',news:'📰',hr:'📣',policy:'📋',
+  document:'🎨',project:'🏗',service:'🧾',community:'🗣',thread:'💬',skill:'⭐',
+  team:'🏢',handbook:'📖',event:'📅',menu:'☕',room:'🚪',wellness:'💚',
+  album:'📷',recognition:'🏅'};
+
+function searchEsc(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function searchNote(text){
+  gres.innerHTML = `<span class="res-note">${searchEsc(text)}</span>`;
+  gres.style.display = 'block';
+  searchHits = []; searchAt = -1;
+}
+
+function searchDraw(results, q, suggestion){
+  searchHits = results; searchAt = -1;
+  // When nothing matched what was typed, say whose spelling these answer.
+  const head = suggestion
+    ? `<span class="res-note">Nothing for “${searchEsc(q)}” — showing `
+      + `<b>${searchEsc(suggestion)}</b></span>` : '';
+  gres.innerHTML = head + results.map((x, i) => `<a href="${searchEsc(x.url)}" data-i="${i}">`
+    + `${SEARCH_ICONS[x.type] || '•'} <span>`
+    + `<span style="display:block;font-weight:600;font-size:13px">${searchEsc(x.label)}</span>`
+    + `<span style="font-size:11px;color:var(--muted)">${searchEsc(x.sub)}</span></span>`
+    + `<span class="k">${searchEsc(x.type)}</span></a>`).join('');
+  gres.style.display = 'block';
+}
+
+function searchMove(step){
+  const links = gres.querySelectorAll('a');
+  if(!links.length) return;
+  searchAt = (searchAt + step + links.length) % links.length;
+  links.forEach((a, i) => a.classList.toggle('on', i === searchAt));
+  links[searchAt].scrollIntoView({block:'nearest'});
+}
+
+gs?.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = gs.value.trim();
+  if(!q){ gres.style.display = 'none'; searchHits = []; return; }
+  if(q.length < 2){ searchNote('Keep typing — two letters or more.'); return; }
+  const mine = ++searchSeq;
+  searchTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(`/search/?q=${encodeURIComponent(q)}`);
+      const d = await r.json();
+      // A slow reply for an old query must not overwrite a newer one.
+      if(mine !== searchSeq) return;
+      if(!d.results.length){ searchNote(`Nothing found for “${q}”.`); return; }
+      searchDraw(d.results, q, d.suggestion || '');
+    } catch (err) {
+      if(mine === searchSeq) searchNote('Search is not answering. Try again.');
+    }
+  }, 250);
+});
+
+gs?.addEventListener('keydown', e => {
+  if(e.key === 'ArrowDown'){ e.preventDefault(); searchMove(1); }
+  else if(e.key === 'ArrowUp'){ e.preventDefault(); searchMove(-1); }
+  else if(e.key === 'Escape'){ gres.style.display = 'none'; gs.blur(); }
+  else if(e.key === 'Enter'){
+    const links = gres.querySelectorAll('a');
+    if(!links.length) return;
+    e.preventDefault();
+    (links[searchAt] || links[0]).click();
+  }
+});
+
+document.addEventListener('click', e=>{if(!e.target.closest('#gsearchWrap'))gres.style.display='none';});
+
+/* ── NOTIFICATIONS ── */
+const bellBtn = document.getElementById('bellBtn');
+const notifPanel = document.getElementById('notifPanel');
+
+const userBtn = document.getElementById('userBtn');
+const userPanel = document.getElementById('userPanel');
+
+/* Two menus in the same corner, each closing the other and each closing on a
+   click anywhere else. `.tnav-notif` and `.tnav-user` are asked for by name:
+   the old handler asked for `.tnav-right`, which is the whole right-hand group,
+   so a click on the avatar or on Logout counted as a click inside the
+   notifications and the panel stayed open. */
+function shutMenus(except){
+  if(notifPanel && except !== 'notif'){
+    notifPanel.classList.remove('show');
+    bellBtn?.setAttribute('aria-expanded','false');
+  }
+  if(userPanel && except !== 'user'){
+    userPanel.classList.remove('show');
+    userBtn?.setAttribute('aria-expanded','false');
+  }
+}
+
+bellBtn?.addEventListener('click',e=>{
+  e.stopPropagation();
+  shutMenus('notif');
+  const open = notifPanel.classList.toggle('show');
+  bellBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if(open) loadNotifs();
+});
+
+userBtn?.addEventListener('click',e=>{
+  e.stopPropagation();
+  shutMenus('user');
+  const open = userPanel.classList.toggle('show');
+  userBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+});
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.tnav-notif') && !e.target.closest('.tnav-user')) shutMenus();
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') shutMenus(); });
+
+/* The empty state, drawn rather than typed. A ✓ in the text took whatever
+   weight the reader's system font gave it and sat on the baseline; this is the
+   same stroked tick the rest of the Hub uses, in a ring. */
+function notifEmpty(msg){
+  return '<div class="notif-empty"><span class="tick">'
+    + '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="m5 13 4 4L19 7"/></svg></span>' + msg + '</div>';
+}
+
+async function loadNotifs(){
+  const r = await fetch('/notifications/');
+  const d = await r.json();
+  const list = document.getElementById('notifList');
+  if(!d.notifications.length){
+    list.innerHTML = notifEmpty("You're all caught up");
+    return;
+  }
+  list.innerHTML = d.notifications.map(n=>`<div class="notif-i${n.read?'':' unread'}" onclick="notifOpen(${n.id}, '${(n.link||'/').replace(/'/g, "\\'")}')">
+    <div style="flex:1"><div style="font-weight:600;font-size:13px">${n.title}</div><div class="muted" style="font-size:11.5px">${n.body}</div></div>
+    <span class="muted" style="font-size:10.5px">${n.created_at}</span>
+  </div>`).join('');
+  const badge = document.getElementById('nBadge');
+  if(badge){badge.textContent=d.unread||'';badge.style.display=d.unread?'flex':'none';}
+}
+
+/* The tab title. One number in brackets, or the page's own name and nothing
+   else. It used to flash "💬 admin" on and off six times whenever a message
+   arrived, which is hard to ignore and tells you nothing you can act on. */
+window.ajiTitle = (function () {
+  const base = document.title;
+  const counts = {chat: 0, bell: 0};
+  function paint() {
+    const n = (counts.chat || 0) + (counts.bell || 0);
+    const wanted = n > 0 ? '(' + (n > 99 ? '99+' : n) + ') ' + base : base;
+    if (document.title !== wanted) document.title = wanted;
+  }
+  return {
+    set: function (key, n) { counts[key] = Math.max(0, n || 0); paint(); },
+    base: base,
+  };
+})();
+
+function setUnreadBadge(count){
+  const badge = document.getElementById('nBadge');
+  if(!badge) return;
+  badge.textContent = count > 0 ? count : '';
+  badge.style.display = count > 0 ? 'flex' : 'none';
+  window.ajiTitle.set('bell', count);
+}
+
+/* The bell, in the background. Two jobs: keep its count honest without anybody
+   opening it, and raise a desktop pop-up for the kinds somebody has asked to be
+   interrupted by — the server decides which those are, because the rule lives
+   with the preferences and not in two places.
+
+   Once a minute, and never while the tab is hidden: this runs for every signed-in
+   person on every page, so it has to be cheap. The chat has its own faster poll
+   for messages; this is for everything else. */
+(function () {
+  const SEEN = 'ajiSeenNotifs';
+  let seen = new Set();
+  try { seen = new Set(JSON.parse(sessionStorage.getItem(SEEN) || '[]')); } catch (e) {}
+  let first = true;
+
+  function remember() {
+    try { sessionStorage.setItem(SEEN, JSON.stringify([...seen].slice(-200))); } catch (e) {}
+  }
+
+  async function tick() {
+    if (document.hidden) return;
+    try {
+      const r = await fetch('/notifications/', {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+      const d = await r.json();
+      setUnreadBadge(d.unread || 0);
+      (d.notifications || []).forEach(n => {
+        const known = seen.has(n.id);
+        seen.add(n.id);
+        // Nothing pops up on the first pass: everything unread would arrive at
+        // once, which is a stack of pop-ups for things somebody already knows.
+        if (first || known || !n.popup) return;
+        if (window.Notification && Notification.permission === 'granted') {
+          const note = new Notification('AJi Hub — ' + n.title,
+            {body: n.body || '', icon: '/static/img/logo.png', tag: 'aji-' + n.id});
+          note.onclick = () => { window.focus(); if (n.link) location.href = n.link; };
+        }
+      });
+      first = false;
+      remember();
+    } catch (e) {}
+  }
+
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+  setInterval(tick, 60000);
+  tick();
+})();
+
+async function notifOpen(id, link){
+  const badge = document.getElementById('nBadge');
+  const current = parseInt(badge?.textContent || '0', 10) || 0;
+  setUnreadBadge(Math.max(0, current - 1));
+  try{
+    const r = await fetch(`/notifications/${id}/read/`, {method:'POST', headers:{'X-CSRFToken':getCookie('csrftoken')}});
+    const d = await r.json();
+    if(typeof d.unread === 'number') setUnreadBadge(d.unread);
+  }catch(e){}
+  location.href = link || '/';
+}
+
+async function markAllRead(){
+  await fetch('/notifications/read/',{method:'POST',headers:{'X-CSRFToken':getCookie('csrftoken')}});
+  document.getElementById('notifList').innerHTML = notifEmpty('All read');
+  setUnreadBadge(0);
+}
+
+/* ── MODAL ── */
+const modalbg = document.getElementById('modalbg');
+modalbg?.addEventListener('click',e=>{if(e.target===modalbg)closeModal();});
+
+/* Clicking anywhere outside a floating panel dismisses it, and Escape closes
+   the top-most one. Launchers are excluded so a click on them still toggles. */
+window.__panelOpenedAt = 0;
+
+/* Where the click *started*, recorded before anything can react to it.
+   Asking closest() in the bubble phase was wrong: a panel that redraws itself
+   when clicked — the chat list does, every time you open a conversation —
+   detaches the element you clicked while the click is still travelling. By the
+   time this handler ran, closest() walked a node no longer in the document and
+   returned null, so opening a chat read as a click outside the panel and shut
+   it. Which is exactly what it did.
+   The chat's floating layers — the image viewer, the emoji picker, the row menu,
+   the reaction bar — have to sit on <body> to escape the panel's overflow, so
+   they are *not* inside #chatWrap. Without counting them, using any of them shut
+   the panel: closing an enlarged image, or picking an emoji, or pressing Pin.
+   They all carry data-chat-layer. */
+let __clickedIn = {chat: false, ask: false};
+document.addEventListener('click', e => {
+  const t = e.target;
+  __clickedIn = {
+    chat: !!(t.closest && (t.closest('#chatWrap') || t.closest('#chatFab')
+                           || t.closest('[data-chat-layer]')
+                           || t.closest('[onclick*="chatToggle"]'))),
+    ask: !!(t.closest && (t.closest('#askWrap') || t.closest('#askFab'))),
+  };
+}, true);   // capture: runs before any handler that might redraw
+
+document.addEventListener('click', e => {
+  // Ignore the very click that opened a panel — chatOpenWith() is triggered
+  // from buttons outside the panel, and that click bubbles to here.
+  if (Date.now() - (window.__panelOpenedAt || 0) < 200) return;
+  if (!__clickedIn.chat && typeof chatClosePanel === 'function') chatClosePanel();
+  if (!__clickedIn.ask && typeof askClosePanel === 'function') askClosePanel();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (typeof askClosePanel === 'function') askClosePanel();
+  if (typeof chatClosePanel === 'function') chatClosePanel();
+});
+function closeModal(){modalbg.classList.remove('show');}
+function openModal(html){
+  document.getElementById('modal').innerHTML=html;
+  modalbg.classList.add('show');
+}
+
+/* ── NOTIFICATIONS ──
+   toast(text, kind) adds one to the stack; kind is '', 'warn' or 'bad'. Each
+   lives three seconds. There used to be one <div> reused for every notice, so a
+   second notification overwrote the first before it had been read; they queue in
+   a stack now and each keeps its own timer.
+
+   showToast is the same function under its other name — both spellings are
+   called from a dozen places across the Hub, and the homepage carried a third
+   copy of its own. */
+const TOAST_MS = 3000;
+
+function toastGo(el){
+  if(el.dataset.going) return;
+  el.dataset.going = '1';
+  clearTimeout(+el.dataset.timer);
+  el.classList.remove('in');
+  el.classList.add('out');
+  /* Removed on the transition rather than on a matching timeout, so the two
+     cannot drift apart; the fallback is for a browser that fires nothing
+     because the element was already hidden. */
+  let done = false;
+  const drop = () => { if(!done){ done = true; el.remove(); } };
+  el.addEventListener('transitionend', drop, {once: true});
+  setTimeout(drop, 600);
+}
+
+function toastHold(el){
+  el.dataset.timer = setTimeout(() => toastGo(el), TOAST_MS);
+  /* Reading stops the clock. Three seconds is enough for a confirmation and
+     short for anything longer, and a notice that vanishes from under the
+     cursor on its way to the dismiss button is its own small insult. */
+  el.addEventListener('mouseenter', () => clearTimeout(+el.dataset.timer));
+  el.addEventListener('mouseleave', () => {
+    if(!el.dataset.going) el.dataset.timer = setTimeout(() => toastGo(el), 1200);
+  });
+}
+
+function toastEnter(el){
+  /* Two frames, not one: the element has to be laid out in its "out" state
+     before the class that transitions away from it is added, or the browser
+     collapses both into the final state and nothing animates. */
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
+  toastHold(el);
+}
+
+function toast(msg, kind){
+  const wrap = document.getElementById('toasts');
+  if(!wrap) return;
+  const el = document.createElement('div');
+  el.className = 'tst' + (kind ? ' ' + kind : '');
+  el.setAttribute('data-toast', '');
+  /* `warning` and not `warning-circle`: the browser's icon set carries the
+     names in use, and warning-circle is only ever written into templates, so
+     svgIcon() has never heard of it and would draw nothing. */
+  const ic = (kind === 'bad' || kind === 'warn') ? 'warning' : 'check-circle';
+  el.innerHTML = '<span class="tst-ic">' +
+    (window.svgIcon ? svgIcon(ic, 16) : '') + '</span>' +
+    '<span class="tst-t"></span>' +
+    '<button type="button" class="tst-x" aria-label="Dismiss">&times;</button>';
+  /* The text goes in as text. A notice often carries something somebody typed. */
+  el.querySelector('.tst-t').textContent = msg;
+  wrap.appendChild(el);
+  toastEnter(el);
+  return el;
+}
+window.toast = toast;
+window.showToast = toast;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const wrap = document.getElementById('toasts');
+  if(!wrap) return;
+  wrap.addEventListener('click', e => {
+    if(e.target.closest('.tst-x')) toastGo(e.target.closest('.tst'));
+  });
+  /* The ones Django rendered into the page. */
+  wrap.querySelectorAll('.tst').forEach(toastEnter);
+});
+
+/* ── AJiAssist ── */
+let askOpen = false;
+function askClosePanel(){
+  if(!askOpen)return;
+  askOpen=false;
+  document.getElementById('askWrap').classList.remove('open');
+}
+
+function askToggle(){
+  askOpen=!askOpen;
+  document.getElementById('askWrap').classList.toggle('open',askOpen);
+  if(askOpen){
+    window.__panelOpenedAt = Date.now();
+    if(typeof chatClosePanel==='function')chatClosePanel();
+    document.getElementById('askInput').focus();
+    const body=document.getElementById('askBody');
+    if(body)setTimeout(()=>{body.scrollTop=body.scrollHeight;},50);
+  }
+}
+
+/* ── Mascot FAB: flap every 10s to draw the eye without being distracting ── */
+setInterval(()=>{
+  const fab=document.getElementById('askFab');
+  if(!fab)return;
+  fab.classList.add('flap');
+  setTimeout(()=>fab.classList.remove('flap'),1000);
+},10000);
+
+function markdownToHtml(md){
+  // Decode stored unicode escapes: \u000A → newline, \u002D → -, etc.
+  md = md.replace(/\\u([0-9a-fA-F]{4})/g, (_,h) => String.fromCharCode(parseInt(h,16)));
+  // Normalise line endings
+  md = md.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // Inline source citations like 【Excerpt 1 | file.docx, Paragraph 1–6】 or [Excerpt ...]:
+  // replace with a sentinel token, re-inserted at the end as a clickable "source" toggle.
+  // (a partially-streamed citation at the end of the text is hidden until complete)
+  const cites=[];
+  const tokenize=m=>{cites.push(m);return '\u0001'+(cites.length-1)+'\u0001';};
+  md = md.replace(/【[^】]*】/g, tokenize).replace(/【[^】]*$/, '');
+  md = md.replace(/\[Excerpt[^\]]*\]/gi, tokenize).replace(/\[Excerpt[^\]]*$/i, '');
+  // Arabic style: (المصدر: leaves.docx، الفقرات 1–6) / (المصادر: ...)
+  md = md.replace(/\(\s*المص(?:در|ادر)[^)]*\)/g, tokenize).replace(/\(\s*المص(?:در|ادر)[^)]*$/, '');
+  // English parenthesized style: (Source: file.docx, Paragraph 1–6)
+  md = md.replace(/\(\s*Sources?\s*:[^)]*\)/gi, tokenize).replace(/\(\s*Sources?\s*:[^)]*$/i, '');
+
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // Split into lines for block-level processing
+  const lines=md.split('\n');
+  const out=[];
+  let i=0;
+
+  while(i<lines.length){
+    const line=lines[i];
+
+    // ── Fenced code block ```
+    if(line.startsWith('```')){
+      const lang=line.slice(3).trim();
+      i++;
+      const codeLines=[];
+      while(i<lines.length&&!lines[i].startsWith('```')){codeLines.push(esc(lines[i]));i++;}
+      i++; // skip closing ```
+      out.push(`<pre style="background:var(--bed);color:#f8f8f2;padding:12px 14px;overflow-x:auto;font-size:12.5px;border-left:3px solid var(--yellow);margin:8px 0"><code>${codeLines.join('\n')}</code></pre>`);
+      continue;
+    }
+
+    // ── Table: detect pipe-separated rows
+    if(line.includes('|')&&line.trim().startsWith('|')){
+      const tableLines=[];
+      while(i<lines.length&&lines[i].includes('|')&&lines[i].trim().startsWith('|')){
+        tableLines.push(lines[i]);i++;
+      }
+      // Remove separator rows (---|---|---)
+      const dataRows=tableLines.filter(r=>!/^\s*\|[-:\s|]+\|\s*$/.test(r));
+      if(dataRows.length){
+        const parseRow=r=>r.replace(/^\||\|$/g,'').split('|').map(c=>inlineMarkdown(c.trim()));
+        const [header,...body]=dataRows;
+        const hCells=parseRow(header);
+        /* Plain markup — the stylesheet dresses it. These rows used to carry
+           inline backgrounds, one of them var(--bg), which is not a token the
+           Hub defines: it resolved to transparent, so every other row showed
+           the thread through. Inline styles also beat any sheet, so the table
+           could not be restyled with the surface it sits on. */
+        let tbl=`<div class="ask-tablewrap"><table>`;
+        tbl+=`<thead><tr>${hCells.map(c=>`<th>${c}</th>`).join('')}</tr></thead>`;
+        if(body.length){
+          tbl+=`<tbody>${body.map(r=>`<tr>${parseRow(r).map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>`;
+        }
+        tbl+=`</table></div>`;
+        out.push(tbl);
+      }
+      continue;
+    }
+
+    // ── Headings
+    const hMatch=line.match(/^(#{1,4})\s+(.*)/);
+    if(hMatch){
+      // A real heading element, not a div wearing inline styles. Those styles
+      // beat the stylesheet, so every heading in an answer looked the same
+      // whatever the sheet said, and a structured reply read as one grey slab.
+      // Levels are shifted down one: the page already owns its <h1>.
+      const level=Math.min(hMatch[1].length+1,6);
+      out.push(`<h${level}>${inlineMarkdown(hMatch[2])}</h${level}>`);
+      i++;continue;
+    }
+
+    // ── Unordered list
+    if(/^[-*+]\s/.test(line)){
+      const items=[];
+      while(i<lines.length&&/^[-*+]\s/.test(lines[i])){
+        items.push(`<li style="margin:3px 0">${inlineMarkdown(lines[i].replace(/^[-*+]\s/,''))}</li>`);i++;
+      }
+      out.push(`<ul style="margin:6px 0;padding-inline-start:20px">${items.join('')}</ul>`);
+      continue;
+    }
+
+    // ── Ordered list
+    if(/^\d+\.\s/.test(line)){
+      const items=[];
+      while(i<lines.length&&/^\d+\.\s/.test(lines[i])){
+        items.push(`<li style="margin:3px 0">${inlineMarkdown(lines[i].replace(/^\d+\.\s/,''))}</li>`);i++;
+      }
+      out.push(`<ol style="margin:6px 0;padding-inline-start:20px">${items.join('')}</ol>`);
+      continue;
+    }
+
+    // ── Horizontal rule
+    if(/^[-*_]{3,}$/.test(line.trim())){
+      out.push('<hr style="border:none;border-top:1px solid var(--line);margin:10px 0">');
+      i++;continue;
+    }
+
+    // ── Quoted passage. Answers quote policy text back at you, and without
+    //    this the "> " arrived as literal punctuation in the middle of a line.
+    if(/^\s*>\s?/.test(line)){
+      const quoted=[];
+      while(i<lines.length&&/^\s*>\s?/.test(lines[i])){
+        quoted.push(inlineMarkdown(lines[i].replace(/^\s*>\s?/,'')));i++;
+      }
+      out.push(`<blockquote>${quoted.join('<br>')}</blockquote>`);
+      continue;
+    }
+
+    // ── Blank line → paragraph break
+    if(line.trim()===''){out.push('<br>');i++;continue;}
+
+    // ── Normal paragraph line
+    out.push('<span>'+inlineMarkdown(line)+'</span><br>');
+    i++;
+  }
+  /* Every paragraph line is emitted with a <br> after it, so an answer always
+     ended in one. Invisible while answers had no box; inside a bubble it is a
+     blank line of padding at the bottom of every reply. Stripped after joining,
+     because the break is glued to the end of the line it follows rather than
+     being an entry of its own. */
+  // Re-insert citations as clickable "source" toggles
+  let html = out.join('').replace(/(?:<br>\s*)+$/, '').replace(/\u0001(\d+)\u0001/g,(_,n)=>{
+    const raw=cites[+n]||'';
+    const c=esc(raw);
+    const label=/[\u0600-\u06FF]/.test(raw)?'المصدر':'source';
+    // --ink-3, not --muted: --muted is tuned to 4.5:1 on the cream paper, and
+    // the thread is the chat's sage now, where it drops to 4.33:1.
+    return `<span class="cite-tog" onclick="var s=this.nextElementSibling;s.style.display=s.style.display==='none'?'inline':'none'" style="cursor:pointer;font-size:10.5px;color:var(--ink-3);font-weight:700;text-decoration:underline;user-select:none;margin:0 2px">${label}</span><span style="display:none;font-size:10.5px;color:var(--ink-3)"><em>${c}</em></span>`;
+  });
+  // RTL layout when the answer is predominantly Arabic (text + tables flow right-to-left)
+  const arCount=(md.match(/[\u0600-\u06FF]/g)||[]).length;
+  const latCount=(md.match(/[A-Za-z]/g)||[]).length;
+  if(arCount>0 && arCount>=latCount){
+    html=`<div dir="rtl" style="text-align:right">${html}</div>`;
+  }
+  return html;
+}
+
+function widenIfTable(el){
+  if(el && el.querySelector('table')) el.classList.add('ask-wide');
+}
+
+function attachMsgToolbar(el){
+  // The toolbar is inserted after the message, so that is where to look for
+  // one already there. Asking inside it never found anything, so re-rendering a
+  // conversation stacked a second row of buttons under every answer.
+  if(!el || el.nextElementSibling?.classList.contains('ask-msg-tools')) return;
+  const hasTable = !!el.querySelector('table');
+  const msgId = el.dataset.msgId;
+  const tools = document.createElement('div');
+  tools.className = 'ask-msg-tools';
+
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'ask-msg-tool-btn';
+  const copyIcon = svgIcon('copy', 11) + ' Copy';
+  const copiedIcon = svgIcon('check-simple', 11) + ' Copied';
+  copyBtn.innerHTML = copyIcon;
+  copyBtn.onclick = function(){
+    const text = el.innerText || el.textContent || '';
+    const done = () => {
+      copyBtn.classList.add('done');
+      copyBtn.innerHTML = copiedIcon;
+      setTimeout(() => {
+        copyBtn.classList.remove('done');
+        copyBtn.innerHTML = copyIcon;
+      }, 1400);
+    };
+    if(navigator.clipboard && window.isSecureContext){
+      navigator.clipboard.writeText(text).then(done).catch(done);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      try { document.execCommand('copy'); } catch(e){}
+      document.body.removeChild(ta);
+      done();
+    }
+  };
+  tools.appendChild(copyBtn);
+
+  if(hasTable && msgId){
+    const xlsBtn = document.createElement('a');
+    xlsBtn.className = 'ask-msg-tool-btn';
+    xlsBtn.href = '/assist/message/' + msgId + '/export/table.xlsx';
+    xlsBtn.innerHTML = svgIcon('file-blank', 11) + ' Export to Excel';
+    tools.appendChild(xlsBtn);
+  }
+
+  el.insertAdjacentElement('afterend', tools);
+}
+
+function inlineMarkdown(s){
+  return s
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/&lt;br\s*\/?\s*&gt;/gi,'<br>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/~~(.+?)~~/g,'<del>$1</del>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" style="color:var(--yellow);text-underline-offset:2px">$1</a>');
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelectorAll('.ask-bot[data-md]').forEach(el=>{
+    el.innerHTML=markdownToHtml(el.dataset.md);
+    el.removeAttribute('data-md');
+    widenIfTable(el);
+    attachMsgToolbar(el);
+  });
+});
+
+/* ── the assistant, driven in whatever container it is asked to run in ──
+   The popup in this file and the full page at /assist/ used to each have their
+   own copy of this: two senders, two markdown paths, two ideas of what a
+   message looks like. Only one of them ever gained the copy button. So the
+   sender takes a context now — which element holds the conversation, which
+   holds the chips, which is the input — and both surfaces pass their own.
+
+   The wire format is unchanged: POST question, read Server-Sent Events, where
+   each line is `data: {json}` carrying either {chunk} or a final
+   {done, sources, msg_id}. */
+window.AJiAssist = (function () {
+
+  function ctxFor(where) {
+    where = where || {};
+    return {
+      body:  where.body  || document.getElementById('askBody'),
+      chips: where.chips || document.getElementById('askChips'),
+      input: where.input || document.getElementById('askInput'),
+      // The panel's welcome block, so asking something clears it the same way
+      // the full page's does. The page passes its own.
+      empty: where.empty || document.getElementById('askHello'),
+    };
+  }
+
+  /* Past messages arrive as raw markdown in data-md so the server never has to
+     render it. Called on load and before each send, since a session can be
+     swapped in underneath. */
+  function hydrate(scope) {
+    (scope || document).querySelectorAll('.ask-bot[data-md]').forEach(el => {
+      el.innerHTML = markdownToHtml(el.dataset.md);
+      el.removeAttribute('data-md');
+      widenIfTable(el);
+      attachMsgToolbar(el);
+    });
+  }
+
+  function bubble(body, cls, html) {
+    const d = document.createElement('div');
+    d.className = 'ask-msg ' + cls;
+    d.innerHTML = html;
+    body.appendChild(d);
+    body.scrollTop = body.scrollHeight;
+    return d;
+  }
+
+  async function send(q, where) {
+    const c = ctxFor(where);
+    if (!c.body) return;
+    hydrate(c.body);
+
+    const question = (q || (c.input && c.input.value) || '').trim();
+    if (!question) return;
+    if (c.input) c.input.value = '';
+    if (c.input && c.input.tagName === 'TEXTAREA') c.input.style.height = '';
+    if (c.chips) c.chips.style.display = 'none';
+    if (c.empty) c.empty.remove();
+
+    bubble(c.body, 'ask-user', escHtml(question));
+    const botDiv = bubble(c.body, 'ask-bot',
+      '<div class="ask-dots"><span></span><span></span><span></span></div>');
+
+    /* A question the knowledge base is slow to answer looks identical to one it
+       has forgotten about. After a few seconds the dots say what they are
+       waiting for; the first streamed chunk clears it. When the model is down
+       the server takes twenty seconds to give up, and twenty seconds of silent
+       dots is how somebody decides the assistant is broken. */
+    const waited = [
+      setTimeout(() => { if (!botDiv.dataset.started) botDiv.querySelector('.ask-dots')
+        ?.insertAdjacentHTML('afterend', '<span class="ask-wait">Looking through AJi’s documents…</span>'); }, 4000),
+      setTimeout(() => { if (!botDiv.dataset.started) { const w = botDiv.querySelector('.ask-wait');
+        if (w) w.textContent = 'Still working — this one is taking longer than usual…'; } }, 12000),
+    ];
+    const stopWaiting = () => {
+      waited.forEach(clearTimeout);
+      botDiv.querySelector('.ask-wait')?.remove();
+    };
+
+    try {
+      const resp = await fetch('/assist/ask/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded',
+                  'X-CSRFToken': getCookie('csrftoken')},
+        body: 'question=' + encodeURIComponent(question),
+      });
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let text = '', lineBuffer = '', sources = [];
+      stopWaiting();
+      botDiv.innerHTML = '';
+      const textSpan = document.createElement('span');
+      botDiv.appendChild(textSpan);
+
+      /* ── Typewriter ─────────────────────────────────────────────────────
+         The answer is revealed word by word, the way Claude's interface
+         does, whatever shape it arrives in. AJi-prop hands the whole answer
+         over as a single SSE chunk (Waitress buffers streaming responses),
+         so painting each chunk as it lands meant the answer appeared all at
+         once. Incoming text goes into a queue instead, and a timer drains
+         it one word at a time — with bigger bites when the backlog is long,
+         so a two-page answer does not take a minute to type. */
+      let pending = '', typing = null;
+      const TICK = 18;                       // ms between reveals
+      /* On the full page c.body is the thread, which grows inside .asst-scroll
+         — scrolling the thread itself moves nothing. Follow the element that
+         actually scrolls, wherever this sender is running. */
+      const scroller = (c.body.closest && c.body.closest('.asst-scroll')) || c.body;
+      function typeStep() {
+        if (!pending) { typing = null; botDiv.classList.remove('typing'); return; }
+        // 1 word per tick normally; catch up proportionally on a big backlog.
+        let words = 1 + Math.floor(pending.length / 400);
+        while (words-- > 0 && pending) {
+          const m = pending.match(/^\s*\S+/);
+          const take = m ? m[0] : pending;
+          text += take;
+          pending = pending.slice(take.length);
+        }
+        textSpan.innerHTML = markdownToHtml(text);
+        widenIfTable(botDiv);
+        scroller.scrollTop = scroller.scrollHeight;
+        typing = setTimeout(typeStep, TICK);
+      }
+      function push(chunk) {
+        pending += chunk;
+        if (!typing) { botDiv.classList.add('typing'); typeStep(); }
+      }
+      // Resolves once every queued word is on screen.
+      function typed() {
+        return new Promise(res => {
+          (function check() {
+            if (!pending && !typing) res(); else setTimeout(check, 40);
+          })();
+        });
+      }
+
+      function processLine(line) {
+        line = line.trim();
+        if (!line || !line.startsWith('data:')) return;
+        try {
+          const d = JSON.parse(line.slice(5).trim());
+          if (d.chunk) {
+            if (!botDiv.dataset.started) { botDiv.dataset.started = '1'; stopWaiting(); }
+            push(d.chunk);
+          }
+          if (d.done) {
+            if (d.sources && d.sources.length) sources = d.sources;
+            if (d.msg_id) botDiv.dataset.msgId = d.msg_id;
+          }
+        } catch (e) { /* keep-alive or a half-arrived line */ }
+      }
+
+      for (;;) {
+        const {done, value} = await reader.read();
+        if (done) { if (lineBuffer.trim()) processLine(lineBuffer); break; }
+        lineBuffer += decoder.decode(value, {stream: true});
+        const lines = lineBuffer.split('\n');
+        lineBuffer = lines.pop();
+        lines.forEach(processLine);
+      }
+
+      /* Sources and the copy toolbar belong under a finished answer, not one
+         still being typed — wait for the queue to drain first. */
+      await typed();
+
+      if (sources.length) {
+        const srcDiv = document.createElement('div');
+        srcDiv.className = 'ask-src';
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'ask-src-t';
+        toggle.textContent = sources.length + ' source' + (sources.length === 1 ? '' : 's');
+        const list = document.createElement('span');
+        list.hidden = true;
+        list.innerHTML = sources.map(s => '<em>' + escHtml(s) + '</em>').join(', ');
+        toggle.onclick = () => { list.hidden = !list.hidden; };
+        srcDiv.appendChild(toggle);
+        srcDiv.appendChild(list);
+        botDiv.appendChild(srcDiv);
+      }
+      if (!text) {
+        textSpan.innerHTML = '<span class="muted">No answer came back. The knowledge base may be offline.</span>';
+      }
+      attachMsgToolbar(botDiv);
+      scroller.scrollTop = scroller.scrollHeight;
+    } catch (e) {
+      stopWaiting();
+      botDiv.innerHTML = '<span class="ask-err">Could not reach AJiAssist. '
+                       + 'The knowledge base may be offline — try again shortly.</span>';
+    }
+  }
+
+  return {send, hydrate, bubble, markdown: markdownToHtml};
+})();
+
+/* The popup's own buttons call this; it is the same sender with the popup's
+   elements filled in. */
+function askSend(q) { return window.AJiAssist.send(q); }
+
+document.getElementById('askInput')?.addEventListener('keydown',e=>{if(e.key==='Enter')askSend();});
+
+/* A suggestion is a question somebody has not had to type. Bound to the panel
+   rather than the document: the full page runs its own [data-ask] handler, and
+   two handlers on one click asks the question twice. */
+document.getElementById('askWrap')?.addEventListener('click', e => {
+  const el = e.target.closest('[data-ask]');
+  if (el) askSend(el.dataset.ask);
+});
+
+/* ── AJiAssist session navigation ── */
+function askShowMain() {
+  document.getElementById('askMain').style.display      = 'flex';
+  document.getElementById('askHistView').style.display  = 'none';
+  document.getElementById('askReplayView').style.display = 'none';
+}
+function askShowHistory() {
+  document.getElementById('askMain').style.display      = 'none';
+  document.getElementById('askHistView').style.display  = 'flex';
+  document.getElementById('askReplayView').style.display = 'none';
+}
+function askLoadSession(sessionPk) {
+  fetch('/assist/session/' + sessionPk + '/')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('askReplayTitle').textContent = data.name || 'Past session';
+      const body = document.getElementById('askReplayBody');
+      body.innerHTML = '';
+      (data.messages || []).forEach(m => {
+        if (m.q) {
+          const uDiv = document.createElement('div');
+          uDiv.className = 'ask-msg ask-user';
+          uDiv.textContent = m.q;
+          body.appendChild(uDiv);
+        }
+        if (m.a) {
+          const bDiv = document.createElement('div');
+          bDiv.className = 'ask-msg ask-bot';
+          bDiv.innerHTML = markdownToHtml(m.a);
+          if (m.id) bDiv.dataset.msgId = m.id;
+          widenIfTable(bDiv);
+          body.appendChild(bDiv);
+          attachMsgToolbar(bDiv);
+        }
+      });
+      body.scrollTop = body.scrollHeight;
+      document.getElementById('askMain').style.display       = 'none';
+      document.getElementById('askHistView').style.display   = 'none';
+      document.getElementById('askReplayView').style.display = 'flex';
+    })
+    .catch(() => {});
+}
+
+
+
+/* ── UTILS ── */
+function getCookie(name){
+  const m=document.cookie.match(new RegExp('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)'));
+  return m?m.pop():'';
+}
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+</script>
+
+{# The emoji picker and the chat engine. After the block above, because the #}
+{# engine draws library icons through svgIcon() as soon as it starts. #}
+{% include 'includes/chat_emoji.html' %}
+{% include 'includes/chat_engine.html' %}
+
+{# The document viewer, on every page rather than only the ones with a PDF #}
+{# today: it opens from any element carrying data-doc, so Policies, the #}
+{# handbook and Brand Files reach it without each shipping its own copy. #}
+<script src="{% static 'js/doc_viewer.js' %}?v={{ asset_version }}" defer></script>
+
+{# Voice calls. On every page for signed-in people, because a call has to be #}
+{# answerable wherever somebody happens to be — unlike the chat popup, which is #}
+{# left out on /messaging/, this is the only call surface there is. #}
+{% if request.user.is_authenticated %}
+  {% include 'includes/chat_calls.html' %}
+{% endif %}
+</body>
+</html>

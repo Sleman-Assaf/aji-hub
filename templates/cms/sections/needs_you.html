@@ -1,0 +1,25 @@
+{# templates/cms/sections/needs_you.html — the personal block. #}
+{% load cms_tags %}
+<div class="sec-head">
+  <h2>{{ section.title|default:"Waiting on you"|aji }}</h2>
+  {% if total %}<span class="ny-count">{{ total }}</span>{% endif %}
+</div>
+<div class="ny">
+  {% for i in items %}
+  <a class="ny-row{% if i.urgent %} urgent{% endif %}" href="{{ i.url }}">
+    <span class="ny-ic">{% icon i.icon 15 %}</span>
+    <span class="ny-b">
+      <span class="ny-t">{{ i.title }}</span>
+      <span class="ny-m">{{ i.meta }}</span>
+    </span>
+    <span class="ny-k">{{ i.kind }}</span>
+  </a>
+  {% empty %}
+  <div class="ny-clear">
+    <span class="ny-clear-ic">{% icon "check" 17 %}</span>
+    <b>You are all clear</b>
+    <span>Nothing is waiting on you right now.</span>
+  </div>
+  {% endfor %}
+  {% if more %}<div class="ny-more">and {{ more }} more</div>{% endif %}
+</div>

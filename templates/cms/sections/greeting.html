@@ -1,0 +1,193 @@
+{# templates/cms/sections/greeting.html — the masthead. #}
+{#                                                                            #}
+{# The greeting, and three readings held to the right of it. Two of the three  #}
+{# open on hover, which is what lets the first screen be a greeting and a row  #}
+{# of tiles rather than a greeting, a row of tiles and three lists nobody has  #}
+{# asked to see yet: the day's agenda used to be a card in the left column and #}
+{# is the middle reading now.                                                  #}
+{#                                                                            #}
+{# The block is self-contained — the greeting word and the clocks come with it. #}
+{# They used to be a script in core/home.html keyed off #htGreet, so the block #}
+{# rendered "Good morning," at four in the afternoon on any other page, and    #}
+{# flashed the wrong word for a frame even on the homepage. The word is decided #}
+{# by the provider now.                                                        #}
+{% load cms_tags %}
+<header class="home-top hero-top">
+  {# No wash any more: the yellow pool that used to tint this panel cream is #}
+  {# gone, and the brand accent is the short rule before the date instead. The #}
+  {# element stays because the greeting's animation positions against it. #}
+  {# Nothing here moves — the greeting is the only thing on this panel that #}
+  {# does, and it moves once. See includes/hero_fx.html. #}
+  <div class="hero-wash" aria-hidden="true"></div>
+
+  <div class="ht-main">
+    <div class="ht-say">
+      <div class="ht-eyebrow">
+        {% now "l, j F" %}<span class="ht-sep">&middot;</span><span id="htNow">&nbsp;</span>
+      </div>
+      {# The short form of the name. A masthead that addresses somebody by their #}
+      {# full legal name reads like a letter from payroll. #}
+      <h1 class="ht-name">
+        <span class="ht-greet" id="htGreet">{{ greet_word|default:"Hello," }}</span>
+        {{ first_name|default:"there" }}.
+      </h1>
+    </div>
+
+    {# ── the three readings ── #}
+    <div class="ht-reads">
+
+      {# 1 · clocked in. The label sat over a live wall clock for as long as    #}
+      {# this header has existed: a number the reader can already see in their  #}
+      {# taskbar, presented as a fact about their working day. There is no      #}
+      {# attendance system in the Hub to ask, so it reads the sign-in off the   #}
+      {# session — and on a day it cannot (a browser left open overnight keeps  #}
+      {# the session but not today's login) it says so under its own name,      #}
+      {# rather than showing a figure that is wrong.                           #}
+      {% if not section|cfg:"hide_clock" %}
+      <div class="htr">
+        <span class="htr-ic">{% icon "clock" 16 %}</span>
+        <span class="htr-b">
+        {% if clocked_in %}
+          <span class="htr-l">In since <b>{{ clocked_in|time:"H:i" }}</b></span>
+          <span class="htr-s" id="htElapsed" data-elapsed="{{ clocked_secs }}">
+            <span id="htElapsedV">&mdash;</span>
+            <span class="htr-dot">&middot;</span>{{ section.subtitle|default:"AJi Jordan Office" }}
+          </span>
+        {% else %}
+          <span class="htr-l">It is <b id="htWall">&mdash;</b></span>
+          <span class="htr-s">{{ section.subtitle|default:"AJi Jordan Office" }}</span>
+        {% endif %}
+        </span>
+      </div>
+      {% endif %}
+
+      {# 2 · my workspace. Today's own agenda, and AJi's events kept under it   #}
+      {# rather than mixed into it: a town hall and a one-to-one are not the    #}
+      {# same kind of thing, and one merged list made the reader work out which #}
+      {# was which from the title.                                             #}
+      <div class="htr htr-pop{% if day_events or week_events %} has-pop{% endif %}"
+           {% if day_events or week_events %}tabindex="0" aria-haspopup="true"{% endif %}>
+        <span class="htr-ic">{% icon "calendar" 16 %}</span>
+        <span class="htr-b">
+          <span class="htr-l">
+            {% if day_count %}<b>{{ day_count }}</b> thing{{ day_count|pluralize }} on today{% else %}Nothing on today{% endif %}
+          </span>
+          <span class="htr-s">
+            {% if week_count %}{{ week_count }} this week{% else %}and a clear week{% endif %}
+          </span>
+        </span>
+
+        {% if day_events or week_events %}
+        <div class="ht-pop" role="dialog" aria-label="Your workspace">
+          <div class="ht-pop-h">
+            <b>Today</b>
+            <a href="/calendar/">Calendar &rarr;</a>
+          </div>
+          <div class="ht-pop-list">
+            {% for e in day_events %}
+            <a class="wsr{% if e.is_over %} done{% endif %}" href="/calendar/">
+              <span class="wsr-t">{{ e.time_range|default:"All day" }}</span>
+              <span class="wsr-b">
+                <span class="wsr-n">{{ e.title }}</span>
+                {% if e.location %}<span class="wsr-m">{{ e.location }}</span>{% endif %}
+              </span>
+            </a>
+            {% empty %}
+            <div class="wsr-none">Nothing on your calendar today.</div>
+            {% endfor %}
+          </div>
+
+          {% if week_events %}
+          <div class="ht-pop-h sep">
+            <b>Official events</b>
+            <span>next seven days</span>
+          </div>
+          <div class="ht-pop-list">
+            {% for e in week_events %}
+            <a class="wsr off" href="/calendar/">
+              <span class="wsr-d">
+                <span class="m">{{ e.date|date:"M"|upper }}</span>
+                <span class="n">{{ e.date|date:"j" }}</span>
+              </span>
+              <span class="wsr-b">
+                <span class="wsr-n">{{ e.title }}</span>
+                <span class="wsr-m">{{ e.get_event_type_display }}{% if e.time %} &middot; {{ e.time|time:"H:i" }}{% endif %}{% if e.location %} &middot; {{ e.location }}{% endif %}</span>
+              </span>
+            </a>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      {# 3 · birthdays. The card is rendered inline rather than fetched: the    #}
+      {# people are already in this context, and a popover that has to wait for #}
+      {# a request feels broken on a hover.                                     #}
+      <div class="htr htr-pop{% if birthday_people %} has-pop{% endif %}"
+           {% if birthday_people %}tabindex="0" aria-haspopup="true"{% endif %}>
+        <span class="htr-ic">{% icon "cake" 16 %}</span>
+        <span class="htr-b">
+        {% if birthday_people %}
+          <span class="htr-l"><b>{{ birthday_count }}</b> birthday{{ birthday_count|pluralize }} {{ birthday_when }}</span>
+          <span class="htr-s">
+            <span class="bd-stack">
+              {% for p in birthday_people|slice:":3" %}
+              <span class="bd-chip" title="{{ p.full_name }}">
+                {% if p.photo %}<img src="{{ p.photo.url }}" alt="">{% else %}{{ p.initials }}{% endif %}
+              </span>
+              {% endfor %}
+            </span>
+            {{ birthday_people.0.full_name }}{% if birthday_count > 1 %} and {{ birthday_count|add:"-1" }} more{% endif %}
+          </span>
+
+        <div class="ht-pop" role="dialog" aria-label="Birthdays {{ birthday_when }}">
+          <div class="ht-pop-h">
+            <b>{{ birthday_count }} birthday{{ birthday_count|pluralize }} {{ birthday_when }}</b>
+            {# Says why there is nothing to press on a day that has not arrived. #}
+            <span>{% if birthday_when == 'tomorrow' %}Wishes open tomorrow{% else %}{% now "j F" %}{% endif %}</span>
+          </div>
+          <div class="ht-pop-list">
+            {% for p in birthday_people %}
+            <div class="bd-row" data-name="{{ p.full_name }}">
+              <span class="bd-av">
+                {% if p.photo %}<img src="{{ p.photo.url }}" alt="">{% else %}{{ p.initials }}{% endif %}
+              </span>
+              <span class="bd-who">
+                <b>{{ p.full_name }}</b>
+                <i>{{ p.role|default:"" }}{% if p.entity %} &middot; {{ p.entity.name }}{% endif %}</i>
+              </span>
+              {# Only on the day itself. A wish that arrives the evening before #}
+              {# reads as having got the date wrong, so tomorrow's list is a #}
+              {# heads-up and nothing more. #}
+              {% if birthday_when == 'today' %}
+                {% if p.user_id %}
+                <button type="button" class="bd-send" data-user="{{ p.user_id }}">Send wishes</button>
+                {% else %}
+                <span class="bd-nochat" title="This person has no Hub account to message">No account</span>
+                {% endif %}
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% else %}
+          <span class="htr-l">No birthdays</span>
+          <span class="htr-s">today or tomorrow</span>
+        {% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+</header>
+
+{% include 'includes/hero_fx.html' %}
+
+{% if birthday_when == 'today' %}
+{# The wish opens the shared dialog so it can be edited before it goes. The #}
+{# whole send used to live here and fired a fixed sentence on the first press, #}
+{# while the birthdays block below let you write your own — the same wish to #}
+{# the same person behaved differently depending on where you pressed it. #}
+{# The .bd-send buttons above need no wiring: the dialog listens for them. #}
+{% include 'includes/birthday_wish_js.html' %}
+{% endif %}

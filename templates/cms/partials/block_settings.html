@@ -1,0 +1,239 @@
+{# templates/cms/partials/block_settings.html — the drawer for one block. #}
+{# Only the fields that matter for this block type are shown, which is what #}
+{# "per-template editors" means in practice: a columns row gets a layout #}
+{# picker, a live-data block gets a row limit, a tile strip gets its tiles. #}
+{% load cms_tags %}
+
+{% if section.is_row %}
+<div>
+  <span style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:var(--sp-2)">Column layout</span>
+  <div class="ed-lay">
+    {% for lay in layouts %}
+    <button type="button" class="{% if section.layout == lay.value %}on{% endif %}"
+            title="{{ lay.label }}" onclick="edSetLayout({{ section.pk }},'{{ lay.value }}')">
+      <i style="grid-auto-flow:column;grid-template-columns:{{ lay.tracks }}">
+        {% for b in lay.bars %}<s></s>{% endfor %}
+      </i>
+      {{ lay.value }}
+    </button>
+    {% endfor %}
+  </div>
+</div>
+<label class="ed-f" style="display:flex;align-items:flex-start;gap:var(--sp-2)">
+  <input type="checkbox" name="equal_height" {% if section.equal_height %}checked{% endif %}
+         style="width:auto;margin-top:3px">
+  <span style="margin:0;text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--ink-2)">
+    Make every column end at the same height
+  </span>
+</label>
+{% endif %}
+
+{% if not section.is_row %}
+<label class="ed-f"><span>Heading</span>
+  <input type="text" name="title" value="{{ section.title }}"
+         placeholder="Leave empty to hide the heading">
+</label>
+{# The image comes from the media library, so the same picture is uploaded #}
+{# and described once however many pages use it. #}
+<label class="ed-f"><span>Image</span>
+  <input type="text" name="image_asset" value="{{ section.image_asset_id|default:'' }}"
+         data-media-field placeholder="Click to choose or upload">
+</label>
+
+{# data-icon-field turns any input into the shared picker, including this one, #}
+{# which the drawer inserts long after the page loaded. #}
+<label class="ed-f"><span>Icon</span>
+  <input type="text" name="icon" value="{{ section.icon }}" data-icon-field
+         placeholder="Click to choose">
+</label>
+{% endif %}
+
+{% if replacement %}
+{# Retired: still rendered so the page is unchanged, but no longer offered. #}
+<p class="ed-retired">
+  <b>There is a newer version of this block.</b>
+  <span>{{ replacement.label }} does the same thing and can be edited on the
+  page. This one keeps working — swap it when convenient.</span>
+</p>
+{% endif %}
+
+{% if section.type == 'image' %}
+<label class="ed-f"><span>Caption</span>
+  <input type="text" name="subtitle" value="{{ section.subtitle }}"
+         placeholder="Optional, shown under the picture">
+</label>
+<label class="ed-f"><span>Width</span>
+  <select name="cfg_width">
+    {% with w=section|cfg:'width' %}
+    <option value="" {% if not w %}selected{% endif %}>Full width of its column</option>
+    <option value="half" {% if w == 'half' %}selected{% endif %}>Half width</option>
+    {% endwith %}
+  </select>
+</label>
+<p class="muted" style="font-size:11.5px;line-height:1.5;margin:0">
+  The description read aloud by a screen reader belongs to the picture itself and
+  is set once in the media library, so every page using it stays described.
+</p>
+{% endif %}
+
+{% if section.type == 'callout' %}
+<label class="ed-f"><span>Tone</span>
+  <select name="cfg_tone">
+    {% with t=section|cfg:'tone' %}
+    <option value="" {% if not t %}selected{% endif %}>Plain</option>
+    <option value="info" {% if t == 'info' %}selected{% endif %}>Information</option>
+    <option value="warn" {% if t == 'warn' %}selected{% endif %}>Warning</option>
+    <option value="ok" {% if t == 'ok' %}selected{% endif %}>Positive</option>
+    {% endwith %}
+  </select>
+</label>
+{% endif %}
+
+{% if section.type == 'feature' %}
+<label class="ed-f"><span>Which feature</span>
+  <select name="cfg_widget">
+    {% for value, label in widget_choices %}
+    <option value="{{ value }}" {% if section|cfg:'widget' == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+</label>
+
+{% if feature_locked %}
+{# The four that are applications: a calendar grid, an order form, a search, an #}
+{# approval chain. Everything else used to say this too, which is most of what #}
+{# "the whole site is locked" meant in practice. #}
+<p class="muted" style="font-size:11.5px;line-height:1.5;margin:0">
+  This one is a working part of the Hub rather than content. It can be moved,
+  retitled and put in a column, but its inside is not editable — that keeps a
+  page arrangement from breaking the application on it.
+</p>
+{% else %}
+<p class="muted" style="font-size:11.5px;line-height:1.5;margin:0">
+  A content panel. Move it, rename its headings, put it in a column, hide it or
+  remove it like any other block.
+</p>
+
+{% if feature_labels %}
+{# Folded away by default. A panel like People &amp; Culture declares 29 of #}
+{# these, and a wall of 29 boxes above everything else is not a settings #}
+{# panel, it is a form nobody reads. #}
+<details class="ed-fold">
+  <summary>Wording <i>{{ feature_labels|length }}</i></summary>
+  <p class="muted ed-fold-note">
+    Quicker on the page: click any of these words and type. This list is here
+    for the ones that only show on an empty state, which you cannot click.
+  </p>
+  {% for f in feature_labels %}
+  {% if f.rich %}
+  {# Markup, not a sentence. A one-line box showed the reader raw HTML. #}
+  <div class="ed-f ed-onpage">
+    <span>{{ f.hint }}</span>
+    <button type="button" onclick="edFindText('{{ f.key }}')">
+      Edit this on the page &rarr;
+    </button>
+  </div>
+  {% else %}
+  <label class="ed-f"><span>{{ f.hint }}</span>
+    <input type="text" name="txt_{{ f.key }}" value="{{ f.value }}" maxlength="400">
+  </label>
+  {% endif %}
+  {% endfor %}
+</details>
+{% endif %}
+
+{% if feature_records %}
+<div style="border-top:1px solid var(--line);padding-top:var(--sp-3)">
+  <a href="{{ feature_records.url }}" class="btn ghost sm" target="_blank" rel="noopener"
+     style="width:100%;text-align:center">{{ feature_records.label }} &rarr;</a>
+  <p class="muted" style="font-size:11.5px;line-height:1.5;margin-top:var(--sp-2)">
+    What this panel lists is kept as records, so it stays right everywhere it
+    appears rather than being typed in twice.
+  </p>
+</div>
+{% endif %}
+{% endif %}
+{% endif %}
+
+{% if section.type == 'page_head' %}
+<label class="ed-f"><span>Eyebrow</span>
+  <input type="text" name="cfg_eyebrow" value="{{ section|cfg:'eyebrow' }}">
+</label>
+<label class="ed-f"><span>Intro</span>
+  <textarea name="subtitle" rows="3">{{ section.subtitle }}</textarea>
+</label>
+{% endif %}
+
+{% if section.type == 'greeting' or section.type == 'agenda' %}
+<label class="ed-f"><span>{% if section.type == 'greeting' %}Office / location{% else %}Panel label{% endif %}</span>
+  <input type="text" name="subtitle" value="{{ section.subtitle }}">
+</label>
+{% endif %}
+
+{% if section.type == 'rich_text' or section.type == 'announcement' or section.type == 'custom_html' or section.type == 'callout' %}
+<label class="ed-f"><span>Content</span>
+  <textarea name="body" rows="8">{{ section.body }}</textarea>
+</label>
+{% endif %}
+
+{% if data_driven and section.type != 'greeting' %}
+<label class="ed-f"><span>Rows to show</span>
+  <input type="number" name="cfg_limit" min="1" max="24"
+         value="{{ section|cfg:'limit'|default:3 }}">
+</label>
+{% endif %}
+
+{% if section.type == 'text_stats' or section.type == 'value_cards' or section.type == 'icon_tiles' or section.type == 'page_head' %}
+{# Rows are the content of these blocks: the statistics, the values, the tiles, #}
+{# or the header's primary actions. Each is editable here and on the page. #}
+<div>
+  <span style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:var(--sp-2)">
+    {% if section.type == 'page_head' %}Header actions{% elif section.type == 'text_stats' %}Statistics{% elif section.type == 'value_cards' %}Values{% else %}Tiles{% endif %}
+  </span>
+  {% include 'cms/partials/_item_rows.html' with with_icon=1 with_url=1 add_label=row_word empty_label="Nothing yet." %}
+  <p class="muted" style="font-size:11.5px;line-height:1.5;margin-top:var(--sp-2)">
+    Labels can also be typed straight on the page.
+  </p>
+</div>
+{% endif %}
+
+{% if section.type == 'text_stats' or section.type == 'value_cards' or section.type == 'icon_tiles' %}
+<label class="ed-f"><span>Columns</span>
+  <input type="number" name="cfg_columns" min="1" max="6"
+         value="{{ section|cfg:'columns'|default:4 }}">
+</label>
+{% endif %}
+
+{% if section.type == 'link_tiles' %}
+<label class="ed-f"><span>Tiles per row</span>
+  <input type="number" name="cfg_columns" min="2" max="8" value="{{ section|cfg:'columns'|default:6 }}">
+</label>
+<div>
+  <span style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:var(--sp-2)">Tiles</span>
+  {% include 'cms/partials/_item_rows.html' with with_icon=1 with_url=1 with_meta=1 add_label="a tile" empty_label="No tiles yet." meta_placeholder="Second line, e.g. Self-service" %}
+  <p class="muted" style="font-size:11.5px;line-height:1.5;margin-top:var(--sp-2)">
+    Tile labels can also be typed straight on the page.
+  </p>
+</div>
+{% endif %}
+
+{% if not section.is_row and section.type != 'image' %}
+<label class="ed-f"><span>Link (top right of the heading)</span>
+  <input type="text" name="cfg_link_url" value="{{ section|cfg:'link_url' }}" placeholder="/news/">
+</label>
+<label class="ed-f"><span>Link label</span>
+  <input type="text" name="cfg_link_label" value="{{ section|cfg:'link_label' }}" placeholder="All news">
+</label>
+{% endif %}
+
+<label class="ed-f"><span>Who can see this block</span>
+  <select name="audience">
+    {% for value, label in audiences %}
+    <option value="{{ value }}" {% if section.audience == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+</label>
+
+<div style="border-top:1px solid var(--line);padding-top:var(--sp-4);display:flex;gap:var(--sp-2)">
+  <a href="{% url 'cms_section_edit' section.page.slug section.pk %}" class="btn ghost sm"
+     style="flex:1;text-align:center">Full section form</a>
+</div>

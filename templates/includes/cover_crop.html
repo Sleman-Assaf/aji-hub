@@ -1,0 +1,154 @@
+{# templates/includes/cover_crop.html #}
+{# Shared cover-framing dialog. Was duplicated verbatim in news_form.html and #}
+{# hr_form.html; this is the single copy. #}
+{# The including page must provide: #}
+{#   #coverFile      file input (hidden, onchange="cmOpen(this)") #}
+{#   #coverPreview   container the accepted framing is drawn into #}
+{#   #coverCropped   hidden input for the data URL #}
+{#   #coverFilename  hidden input for the original filename #}
+{#   #coverRecrop    optional "Reframe" button #}
+{# Pass the target size with: {% include ... with cover_w=1600 cover_h=900 %} #}
+{% load static %}
+<link rel="stylesheet" href="{% static 'vendor/cropperjs/cropper.min.css' %}">
+<script src="{% static 'vendor/cropperjs/cropper.min.js' %}"></script>
+<style>
+.cm-stage{width:100%;height:min(52vh,380px);background:var(--paper-3)}
+.cm-stage img{max-width:100%;display:block}
+.cm-tools{display:flex;align-items:center;gap:14px;margin-top:14px;flex-wrap:wrap}
+.cm-zoom{display:flex;align-items:center;gap:8px;flex:1;min-width:190px;font-size:12px;color:var(--muted)}
+.cm-zoom input{flex:1}
+.cm-btn{border:1px solid var(--line-2);background:var(--paper-2);font-family:inherit;font-size:12.5px;
+  font-weight:600;padding:7px 11px;cursor:pointer}
+.cm-btn:hover{border-color:var(--ink)}
+</style>
+
+<div class="ovl" id="cmBg" onclick="cmCancel()"></div>
+<div class="dlg" id="cm" role="dialog" aria-modal="true" aria-labelledby="cmHead">
+  <div class="dlg-head">
+    <div>
+      <h3 id="cmHead">Frame the cover</h3>
+      <p class="muted" style="font-size:12.5px;margin:0">Drag to reposition, zoom to fit.
+         The shaded area is what readers will see.</p>
+    </div>
+    <button type="button" class="dlg-x" onclick="cmCancel()" aria-label="Close">&times;</button>
+  </div>
+
+  <div class="cm-stage"><img id="cmImg" alt=""></div>
+
+  <div class="cm-tools">
+    <label class="cm-zoom" for="cmZoom">Zoom
+      <input type="range" id="cmZoom" min="0" max="1" step="0.01" value="0" oninput="cmZoomTo(this.value)">
+    </label>
+    <button type="button" class="cm-btn" onclick="cmRotate(-90)">Rotate ↺</button>
+    <button type="button" class="cm-btn" onclick="cmRotate(90)">Rotate ↻</button>
+    <button type="button" class="cm-btn" onclick="cmReset()">Reset</button>
+  </div>
+
+  <div class="dlg-acts">
+    <button type="button" class="btn y" onclick="cmApply()">Use this framing</button>
+    <button type="button" class="btn ghost" onclick="cmCancel()">Cancel</button>
+  </div>
+</div>
+
+<script>
+var COVER_W = {{ cover_w|default:1600 }}, COVER_H = {{ cover_h|default:900 }};
+var cmInst = null, cmFile = null, cmLastUrl = null;
+
+function cmEl(id) { return document.getElementById(id); }
+
+function cmOpen(input) {
+  if (!input.files || !input.files[0]) return;
+  cmFile = input.files[0];
+  var reader = new FileReader();
+  reader.onload = function (e) { cmStart(e.target.result); };
+  reader.readAsDataURL(cmFile);
+}
+
+/* Reopen on the image already chosen, so framing can be redone without
+   picking the file again. */
+function cmReopen() { if (cmLastUrl) cmStart(cmLastUrl); }
+
+function cmStart(dataUrl) {
+  cmLastUrl = dataUrl;
+  var img = cmEl('cmImg');
+  if (cmInst) { cmInst.destroy(); cmInst = null; }
+  img.src = dataUrl;
+  cmEl('cmBg').classList.add('on');
+  cmEl('cm').classList.add('on');
+  img.onload = function () {
+    cmInst = new Cropper(img, {
+      aspectRatio: COVER_W / COVER_H,
+      viewMode: 1, dragMode: 'move', autoCropArea: 1,
+      background: false, restore: false
+    });
+    cmEl('cmZoom').value = 0;
+  };
+}
+
+function cmZoomTo(v) { if (cmInst) cmInst.zoomTo(0.1 + parseFloat(v) * 2.9); }
+function cmRotate(d) { if (cmInst) cmInst.rotate(d); }
+function cmReset() { if (cmInst) { cmInst.reset(); cmEl('cmZoom').value = 0; } }
+
+function cmClose() {
+  cmEl('cmBg').classList.remove('on');
+  cmEl('cm').classList.remove('on');
+  if (cmInst) { cmInst.destroy(); cmInst = null; }
+}
+
+function cmCancel() {
+  cmClose();
+  /* Drop a pending file choice when no framing was ever accepted. */
+  if (!cmEl('coverCropped').value) {
+    cmEl('coverFile').value = '';
+    cmFile = null; cmLastUrl = null;
+  }
+}
+
+function cmApply() {
+  if (!cmInst) return;
+  var canvas = cmInst.getCroppedCanvas({
+    width: COVER_W, height: COVER_H, imageSmoothingQuality: 'high'
+  });
+  if (!canvas) return;
+  var url = canvas.toDataURL('image/jpeg', 0.9);
+  cmEl('coverCropped').value = url;
+  cmEl('coverFilename').value = cmFile ? cmFile.name : 'cover.jpg';
+
+  var box = cmEl('coverPreview');
+  box.innerHTML = '';
+  var img = document.createElement('img');
+  img.src = url;
+  img.alt = '';
+  img.className = box.dataset.imgClass || '';
+  box.appendChild(img);
+
+  var recrop = cmEl('coverRecrop');
+  if (recrop) recrop.style.display = '';
+  var clear = cmEl('coverClear');
+  if (clear) clear.style.display = '';
+  cmClose();
+}
+
+/* Clear the cover entirely. Optional #removeImage tells the view to delete the
+   stored file; forms without that field simply skip it. */
+function coverRemove() {
+  cmEl('coverCropped').value = '';
+  cmEl('coverFilename').value = '';
+  cmEl('coverFile').value = '';
+  var flag = cmEl('removeImage');
+  if (flag) flag.value = 'on';
+  cmFile = null; cmLastUrl = null;
+
+  var box = cmEl('coverPreview');
+  box.innerHTML = '<div class="' + (box.dataset.emptyClass || '') + '" ' +
+    'style="font-size:12px;color:var(--muted);text-align:center;padding:14px">' +
+    'No cover.<br>Covers are shown at 16:9.</div>';
+
+  var recrop = cmEl('coverRecrop');
+  if (recrop) recrop.style.display = 'none';
+  var clear = cmEl('coverClear');
+  if (clear) clear.style.display = 'none';
+}
+
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cmCancel(); });
+</script>

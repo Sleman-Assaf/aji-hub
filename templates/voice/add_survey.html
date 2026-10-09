@@ -1,0 +1,45 @@
+{# templates/voice/add_survey.html #}
+{% extends 'base.html' %}
+{% block title %}Add Survey — AJi Hub{% endblock %}
+{% block content %}
+<a href="/people-culture/?tab=voice" class="ctx-back" title="People &amp; Culture"><span class="ctx-back-lab">People &amp; Culture</span></a>
+
+<div class="page-head">
+  <div class="eyebrow">My Voice</div>
+  <h1>Add a Survey</h1>
+  <p>Publish a survey to the My Voice tab. Everyone at <span class="kc">AJi</span> sees it until it closes.</p>
+</div>
+
+<div class="card rise" style="max-width:640px">
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="field" style="margin-bottom:15px">
+      <label for="s-title">Survey title</label>
+      <input id="s-title" type="text" name="title" required maxlength="300"
+             placeholder="e.g. Q3 Employee Engagement Survey"
+             style="width:100%;border:1px solid var(--line-2);padding:10px 12px;font-family:inherit;font-size:15px;outline:none">
+    </div>
+
+    <div class="field" style="margin-bottom:15px">
+      <label for="s-url">Survey link</label>
+      <input id="s-url" type="url" name="url" required
+             placeholder="https://forms.office.com/…"
+             style="width:100%;border:1px solid var(--line-2);padding:10px 12px;font-family:inherit;font-size:14px;outline:none">
+      <div class="muted" style="font-size:12px;margin-top:5px">Full URL, including https://</div>
+    </div>
+
+    <div class="field" style="margin-bottom:15px">
+      <label for="s-closes">Closes on</label>
+      <input id="s-closes" type="date" name="closes_on" required
+             style="width:100%;max-width:220px;border:1px solid var(--line-2);padding:10px 12px;font-family:inherit;font-size:14px;outline:none">
+      <div class="muted" style="font-size:12px;margin-top:5px">The survey stops appearing after this date.</div>
+    </div>
+
+    <div class="f-foot">
+      <button type="submit" class="btn y">Publish survey</button>
+      <a href="/people-culture/?tab=voice" class="btn ghost">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

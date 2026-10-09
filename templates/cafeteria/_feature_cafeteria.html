@@ -1,0 +1,205 @@
+{% load cms_tags %}
+{# cafeteria/_feature_cafeteria.html — the working part of Cafeteria, as a locked feature block. #}
+{# Lifted verbatim from cafeteria/home.html when that page became builder-driven, so #}
+{# it renders the same markup with the same context as before. Its styles #}
+{# travel with it, which is what lets the feature be placed in a column. #}
+
+{# The primary actions that were here are rows on the page heading block #}
+{# now, so they render inside the header and are editable in the CMS. The #}
+{# </div> that used to close their wrapper was left behind, and since a #}
+{# feature renders inside .cms-block it was closing that instead -- ejecting #}
+{# this whole panel out of its own block, where nothing could select it. #}
+
+<div class="cf-layout rise">
+
+  {# ── Menu ── #}
+  <div>
+    <div class="cf-toolbar">
+      <div class="cf-search">
+        {% icon "search-round" 15 2 %}
+        <input id="cfSearch" placeholder="Search the menu…" oninput="filterMenu()">
+      </div>
+    </div>
+
+    <div class="cf-chips" id="cfChips">
+      <button class="cf-chip on" data-cat="all" onclick="pickCat(this)">All</button>
+      {% for cat in categories %}
+      <button class="cf-chip" data-cat="{{ cat.pk }}" onclick="pickCat(this)">{{ cat.name }}</button>
+      {% endfor %}
+    </div>
+
+    <div class="cf-grid" id="cfGrid">
+      {% for cat in categories %}{% for item in cat.items.all %}{% if item.is_active %}
+      <div class="cf-card" data-cat="{{ cat.pk }}" data-name="{{ item.name|lower }} {{ item.description|lower }}" id="card-{{ item.pk }}">
+        {% if item.image %}<img src="{{ item.image.url }}" alt="{{ item.name }}" loading="lazy">{% else %}<div class="noimg"></div>{% endif %}
+        <div class="cf-body">
+          <div class="cf-name">{{ item.name }}</div>
+          {% if item.description %}<div class="cf-desc">{{ item.description }}</div>{% endif %}
+          <div class="cf-foot">
+            <span class="cf-price">{{ item.price }} <small>JD</small></span>
+            <button class="cf-add" onclick="addToCart({{ item.pk }},'{{ item.name|escapejs }}',{{ item.price }})">Add</button>
+            <span class="cf-step">
+              <button onclick="changeQty({{ item.pk }},-1)">−</button>
+              <b id="qty-{{ item.pk }}">1</b>
+              <button onclick="changeQty({{ item.pk }},1)">+</button>
+            </span>
+          </div>
+        </div>
+      </div>
+      {% endif %}{% endfor %}{% endfor %}
+    </div>
+    <div id="cfNoResults" style="display:none;padding:40px;text-align:center;color:var(--muted)">Nothing on the menu matches your search.</div>
+  </div>
+
+  {# ── Order ticket ── #}
+  <div class="cf-ticket">
+    <div class="cf-ticket-head">
+      <b>YOUR ORDER</b>
+      <span class="cf-count" id="cfCount">0</span>
+    </div>
+    <div class="cf-lines" id="cartLines">
+      <div class="cf-empty">Your tray is empty.<br>Tap <b>Add</b> on anything you fancy.</div>
+    </div>
+    <div class="cf-total" id="cartTotal" style="display:none">
+      <span>Total</span><span id="cartTotalVal">0.00 JD</span>
+    </div>
+    <div class="cf-fields">
+      <input id="cartLocation" placeholder="Deliver to (desk / floor / room)">
+      <input id="cartNotes" placeholder="Notes for the barista (optional)">
+    </div>
+    <button class="cf-place" style="width:calc(100% - 36px)" onclick="submitOrder()" id="orderBtn">Place order</button>
+  </div>
+</div>
+
+{# ── My past orders ── #}
+{% if my_orders %}
+<div class="sec-head rise" id="my-orders" style="margin-top:34px;scroll-margin-top:90px"><h2>My orders</h2></div>
+<div class="card rise" style="padding:0;overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:var(--paper-2);text-align:left">
+        <th style="padding:12px 18px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Status</th>
+        <th style="padding:12px 18px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Items</th>
+        <th style="padding:12px 18px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Total</th>
+        <th style="padding:12px 18px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)">Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in my_orders %}
+      <tr style="border-bottom:1px solid var(--line)">
+        <td style="padding:13px 18px;white-space:nowrap">
+          <span class="pill {% if order.status == 'delivered' %}ok{% elif order.status == 'cancelled' %}bad{% else %}warn{% endif %}" style="font-size:10.5px">{{ order.get_status_display }}</span>
+        </td>
+        <td style="padding:13px 18px">{{ order.summary }}</td>
+        <td style="padding:13px 18px;font-weight:700;white-space:nowrap">{{ order.total }} JD</td>
+        <td style="padding:13px 18px;color:var(--muted);white-space:nowrap;font-size:12px">{{ order.created_at|date:"M d, Y — H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<script>
+/* ── filtering ─────────────────────────────────── */
+let activeCat = 'all';
+function pickCat(chip){
+  activeCat = chip.dataset.cat;
+  document.querySelectorAll('.cf-chip').forEach(c=>c.classList.toggle('on', c===chip));
+  filterMenu();
+}
+function filterMenu(){
+  const q = document.getElementById('cfSearch').value.trim().toLowerCase();
+  let shown = 0;
+  document.querySelectorAll('.cf-card').forEach(card=>{
+    const catOk = activeCat==='all' || card.dataset.cat===activeCat;
+    const qOk = !q || card.dataset.name.includes(q);
+    const show = catOk && qOk;
+    card.style.display = show ? 'flex' : 'none';
+    if(show) shown++;
+  });
+  document.getElementById('cfNoResults').style.display = shown ? 'none' : 'block';
+}
+
+/* ── cart ──────────────────────────────────────── */
+const cart = {};
+function addToCart(id, name, price){
+  if(cart[id]) cart[id].qty++; else cart[id] = {name, price, qty: 1};
+  renderCart();
+}
+function changeQty(id, delta){
+  if(!cart[id]) return;
+  cart[id].qty += delta;
+  if(cart[id].qty <= 0) delete cart[id];
+  renderCart();
+}
+function renderCart(){
+  const wrap = document.getElementById('cartLines');
+  const ids = Object.keys(cart);
+  let total = 0, count = 0;
+
+  // card steppers
+  document.querySelectorAll('.cf-card').forEach(card=>{
+    const id = card.id.replace('card-','');
+    const inCart = !!cart[id];
+    card.classList.toggle('in-cart', inCart);
+    if(inCart) document.getElementById('qty-'+id).textContent = cart[id].qty;
+  });
+
+  if(!ids.length){
+    wrap.innerHTML = '<div class="cf-empty">Your tray is empty.<br>Tap <b>Add</b> on anything you fancy.</div>';
+    document.getElementById('cartTotal').style.display = 'none';
+    document.getElementById('cfCount').textContent = '0';
+    return;
+  }
+  wrap.innerHTML = ids.map(id=>{
+    const l = cart[id];
+    total += l.price * l.qty; count += l.qty;
+    return `<div class="cf-line">
+      <span class="n">${l.name}<small>${l.price.toFixed(2)} JD each</small></span>
+      <button class="qbtn" onclick="changeQty(${id},-1)">−</button>
+      <b>${l.qty}</b>
+      <button class="qbtn" onclick="changeQty(${id},1)">+</button>
+      <span class="amt">${(l.price*l.qty).toFixed(2)}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('cartTotal').style.display = 'flex';
+  document.getElementById('cartTotalVal').textContent = total.toFixed(2) + ' JD';
+  document.getElementById('cfCount').textContent = count;
+}
+
+/* after placing an order the page reloads with #my-orders — scroll there smoothly */
+window.addEventListener('load', ()=>{
+  if(location.hash === '#my-orders'){
+    const el = document.getElementById('my-orders');
+    if(el) el.scrollIntoView({behavior:'smooth'});
+    history.replaceState(null, '', location.pathname);  // clean the URL again
+  }
+});
+
+async function submitOrder(){
+  const ids = Object.keys(cart);
+  if(!ids.length){ alert('Your tray is empty.'); return; }
+  const btn = document.getElementById('orderBtn');
+  btn.disabled = true; btn.textContent = 'Placing order…';
+  try{
+    const resp = await fetch("{% url 'cafeteria:place_order' %}", {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
+      body: JSON.stringify({
+        items: ids.map(id=>({id: parseInt(id), qty: cart[id].qty})),
+        location: document.getElementById('cartLocation').value,
+        notes: document.getElementById('cartNotes').value,
+      }),
+    });
+    const data = await resp.json();
+    if(data.ok){
+      // reload and auto-scroll to the "My orders" section
+      window.location.hash = 'my-orders';
+      location.reload();
+    }
+    else{ alert(data.error || 'Could not place the order.'); btn.disabled=false; btn.textContent='Place order'; }
+  }catch(e){ alert('Could not place the order.'); btn.disabled=false; btn.textContent='Place order'; }
+}
+</script>
+

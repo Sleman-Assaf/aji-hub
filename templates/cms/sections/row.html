@@ -1,0 +1,26 @@
+{# templates/cms/sections/row.html — a columns container. #}
+{# The split comes from section.grid_template so the layout picker in the #}
+{# editor and the rendered page can never disagree. #}
+{% load cms_tags %}
+{# A titled row is a labelled section of the page, so it renders its heading. #}
+{# Without this a row that replaced a titled section silently dropped the title. #}
+{% if section.title %}
+<div class="sec-head">
+  {% if section|cfg:"label" %}<span class="sec-label">{{ section|cfg:"label" }}</span>{% endif %}
+  <h2 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title|aji }}</h2>
+</div>
+{% endif %}
+<div class="cms-row{% if section.equal_height %} eqh{% endif %}"
+     style="grid-template-columns:{{ section.grid_template }}"
+     data-row="{{ section.pk }}">
+  {% for col in columns %}
+  <div class="cms-col" data-col="{{ col.index }}" data-row-id="{{ section.pk }}">
+    {% for block in col.blocks %}{% cms_block block %}{% endfor %}
+    {% if cms_edit_mode %}
+    <button type="button" class="ed-add" onclick="edPalette({{ section.pk }},{{ col.index }})">
+      + Add a block to this column
+    </button>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>

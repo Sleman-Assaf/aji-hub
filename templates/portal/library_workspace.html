@@ -1,0 +1,430 @@
+{# templates/portal/library_workspace.html — one library, whole. #}
+{# The folder tree is always on screen, on the left, because it is the answer #}
+{# to "what is in here?" and it used to take a click per level to find out. #}
+{# Files is the folder you are standing in; All documents is every document in #}
+{# the library with the path it sits at; Settings is who may open it. Three #}
+{# views of one library, not three screens that do not know about each other. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}{{ library.name }} — library{% endblock %}
+{% block content %}
+
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">
+      <a href="{% url 'libraries_home' %}" class="wsp-up">Document libraries</a>
+    </div>
+    <h1>{{ library.name }}</h1>
+    <p>
+      {{ n_docs }} document{{ n_docs|pluralize }} in {{ n_folders }} folder{{ n_folders|pluralize }}.
+      {% if library.access == 'everyone' %}Open to everyone signed in.
+      {% elif library.access == 'request' %}Listed to everyone, contents by request.
+      {% else %}Visible only to the groups and people you name.{% endif %}
+      {% if not library.downloadable %} Read in the Hub only.{% endif %}
+    </p>
+  </div>
+  <div class="lh-head-go">
+    <a href="{% url 'policies' %}?cat={{ library.pk }}" class="btn ghost">
+      {% icon "eye" 15 %} See it as a reader
+    </a>
+  </div>
+</div>
+
+{# ── The three views ──────────────────────────────────────────────────────── #}
+<nav class="wsp-tabs rise" aria-label="Library views">
+  <a href="{% url 'library_workspace' library.pk %}"
+     class="wsp-tab {% if tab == 'files' %}on{% endif %}">
+    {% icon "folder-open" 14 1.7 %} Files
+  </a>
+  <a href="{% url 'library_workspace' library.pk %}?tab=all"
+     class="wsp-tab {% if tab == 'all' %}on{% endif %}">
+    {% icon "list" 14 1.7 %} All documents <span class="wsp-n">{{ n_docs }}</span>
+  </a>
+  <a href="{% url 'library_users' library.pk %}" class="wsp-tab">
+    {% icon "users" 14 1.7 %} People
+    {% if n_pending %}<span class="wsp-n hot">{{ n_pending }}</span>{% endif %}
+  </a>
+  <a href="{% url 'library_workspace' library.pk %}?tab=settings"
+     class="wsp-tab {% if tab == 'settings' %}on{% endif %}">
+    {% icon "sliders" 14 1.7 %} Settings
+  </a>
+</nav>
+
+{% if tab == 'settings' %}
+{# ═══ Settings ══════════════════════════════════════════════════════════════ #}
+<form method="post" action="{% url 'library_settings_save' library.pk %}"
+      class="ls-form rise" data-save>
+  {% csrf_token %}
+
+  <section class="ls-card">
+    <h2>Name and tile</h2>
+    <div class="ls-grid">
+      <label class="ls-f wide">
+        <span>Library name <em>required</em></span>
+        <input type="text" name="name" value="{{ library.name }}" required maxlength="200">
+      </label>
+      <label class="ls-f wide">
+        <span>Subtitle</span>
+        <input type="text" name="description" value="{{ library.description }}" maxlength="300">
+      </label>
+      <label class="ls-f">
+        <span>Icon</span>
+        <input type="text" name="icon" value="{{ library.icon }}" data-icon-field data-icon-only>
+      </label>
+    </div>
+  </section>
+
+  <section class="ls-card">
+    <h2>Who can open it</h2>
+    <p class="ls-lede">
+      Chosen people only means the library is not shown to anybody else at
+      all — not greyed out, not listed as locked. By request means everyone can
+      see it exists and ask you for it, and the people named below are already in
+      without asking.
+    </p>
+    {% include 'portal/_access_fields.html' with obj=library scope='library' all_groups=all_groups %}
+  </section>
+
+  <section class="ls-card">
+    <h2>Who helps you run it</h2>
+    <p class="ls-lede">
+      They can add documents and folders and answer access requests, alongside
+      you.
+      {% if not is_owner %}
+      Only {{ library.owner_name|default:"the owner" }} can change this list.
+      {% endif %}
+    </p>
+    {% if is_owner %}
+      {# Says "this form carried the deputy list", so a save from the other form #}
+      {# cannot read an absent field as "remove every deputy". #}
+      <input type="hidden" name="managers_set" value="1">
+      {% include 'exchange/_people_picker.html' with search_url=people_url field='managers' preset=managers placeholder='Search a colleague to add…' note='They keep whatever read access they already had — being a deputy is about running the library, not seeing it.' %}
+    {% else %}
+      <div class="wsp-chips">
+        {% for m in managers %}
+        <span class="acc-chip">{{ m.get_full_name|default:m.username }}</span>
+        {% empty %}
+        <span class="muted" style="font-size:12.5px">Nobody yet.</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </section>
+
+  <div class="ls-actions">
+    <button type="submit" class="btn y">Save changes</button>
+    <a href="{% url 'library_workspace' library.pk %}" class="btn ghost">Back to the files</a>
+  </div>
+</form>
+
+{% if not library.created_by %}
+{# Its own form, outside the settings one: claiming is not a setting, and it #}
+{# must not carry a half-edited library along with it. #}
+<form method="post" action="{% url 'policy_library_claim' library.pk %}"
+      class="ls-card rise" data-save="reload"
+      data-confirm="Claim “{{ library.name|escapejs }}”? Its settings become yours, and other members of the Policies group can no longer change them."
+      data-confirm-ok="Claim it">
+  {% csrf_token %}
+  <h2>Nobody owns this library</h2>
+  <p class="ls-lede">
+    Until somebody claims it, every member of the Policies group can change who
+    sees it and what is in it.
+  </p>
+  <button type="submit" class="btn ghost">Claim this library</button>
+</form>
+{% endif %}
+
+<section class="ls-card danger rise">
+  <h2>Remove this library</h2>
+  <p class="ls-lede">
+    Takes the library, its {{ n_folders }} folder{{ n_folders|pluralize }} and its
+    {{ n_docs }} document{{ n_docs|pluralize }} with it, including the uploaded
+    files. There is no undo.
+  </p>
+  <form method="post" action="{% url 'library_remove' library.pk %}"
+        data-confirm="Remove “{{ library.name|escapejs }}” and the {{ n_docs }} document{{ n_docs|pluralize }} in it? The files are deleted and this cannot be undone."
+        data-confirm-kind="danger" data-confirm-ok="Remove library">
+    {% csrf_token %}
+    <button type="submit" class="btn ghost danger">Remove library</button>
+  </form>
+</section>
+
+{% else %}
+{# ═══ Files, and every document ═════════════════════════════════════════════ #}
+<div class="wsp rise">
+
+  {# ── The tree, always on screen ─────────────────────────────────────────── #}
+  <aside class="wsp-side">
+    <div class="wsp-side-h">{% icon "tree-structure" 13 1.7 %} Folders</div>
+    <a class="wsp-node {% if not folder and tab == 'files' %}on{% endif %}"
+       href="{% url 'library_workspace' library.pk %}">
+      {% icon "books" 14 1.7 %}
+      <span>All of {{ library.name }}</span>
+    </a>
+    {% for f in tree %}
+    <a class="wsp-node {% if folder and f.pk == folder.pk %}on{% endif %}"
+       style="padding-left:{{ f.pad }}px"
+       href="{% url 'library_workspace' library.pk %}?folder={{ f.pk }}">
+      {% icon "folder" 14 1.7 %}
+      <span>{{ f.name }}</span>
+      {% if f.n_docs %}<i>{{ f.n_docs }}</i>{% endif %}
+    </a>
+    {% endfor %}
+
+    <form method="post" action="{% url 'policy_folder_add' library.pk %}"
+          class="wsp-newfolder" data-save="reload">
+      {% csrf_token %}
+      <input type="hidden" name="parent" value="{{ folder.pk|default_if_none:'' }}">
+      <input type="text" name="name" maxlength="200" required
+             placeholder="{% if folder %}New folder in {{ folder.name }}{% else %}New folder{% endif %}">
+      <button type="submit" class="btn ghost sm" title="Add folder">{% icon "plus" 13 2.2 %}</button>
+    </form>
+  </aside>
+
+  {# ── What is in front of you ────────────────────────────────────────────── #}
+  <div class="wsp-main">
+
+  {% if tab == 'all' %}
+    <div class="wsp-bar">
+      <b>Every document in this library</b>
+      <i>{{ n_docs }} in total, listed by the folder it sits in.</i>
+    </div>
+    {% if all_documents %}
+    <div class="wsp-flat">
+      {% for p in all_documents %}
+      {% with fmt=p.file.name|doc_format %}
+      <div class="wsp-flat-row">
+        <span class="wsp-flat-ic pol-ic-{{ fmt.icon }}" title="{{ fmt.label }}">
+          {% icon fmt.icon 16 1.7 %}
+        </span>
+        <span class="wsp-flat-id">
+          <b>{{ p.title }}</b>
+          <i>
+            {% if p.file %}<span class="fmt-tag" title="{{ fmt.label }}">{{ fmt.ext }}</span>{% endif %}
+            {% if p.file and not fmt.previewable %}
+            <span class="fmt-note" title="This format cannot be shown in the Hub">no preview</span>
+            {% endif %}
+            <span class="fmt-desc">
+              {% if p.where %}{{ p.where }}{% else %}Top of the library{% endif %}
+              · {{ p.get_doc_type_display }}
+              {% if p.downloadable is False %} · read only{% elif p.downloadable is True %} · downloadable{% endif %}
+            </span>
+          </i>
+        </span>
+        <a class="btn ghost sm"
+           href="{% url 'library_workspace' library.pk %}{% if p.folder_id %}?folder={{ p.folder_id }}{% endif %}">
+          Go to folder
+        </a>
+      </div>
+      {% endwith %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="wsp-none">{% icon "file-text" 24 1.4 %}<p>Nothing has been added yet.</p></div>
+    {% endif %}
+
+  {% else %}
+    {# ── Where you are ──────────────────────────────────────────────────── #}
+    <nav class="pol-crumbs" aria-label="Folder trail">
+      <a href="{% url 'library_workspace' library.pk %}">{% icon "books" 13 %} {{ library.name }}</a>
+      {% for f in crumbs %}
+      <span class="pol-crumb-sep">/</span>
+      {% if forloop.last %}<b>{{ f.name }}</b>
+      {% else %}<a href="{% url 'library_workspace' library.pk %}?folder={{ f.pk }}">{{ f.name }}</a>{% endif %}
+      {% endfor %}
+    </nav>
+
+    {# ── Putting things in ──────────────────────────────────────────────── #}
+    <form method="post" action="{% url 'policy_files_upload' library.pk %}"
+          enctype="multipart/form-data" class="pol-drop" data-drop data-save="reload">
+      {% csrf_token %}
+      <input type="hidden" name="folder" value="{{ folder.pk|default_if_none:'' }}">
+      <label class="pol-drop-in">
+        <input type="file" name="files" multiple data-drop-input>
+        <span class="pol-drop-ic">{% icon "upload" 18 1.7 %}</span>
+        <span class="pol-drop-t">
+          <b data-drop-label>Drop files here, or choose them</b>
+          <i>Several at once. Each becomes a document named after its file{% if folder %}, in {{ folder.name }}{% endif %}.</i>
+        </span>
+      </label>
+      <div class="pol-drop-go">
+        <select name="doc_type" aria-label="What these are">
+          <option value="policy">Policies</option>
+          <option value="sop">SOPs</option>
+          <option value="guideline">Guidelines</option>
+          <option value="form">Forms / templates</option>
+        </select>
+        <button type="submit" class="btn y sm" data-drop-submit disabled>Upload</button>
+      </div>
+    </form>
+
+    <details class="wsp-fold">
+      <summary>{% icon "file-zip" 14 1.7 %} Import a zip into {% if folder %}{{ folder.name }}{% else %}this library{% endif %}</summary>
+      <form method="post" action="{% url 'library_import' library.pk %}"
+            enctype="multipart/form-data" class="pol-drop" data-drop data-save="reload">
+        {% csrf_token %}
+        <input type="hidden" name="folder" value="{{ folder.pk|default_if_none:'' }}">
+        <label class="pol-drop-in">
+          <input type="file" name="archive" accept=".zip,application/zip" data-drop-input>
+          <span class="pol-drop-ic">{% icon "file-zip" 18 1.7 %}</span>
+          <span class="pol-drop-t">
+            <b data-drop-label>Drop a zip here, or choose one</b>
+            <i>Its folders are recreated exactly as they are inside it, empty ones included.</i>
+          </span>
+        </label>
+        <div class="pol-drop-go">
+          <select name="doc_type" aria-label="What these are">
+            <option value="policy">Policies</option>
+            <option value="sop">SOPs</option>
+            <option value="guideline">Guidelines</option>
+            <option value="form">Forms / templates</option>
+          </select>
+          <button type="submit" class="btn y sm" data-drop-submit disabled>Import</button>
+        </div>
+      </form>
+    </details>
+
+    {# ── What is in here ────────────────────────────────────────────────── #}
+    {# Folders and documents in one list, folders first, drawn by the same rules #}
+    {# as the reader's page — a file browser, not two stacked boxes. #}
+    {% if subfolders or documents %}
+    <div class="pol-list">
+      {% for f in subfolders %}
+      <div class="pol-row pol-row-folder pol-row-split">
+        <a class="pol-row-in" href="{% url 'library_workspace' library.pk %}?folder={{ f.pk }}">
+          <span class="pol-row-ic">{% icon "folder" 17 1.7 %}</span>
+          <span class="pol-row-id">
+            <b>{{ f.name }}</b>
+            <i>
+              {% if f.n_subs %}{{ f.n_subs }} folder{{ f.n_subs|pluralize }}{% endif %}
+              {% if f.n_subs and f.n_docs %} · {% endif %}
+              {% if f.n_docs %}{{ f.n_docs }} document{{ f.n_docs|pluralize }}{% endif %}
+              {% if not f.n_subs and not f.n_docs %}Empty{% endif %}
+            </i>
+          </span>
+        </a>
+        <details class="pol-folder-tools">
+          <summary title="Rename, move or remove">{% icon "dots-three" 14 %}</summary>
+          <div class="pol-folder-menu">
+            <form method="post" action="{% url 'policy_folder_rename' f.pk %}"
+                  data-save="reload">
+              {% csrf_token %}
+              <input type="text" name="name" value="{{ f.name }}" maxlength="200" required
+                     aria-label="Folder name">
+              <button type="submit" class="btn ghost sm">Rename</button>
+            </form>
+            <form method="post" action="{% url 'policy_folder_move' f.pk %}"
+                  data-save="reload">
+              {% csrf_token %}
+              <select name="parent" aria-label="Move into">
+                <option value="">Top of {{ library.name }}</option>
+                {% for other in folders %}
+                  {% if other.pk != f.pk %}
+                  <option value="{{ other.pk }}" {% if other.pk == f.parent_id %}selected{% endif %}>{{ other.full_path }}</option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn ghost sm">Move</button>
+            </form>
+            <form method="post" action="{% url 'policy_folder_delete' f.pk %}"
+                  data-save="reload"
+                  data-confirm="Remove the folder “{{ f.name|escapejs }}”? Anything inside it moves up a level — nothing is deleted with it."
+                  data-confirm-kind="danger" data-confirm-ok="Remove folder">
+              {% csrf_token %}
+              <button type="submit" class="btn ghost danger sm">Remove folder</button>
+            </form>
+          </div>
+        </details>
+      </div>
+      {% endfor %}
+
+      {% for p in documents %}
+      {% with fmt=p.file.name|doc_format %}
+      <details class="ls-doc">
+        <summary>
+          <span class="pol-row-ic pol-ic-{{ fmt.icon }}" title="{{ fmt.label }}">
+            {% icon fmt.icon 17 1.7 %}
+          </span>
+          <span class="ls-doc-t">
+            <b>{{ p.title }}</b>
+            <i>
+              {% if p.file %}<span class="fmt-tag" title="{{ fmt.label }}">{{ fmt.ext }}</span>{% endif %}
+              {% if p.file and not fmt.previewable %}
+              <span class="fmt-note" title="This format cannot be shown in the Hub">no preview</span>
+              {% endif %}
+              <span class="fmt-desc">{{ p.get_doc_type_display }}{% if p.filename %} · {{ p.filename|truncatechars:30 }}{% endif %}</span>
+            </i>
+          </span>
+          <span class="ls-doc-state">
+            {% if p.inherits_access %}As library{% elif p.access == 'restricted' %}Restricted{% else %}Everyone{% endif %}
+            {% if p.downloadable is False %} · view only{% elif p.downloadable is True %} · downloadable{% endif %}
+          </span>
+          {% icon "chevron-down" 14 %}
+        </summary>
+        {# One form for the whole document: what it is called, what it is, where #}
+        {# it sits and who may keep a copy. They used to be two forms on two #}
+        {# screens, and the folder was on neither. #}
+        <form method="post" action="{% url 'library_document_save' p.pk %}"
+              enctype="multipart/form-data" class="ls-doc-body" data-save>
+          {% csrf_token %}
+          <div class="ls-grid">
+            <label class="ls-f wide">
+              <span>Title</span>
+              <input type="text" name="title" value="{{ p.title }}" maxlength="300" required>
+            </label>
+            <label class="ls-f">
+              <span>What it is</span>
+              <select name="doc_type" class="acc-sel">
+                {% for value, label in doc_types %}
+                <option value="{{ value }}" {% if p.doc_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="ls-f">
+              <span>Folder</span>
+              <select name="folder" class="acc-sel">
+                <option value="">Top of {{ library.name }}</option>
+                {% for f in folders %}
+                <option value="{{ f.pk }}" {% if p.folder_id == f.pk %}selected{% endif %}>{{ f.full_path }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="ls-f wide">
+              <span>Replace the file</span>
+              <input type="file" name="file">
+            </label>
+          </div>
+          {% include 'portal/_access_fields.html' with obj=p scope='document' all_groups=all_groups %}
+          <div class="ls-actions right">
+            <button type="submit" class="btn y sm">Save document</button>
+          </div>
+        </form>
+        <form method="post" action="{% url 'library_document_remove' p.pk %}"
+              class="ls-doc-kill" data-save="reload"
+              data-confirm="Remove “{{ p.title|escapejs }}”? The uploaded file is deleted with it and this cannot be undone."
+              data-confirm-kind="danger" data-confirm-ok="Remove document">
+          {% csrf_token %}
+          <button type="submit" class="btn ghost danger sm">{% icon "trash" 13 %} Remove document</button>
+        </form>
+      </details>
+      {% endwith %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="wsp-none">
+      {% icon "folder-open" 24 1.4 %}
+      <p>
+        {% if folder %}{{ folder.name }} is empty.{% else %}This library is empty.{% endif %}
+        Drop files in above, add a folder on the left, or import a zip.
+      </p>
+    </div>
+    {% endif %}
+  {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% include 'includes/icon_picker_js.html' %}
+{% include 'includes/access_fields_js.html' %}
+{% include 'includes/people_picker_js.html' %}
+{% include 'portal/_drop_js.html' %}
+{% endblock %}

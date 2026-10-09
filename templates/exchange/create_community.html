@@ -1,0 +1,105 @@
+{# templates/exchange/create_community.html #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}Create Community — AJi Exchange{% endblock %}
+
+{% block content %}
+
+<a href="{% url 'exchange_home' %}" class="ctx-back" title="AJi Exchange"><span class="ctx-back-lab">AJi Exchange</span></a>
+
+<div class="page-head rise">
+  <h1>Create a Community</h1>
+  <p>A space for AJi people to ask questions, share guides and learn together.</p>
+</div>
+
+<form method="post" class="card rise cx-form">
+  {% csrf_token %}
+
+  <div class="cx-field">
+    <label for="ccName">Icon and name <span class="req">*</span></label>
+    <div class="cx-name-row">
+      {# Chosen here so a new community arrives with its own mark rather than #}
+      {# the same group-of-people every other one starts with. #}
+      <input type="text" name="icon" value="{{ form_icon|default:'' }}"
+             data-icon-field data-icon-only
+             title="Choose an icon for this community" aria-label="Community icon">
+      <input id="ccName" type="text" name="name" required maxlength="200"
+             value="{{ form_name|default:'' }}"
+             placeholder="e.g. Revit, AutoCAD, FIDIC" autofocus>
+    </div>
+    <div class="cx-hint">Keep it short and recognisable — it becomes the address too.</div>
+  </div>
+
+  <div class="cx-field">
+    <label for="ccDesc">Description</label>
+    <textarea id="ccDesc" name="description" rows="3"
+              placeholder="What is this community about? e.g. “Families, templates &amp; worksharing”">{{ form_description|default:'' }}</textarea>
+  </div>
+
+  <div class="cx-field">
+    <label>Who can see inside <span class="req">*</span></label>
+    <div class="cx-vis" id="visRow">
+      <label class="cx-vis-opt{% if form_visibility != 'private' %} on{% endif %}">
+        <input type="radio" name="visibility" value="public"
+               {% if form_visibility != 'private' %}checked{% endif %}>
+        <span class="cx-vis-ic">{% icon "globe" 18 %}</span>
+        <span class="cx-vis-txt">
+          <b>Public</b>
+          <i>Anyone at AJi can read it and join themselves. You can still add people now.</i>
+        </span>
+      </label>
+      <label class="cx-vis-opt{% if form_visibility == 'private' %} on{% endif %}">
+        <input type="radio" name="visibility" value="private"
+               {% if form_visibility == 'private' %}checked{% endif %}>
+        <span class="cx-vis-ic">{% icon "lock-simple" 18 %}</span>
+        <span class="cx-vis-txt">
+          <b>Private</b>
+          <i>Listed so people know it exists, but only members read the threads. Others ask to join.</i>
+        </span>
+      </label>
+    </div>
+  </div>
+
+  <div class="cx-field" id="memberField">
+    <label>
+      Members
+      <span class="cx-req-private" hidden><span class="req">*</span></span>
+    </label>
+    {% url 'exchange_people_search' as people_url %}
+    {% include 'exchange/_people_picker.html' with search_url=people_url field='members' preset=form_members placeholder='Search colleagues by name…' %}
+    <div class="cx-hint" id="memberHint">
+      Optional — anyone at AJi can join a public community on their own.
+    </div>
+  </div>
+
+  <div class="cx-actions">
+    <button type="submit" class="btn y">{% icon "plus" 15 %} Create community</button>
+    <a href="{% url 'exchange_home' %}" class="btn ghost">Cancel</a>
+  </div>
+</form>
+
+{% include 'exchange/_exchange_js.html' %}
+<script>
+// The member picker means two different things depending on the choice above,
+// so the wording follows the radio rather than making the reader work it out
+// after the form has been rejected.
+(function () {
+  var hint = document.getElementById('memberHint');
+  var star = document.querySelector('.cx-req-private');
+  function sync() {
+    var priv = document.querySelector('input[name=visibility]:checked').value === 'private';
+    hint.textContent = priv
+      ? 'A private community needs at least one other member — nobody else can find their way in on their own.'
+      : 'Optional — anyone at AJi can join a public community on their own.';
+    star.hidden = !priv;
+    document.querySelectorAll('.cx-vis-opt').forEach(function (opt) {
+      opt.classList.toggle('on', opt.querySelector('input').checked);
+    });
+  }
+  document.querySelectorAll('input[name=visibility]').forEach(function (r) {
+    r.addEventListener('change', sync);
+  });
+  sync();
+})();
+</script>
+{% endblock %}

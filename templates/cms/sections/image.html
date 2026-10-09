@@ -1,0 +1,23 @@
+{# templates/cms/sections/image.html — one picture. #}
+{# The library had a gallery and a hero but no way to place a single image, so #}
+{# editors were using a one-item gallery to do it. #}
+{% load cms_tags %}
+{% include 'cms/_section_head.html' with hide_subtitle=1 %}
+{% with a=section.image_asset %}
+{% if a %}
+<figure class="cms-img cms-img--{{ section|cfg:"width"|default:"full" }}">
+  <img src="{{ a.file.url }}" alt="{{ a.alt_text }}" loading="lazy" decoding="async"
+       style="object-position:{{ a.focal_css }}">
+  {% if section.subtitle %}
+  {# The caption is the block's subtitle, so it is editable in place like any #}
+  {# other line of text rather than being a field on the asset. #}
+  <figcaption>{{ section.subtitle }}</figcaption>
+  {% endif %}
+</figure>
+{% elif cms_edit_mode %}
+<div class="card cms-img-empty">
+  <b>No picture chosen</b>
+  <span class="muted">Open this block's properties and pick one from the media library.</span>
+</div>
+{% endif %}
+{% endwith %}

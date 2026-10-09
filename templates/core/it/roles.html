@@ -1,0 +1,56 @@
+{% extends 'core/it/_shell.html' %}
+{% load cms_tags %}
+{% block title %}Roles — IT Portal{% endblock %}
+{% block it_note %}What each role unlocks, and who holds it. A role is a hat, not a rank: they stack, and none is above another.{% endblock %}
+
+{% block it_content %}
+{# What everybody already has. First, because the first question a roles screen #}
+{# raises is what somebody gets without one — and because half of "who can see #}
+{# X" is answered here rather than by any role below. #}
+<div class="it-card">
+  <div class="it-card-h">{% icon "users-group" 16 %}<span class="sp">Everyone signed in</span>
+    <span class="it-chip">{{ n_standard }} with no role</span></div>
+  <div class="it-card-b">
+    <p style="margin:0 0 14px;font-size:13px;color:var(--ink-2);line-height:1.65;max-width:80ch">
+      Not a role and nothing to assign — this is what being signed in means. Every
+      account has it, and the roles below only ever <em>add</em> to it. All of it
+      is read-only except a person's own account and the communities they join.
+    </p>
+    <div class="it-std">
+      {% for area, detail in standard %}
+      <div class="it-std-item">
+        <span class="it-std-tick">{% icon "check-simple" 12 %}</span>
+        <span><b>{{ area }}</b><i>{{ detail }}</i></span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="it-card">
+  <div class="it-card-h">{% icon "shield" 16 %}<span class="sp">Roles</span>
+    <span class="it-chip">{{ roles|length }}</span></div>
+  <div class="it-card-b flush">
+    {% for r in roles %}
+    <a class="it-row" href="{% url 'it_role_detail' r.group.pk %}">
+      <span class="it-row-main">
+        <b>{{ r.group.name }}
+          {% if r.protected %}<span class="it-chip y" style="margin-left:6px">Protected</span>{% endif %}
+        </b>
+        <span>
+          {% if r.capabilities %}{{ r.capabilities|join:" · " }}
+          {% else %}No capabilities recorded — this role gates nothing until code checks for it.{% endif %}
+        </span>
+      </span>
+      <span class="it-chip{% if not r.count %} bad{% endif %}">{{ r.count }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  <form method="post" action="{% url 'it_role_create' %}" class="it-bar">
+    {% csrf_token %}
+    <input class="it-in" name="name" placeholder="New role name" style="width:auto;flex:1;min-width:200px" required>
+    <button class="btn y sm" type="submit">{% icon "plus" 14 %} Create role</button>
+    <span style="font-size:12px;color:var(--muted)">A new role unlocks nothing on its own.</span>
+  </form>
+</div>
+{% endblock %}

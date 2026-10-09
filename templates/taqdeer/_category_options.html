@@ -1,0 +1,21 @@
+{# templates/taqdeer/_category_options.html — the Kudos categories. #}
+{# One list, included by the composer and by the giver's edit form. Two #}
+{# copies of a list of options drift, and then editing a Kudos silently #}
+{# changes its category to whichever value the other list happened to #}
+{# carry. Free text in the database, so this can grow without a #}
+{# migration. `chosen` is the current value, when editing. #}
+<option value="">Not set</option>
+<option{% if chosen == "Teamwork" %} selected{% endif %}>Teamwork</option>
+<option{% if chosen == "Safety" %} selected{% endif %}>Safety</option>
+<option{% if chosen == "Quality" %} selected{% endif %}>Quality</option>
+<option{% if chosen == "Client focus" %} selected{% endif %}>Client focus</option>
+<option{% if chosen == "Initiative" %} selected{% endif %}>Initiative</option>
+<option{% if chosen == "Mentoring" %} selected{% endif %}>Mentoring</option>
+<option{% if chosen == "Going the extra mile" %} selected{% endif %}>Going the extra mile</option>
+<option{% if chosen == "Problem solving" %} selected{% endif %}>Problem solving</option>
+<option{% if chosen == "Delivery under pressure" %} selected{% endif %}>Delivery under pressure</option>
+<option{% if chosen == "Knowledge sharing" %} selected{% endif %}>Knowledge sharing</option>
+<option{% if chosen == "Innovation" %} selected{% endif %}>Innovation</option>
+<option{% if chosen == "Sustainability" %} selected{% endif %}>Sustainability</option>
+<option{% if chosen == "Collaboration across offices" %} selected{% endif %}>Collaboration across offices</option>
+<option{% if chosen == "Attention to detail" %} selected{% endif %}>Attention to detail</option>

@@ -1,0 +1,104 @@
+{# templates/cms/sections/booth_reel.html — AJi Booth albums as a strip. #}
+{# Deliberately the one block on the homepage that is pictures and nothing #}
+{# else: everything above it is a bordered card full of text, and a page made #}
+{# only of those reads as a list however good each card is. #}
+{% load cms_tags %}
+<div class="sec-head">
+  <h2 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title|default:"From AJi Booth"|aji }}</h2>
+  <a href="{{ section|cfg:"link_url"|default:"/booth/" }}" class="lk">{{ section|cfg:"link_label"|default:"All albums" }} →</a>
+</div>
+
+{# Paged with arrows rather than scrolled. The scrollbar was a piece of browser #}
+{# furniture sitting under a row of photographs, and "there is more to the #}
+{# right" is something a control should say, not something you find out by #}
+{# dragging. Touch still swipes — the track is a scroller with its bar hidden, #}
+{# so the arrows drive it instead of replacing it. #}
+<div class="booth-reel-wrap" data-booth>
+  <button type="button" class="booth-nav l" aria-label="Previous albums" hidden>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+  </button>
+
+  <div class="booth-reel">
+    {% for album in albums %}
+    <a class="booth-tile" href="{% url 'booth_album_view' album.pk %}">
+      <img src="{{ album.cover_photo.url }}" alt="" loading="lazy">
+      <span class="booth-tile-veil"></span>
+      <span class="booth-tile-txt">
+        <b>{{ album.name }}</b>
+        {# `photos_total` is annotated by the provider. Reading `album.photos.count` #}
+        {# here ran a COUNT per album, twice — twenty queries for ten tiles. #}
+        <i>{{ album.photos_total }} photo{{ album.photos_total|pluralize }}</i>
+      </span>
+    </a>
+    {% empty %}
+    <div class="booth-reel-empty">
+      No albums yet. <a href="/booth/manage/">Add one in AJi Booth →</a>
+    </div>
+    {% endfor %}
+  </div>
+
+  <button type="button" class="booth-nav r" aria-label="More albums" hidden>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+  </button>
+</div>
+
+<script>
+/* Wires every booth strip on the page, once each. The block is a CMS section,
+   so it can legitimately appear twice — hence the marker attribute rather than
+   a single lookup by id, and hence re-running the scan instead of redefining
+   the function when a second copy of this script arrives. */
+(function () {
+  if (window.__boothReel) { window.__boothReel(); return; }
+
+  window.__boothReel = function () {
+    document.querySelectorAll('[data-booth]:not([data-booth-on])').forEach(function (wrap) {
+      wrap.setAttribute('data-booth-on', '');
+      var track = wrap.querySelector('.booth-reel');
+      var prev = wrap.querySelector('.booth-nav.l');
+      var next = wrap.querySelector('.booth-nav.r');
+      if (!track || !prev || !next) return;
+
+      /* A page is what is on screen less one tile, so the album you were looking
+         at at the edge is still there after the step — paging by the full width
+         makes you lose your place. */
+      function page() {
+        var tile = track.querySelector('.booth-tile');
+        var step = tile ? tile.getBoundingClientRect().width + 12 : 240;
+        return Math.max(step, track.clientWidth - step);
+      }
+
+      function sync() {
+        var max = track.scrollWidth - track.clientWidth;
+        var x = track.scrollLeft;
+        /* 2px of slack: scrollLeft is fractional on zoomed or scaled displays and
+           an exact comparison leaves an arrow live at the end that does nothing. */
+        prev.hidden = x <= 2;
+        next.hidden = x >= max - 2;
+      }
+
+      /* Asked each time rather than once: the setting can change while the page
+         is open, and the CSS scroll-behavior cannot override an explicit
+         behavior passed here, so honouring it is this function's job. */
+      function how() {
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 'auto' : 'smooth';
+      }
+      prev.addEventListener('click', function () {
+        track.scrollBy({ left: -page(), behavior: how() });
+      });
+      next.addEventListener('click', function () {
+        track.scrollBy({ left: page(), behavior: how() });
+      });
+      track.addEventListener('scroll', sync, { passive: true });
+      window.addEventListener('resize', sync);
+      /* Covers load lazily and change scrollWidth as they arrive. */
+      track.querySelectorAll('img').forEach(function (img) {
+        if (!img.complete) img.addEventListener('load', sync, { once: true });
+      });
+      sync();
+    });
+  };
+
+  window.__boothReel();
+})();
+</script>

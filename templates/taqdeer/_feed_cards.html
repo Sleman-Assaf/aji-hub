@@ -1,0 +1,109 @@
+{# templates/taqdeer/_feed_cards.html — the recognition cards. #}
+{# Its own include so the page and the 'show older' endpoint draw a card #}
+{# the same way. They were one inline loop, which meant a second page of #}
+{# the feed could only be had by duplicating eighty lines of markup. #}
+{% load cms_tags hub_extras %}
+{% for p in feed %}
+      {% if p.kind == 'certification' %}
+      {# A certification is its card. Clicking opens the post with the picture #}
+      {# in full and the congratulations under it. #}
+      <article class="tk-praise cert" data-kind="certification" data-post="{% url 'taqdeer_post' 'certification' p.pk %}">
+        <div class="tk-praise-top">
+          {% if p.employee.employee.photo %}
+          <img class="tk-praise-av" src="{{ p.employee.employee.photo.url }}" alt="">
+          {% else %}<span class="tk-praise-av tone">{{ p.employee|initials }}</span>{% endif %}
+          <div class="tk-praise-who">
+            <b>{{ p.employee.get_full_name|default:p.employee.username }}</b>
+            <span>obtained a certification</span>
+          </div>
+        </div>
+        {# Chip left, date right, on their own row — so the chip lands in the #}
+        {# same place on a certification as on Kudos. It used to sit in the #}
+        {# header's flex flow, where a long name pushed it to a different line #}
+        {# on every card. #}
+        <div class="tk-meta">
+          <span class="tk-tag">{% icon "certificate" 11 %} Certification</span>
+          <time>{{ p.created_at|date:"j M Y" }}</time>
+        </div>
+        {# A thumbnail, not the card. The full thing is one click away, and #}
+        {# a column of full cards was a column of mostly white space. #}
+        <div class="tk-cert-row">
+          <div class="tk-cert-txt">
+            <b>{{ p.name }}</b>
+            <span>{% if p.issuer %}{{ p.issuer }} · {% endif %}{{ p.obtained_on|date:"F Y" }}</span>
+          </div>
+          <span class="tk-cert-thumb">
+            <img loading="lazy" src="{% url 'taqdeer_certification_image' p.pk %}?view=1"
+                 alt="{{ p.employee.get_full_name|default:p.employee.username }} obtained {{ p.name }}">
+            <span class="tk-cert-open">{% icon "arrows-out-simple" 13 %}</span>
+          </span>
+        </div>
+        {% include 'taqdeer/_bar.html' with item=p kind='certification' %}
+      </article>
+
+      {% else %}
+      <article class="tk-praise" data-kind="praise" data-post="{% url 'taqdeer_post' 'praise' p.pk %}">
+        <div class="tk-praise-top">
+          {% if p.recipient.employee.photo %}
+          <img class="tk-praise-av" src="{{ p.recipient.employee.photo.url }}" alt="">
+          {% else %}<span class="tk-praise-av tone">{{ p.recipient|initials }}</span>{% endif %}
+          <div class="tk-praise-who">
+            <b>{{ p.recipient.get_full_name|default:p.recipient.username }}</b>
+            <span>
+              {% if p.recipient.employee.department %}{{ p.recipient.employee.department.name }} · {% endif %}
+              recognised by {{ p.giver.get_full_name|default:p.giver.username }}
+            </span>
+          </div>
+        </div>
+        {# Neither of these is part of what the card says, so both wait in the #}
+        {# corner until it is hovered or focused rather than sitting in the chip #}
+        {# row where every employee reads past them. #}
+        {# #}
+        {# They were in the post dialog only, which meant the giver had to open #}
+        {# their own Kudos to discover they could change it — while HR's Hide sat #}
+        {# right here on the card. Same place for both now. Edit still opens the #}
+        {# post, because the form belongs beside the words it is changing. #}
+        {% if p.giver_id == user.pk %}
+        <div class="tk-hide" data-stop>
+          <button type="button" class="cx-iconbtn" data-open
+                  data-edit-post="{% url 'taqdeer_post' 'praise' p.pk %}"
+                  title="Edit this Kudos">{% icon "pencil" 12 %}<span>Edit</span></button>
+          <form method="post" action="{% url 'taqdeer_praise_hide' p.pk %}"
+                data-confirm="Withdraw this Kudos? It stops showing on the wall, and its comments and likes go with it."
+                data-confirm-kind="danger" data-confirm-ok="Withdraw">
+            {% csrf_token %}
+            <button class="cx-iconbtn danger" type="submit"
+                    title="Withdraw this Kudos">{% icon "trash" 12 %}<span>Withdraw</span></button>
+          </form>
+        </div>
+        {% elif is_hr %}
+        <form method="post" action="{% url 'taqdeer_praise_hide' p.pk %}" class="tk-hide"
+              data-stop data-confirm="Hide this Kudos? It stays on record but stops showing.">
+          {% csrf_token %}
+          <button class="cx-iconbtn danger" type="submit"
+                  title="Hide this Kudos">{% icon "eye-off" 12 %}<span>Hide</span></button>
+        </form>
+        {% endif %}
+        {# The chip says what the card is, not what it was filed under. It #}
+        {# carried the category, so a Kudos read as "TEAMWORK" in the same #}
+        {# place a certification reads as "Certification" — two different #}
+        {# kinds of fact in one slot, and the thing the reader actually wants #}
+        {# to know (this is a Kudos) was the one left out. The category is a #}
+        {# footnote about it and sits with the project at the foot. #}
+        <div class="tk-meta">
+          <span class="tk-tag">Kudos</span>
+          <time>{{ p.created_at|date:"j M Y" }}</time>
+        </div>
+        <h3>{{ p.subject }}</h3>
+        <p>{{ p.message|linebreaksbr }}</p>
+        {% if p.category or p.project %}
+        <span class="tk-foot">
+          {% if p.category %}<span class="tk-proj">{% icon "tag" 12 %} {{ p.category }}</span>{% endif %}
+          {% if p.project %}<span class="tk-proj">{% icon "folder" 12 %} {{ p.project }}</span>{% endif %}
+        </span>
+        {% endif %}
+        {% include 'taqdeer/_bar.html' with item=p kind='praise' %}
+      </article>
+      {% endif %}
+
+{% endfor %}

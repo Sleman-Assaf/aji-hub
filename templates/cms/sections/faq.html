@@ -1,0 +1,16 @@
+{% include 'cms/_section_head.html' %}
+<div class="card" style="max-width:900px">
+  {% for item in section.visible_items %}
+  <details style="{% if not forloop.last %}border-bottom:1px solid var(--line);{% endif %}padding:12px 0">
+    <summary style="cursor:pointer;font-weight:700;font-size:14px;list-style:none;display:flex;align-items:center;gap:9px">
+      <span style="color:var(--yellow-deep);font-size:16px;line-height:1">+</span>
+      {{ item.title }}
+    </summary>
+    {% if item.text %}
+    <div class="muted" style="font-size:13.5px;line-height:1.65;margin-top:9px;padding-left:25px">{{ item.text|linebreaks }}</div>
+    {% endif %}
+  </details>
+  {% empty %}
+  <div class="muted" style="font-size:13px;padding:6px 0">No questions yet.</div>
+  {% endfor %}
+</div>

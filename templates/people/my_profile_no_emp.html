@@ -1,0 +1,14 @@
+{# templates/people/my_profile_no_emp.html #}
+{% extends 'base.html' %}
+{% block title %}My Profile — AJi Hub{% endblock %}
+{% block content %}
+<div class="page-head rise">
+  <div class="eyebrow">Account</div>
+  <h1>My Profile</h1>
+</div>
+<div class="card rise" style="text-align:center;padding:48px 32px">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="opacity:.2;margin:0 auto 16px;display:block"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+  <h3 style="margin:0 0 8px">No employee record linked</h3>
+  <p style="color:var(--muted);font-size:13.5px;margin:0">Your account is not linked to an employee record yet.<br>Ask your administrator to run the employee import or link your account manually.</p>
+</div>
+{% endblock %}

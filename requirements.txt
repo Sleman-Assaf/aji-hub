@@ -1,0 +1,39 @@
+# Python 3.14. Pillow and reportlab were bumped from 10.4.0 / 4.2.5 because
+# those releases publish no cp314 wheels and building them from source on
+# Windows fails on a missing zlib. Everything else is unchanged.
+Django==5.0.6
+# The production WSGI server behind the IIS gateway. Bound to 127.0.0.1 only —
+# IIS is the sole way in, which is half of what makes X-Remote-User
+# trustworthy. threads=24 suits the i9; each concurrent request holds one.
+waitress==3.0.2
+# Microsoft SQL Server backend + the ODBC bridge it drives. Only actually used
+# when mssql.json exists (see settings.py); harmless when the Hub is on SQLite.
+# The ODBC Driver 18 system package is installed by tools/install_mssql.ps1.
+mssql-django>=1.5
+pyodbc==5.1.0
+# The media bridge (manage.py run_media_bridge): WebRTC in Python, its HTTP
+# control plane, and the audio mixing maths. Only the bridge process uses
+# these; Waitress never imports them. aiortc pulls in PyAV (codecs) — all
+# ship Windows wheels, no compiler needed.
+aiortc>=1.9.0
+aiohttp>=3.9.5
+numpy>=1.26
+whitenoise==6.7.0
+Pillow==12.3.0
+# PDF page rendering for library thumbnails and previews. Self-contained wheel,
+# so no Poppler/LibreOffice install on the server, and permissively licensed
+# unlike PyMuPDF.
+pypdfium2==5.12.1
+# Certificates for `manage.py runserver_ssl`, which serves the Hub over https on
+# the office network. Voice calls need it: a browser gives a page a microphone or
+# a screen only on a secure origin, and localhost is the only exception. Ships
+# abi3 wheels, so it installs on 3.14 without a compiler.
+cryptography==50.0.0
+requests==2.32.3
+ldap3==2.9.1
+openpyxl==3.1.5
+python-docx==1.1.2
+reportlab==5.0.0
+arabic-reshaper==3.0.1
+python-bidi==0.6.11
+fonttools==4.62.1

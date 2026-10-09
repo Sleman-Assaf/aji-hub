@@ -1,0 +1,175 @@
+{# templates/cms/section_form.html #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}{% if section %}Edit section{% else %}Add section{% endif %} — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+.sf-in{width:100%;border:1px solid var(--line-2);padding:10px 12px;font-family:inherit;font-size:14px;outline:none;background:var(--paper-2)}
+.sf-in:focus{border-color:var(--ink)}
+.sf-fld{margin-bottom:15px}
+.sf-fld>label{display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:5px}
+.sf-row{display:flex;gap:14px;flex-wrap:wrap}
+.sf-row>*{flex:1;min-width:190px}
+.sf-hint{font-size:12px;color:var(--muted);margin-top:5px}
+.sf-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);background:var(--paper-2);margin-bottom:7px}
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="{% url 'cms_page_manage' page.slug %}" data-frag class="ctx-back" title="Manage {{ page.title }}"><span class="ctx-back-lab">Manage {{ page.title }}</span></a>
+
+<div class="page-head rise">
+  <div class="eyebrow">Section</div>
+  <h1>{% if section %}Edit section{% else %}Add section{% endif %}</h1>
+  <p>Sections render with the Hub's existing components, so pages stay consistent.</p>
+</div>
+
+<form data-save method="post" data-frag enctype="multipart/form-data" class="card rise" style="max-width:820px">
+  {% csrf_token %}
+
+  <div class="sf-fld">
+    <label for="s-type">Template</label>
+    <select id="s-type" name="type" class="sf-in" style="max-width:340px">
+      {% for value, label in section_types %}
+      <option value="{{ value }}"
+        {% if section and section.type == value %}selected{% elif not section and request.GET.type == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="sf-row">
+    <div class="sf-fld">
+      <label for="s-title">Heading</label>
+      <input id="s-title" name="title" maxlength="200" class="sf-in" value="{{ section.title|default:'' }}">
+    </div>
+    <div class="sf-fld">
+      <label for="s-sub">Sub-heading</label>
+      <input id="s-sub" name="subtitle" maxlength="400" class="sf-in" value="{{ section.subtitle|default:'' }}">
+    </div>
+  </div>
+
+  <div class="sf-fld">
+    <label for="s-body">Text</label>
+    <textarea id="s-body" name="body" rows="6" class="sf-in">{{ section.body|default:'' }}</textarea>
+    <div class="sf-hint">Used by Text block, Announcement, Hero and Custom HTML.</div>
+  </div>
+
+  <div class="sf-fld">
+    <label>Icon</label>
+      {# A radio grid listed every icon at once. That was reasonable at 76 and #}
+      {# is not at 1,512, so this uses the same picker as the rest of the Hub -- #}
+      {# searchable, by category, one way to choose an icon everywhere. #}
+      <input type="text" name="icon" data-icon-field
+             value="{% if section %}{{ section.icon }}{% endif %}"
+             placeholder="Click to choose an icon">
+    <div class="sf-hint" style="margin-top:8px">
+      Search by what it shows — &ldquo;calendar&rdquo;, &ldquo;hard hat&rdquo;, &ldquo;crane&rdquo;.
+      <a href="{% url 'cms_icons' %}" target="_blank" rel="noopener" style="font-weight:700">Upload your own</a>
+      if none of them fit.
+    </div>
+<div class="sf-hint">Icons are stored by name — swapping one never needs a code change.</div>
+  </div>
+
+  <div class="sf-fld">
+    <label for="s-img">Image</label>
+    {% if section and section.image %}
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:9px">
+      <img src="{{ section.image.url }}" alt="" style="width:130px;aspect-ratio:16/9;object-fit:cover;border:1px solid var(--line)">
+      <label style="font-size:13px;display:flex;align-items:center;gap:6px"><input type="checkbox" name="remove_image"> Remove</label>
+    </div>
+    {% endif %}
+    <input id="s-img" type="file" name="image" accept="image/*" style="font-size:13px">
+  </div>
+
+  <div class="sf-row">
+    <div class="sf-fld">
+      <label for="s-cols">Columns</label>
+      <input id="s-cols" type="number" name="columns" min="0" max="4" class="sf-in"
+             value="{{ section.config.columns|default:'' }}" placeholder="auto">
+    </div>
+    <div class="sf-fld">
+      <label for="s-lim">Limit</label>
+      <input id="s-lim" type="number" name="limit" min="0" max="20" class="sf-in"
+             value="{{ section.config.limit|default:'' }}" placeholder="default">
+    </div>
+    <div class="sf-fld">
+      <label for="s-emb">Embed URL</label>
+      <input id="s-emb" name="embed" class="sf-in" value="{{ section.config.embed|default:'' }}"
+             placeholder="Video sections only">
+    </div>
+  </div>
+
+  <div class="sf-row">
+    <div class="sf-fld">
+      <label for="s-aud">Who can see this section</label>
+      <select id="s-aud" name="audience" class="sf-in">
+        {% for value, label in audiences %}
+        <option value="{{ value }}" {% if section and section.audience == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="sf-fld">
+      <label for="s-grp">Specific groups</label>
+      <select id="s-grp" name="audience_groups" multiple size="3" class="sf-in">
+        {% for g in groups %}
+        <option value="{{ g.pk }}" {% if section and g in section.audience_groups.all %}selected{% endif %}>{{ g.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="sf-row">
+    <div class="sf-fld">
+      <label for="s-pub">Show from</label>
+      <input id="s-pub" type="datetime-local" name="publish_at" class="sf-in"
+             value="{{ section.publish_at|date:'Y-m-d\TH:i' }}">
+    </div>
+    <div class="sf-fld">
+      <label for="s-arc">Hide after</label>
+      <input id="s-arc" type="datetime-local" name="archive_at" class="sf-in"
+             value="{{ section.archive_at|date:'Y-m-d\TH:i' }}">
+    </div>
+  </div>
+
+  <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:8px">
+    <input type="checkbox" name="is_visible" {% if not section or section.is_visible %}checked{% endif %}> Visible
+  </label>
+  <label style="display:flex;align-items:center;gap:8px;font-size:14px">
+    <input type="checkbox" name="pinned" {% if section and section.pinned %}checked{% endif %}> Pin to the top of the page
+  </label>
+
+  <div class="f-foot">
+    <button type="submit" class="btn y">{% if section %}Save section{% else %}Create section{% endif %}</button>
+    <a href="{% url 'cms_page_manage' page.slug %}" data-frag class="btn ghost">Cancel</a>
+  </div>
+</form>
+
+{% if section and section.takes_items %}
+<div class="rise" style="max-width:820px;margin-top:26px">
+  <div class="sec-head">
+    <h2>Items</h2>
+    <a href="{% url 'cms_item_create' page.slug section.pk %}" data-frag class="lk">+ Add item</a>
+  </div>
+  {% for item in items %}
+  <div class="sf-item">
+    <span style="flex:1;min-width:0">
+      <span style="display:block;font-weight:700;font-size:13.5px">{{ item.title|default:"(untitled)" }}</span>
+      {% if item.meta or item.badge %}<span class="muted" style="display:block;font-size:11.5px;margin-top:2px">{{ item.meta }}{% if item.badge %} · {{ item.badge }}{% endif %}</span>{% endif %}
+    </span>
+    {% if not item.is_visible %}<span class="pill mut">Hidden</span>{% endif %}
+    <form data-save="reload" method="post" data-frag action="{% url 'cms_item_action' page.slug section.pk item.pk 'up' %}">{% csrf_token %}<button class="btn ghost sm">↑</button></form>
+    <form data-save="reload" method="post" data-frag action="{% url 'cms_item_action' page.slug section.pk item.pk 'down' %}">{% csrf_token %}<button class="btn ghost sm">↓</button></form>
+    <a href="{% url 'cms_item_edit' page.slug section.pk item.pk %}" data-frag class="btn ghost sm">Edit</a>
+    <form data-save="reload" method="post" data-frag action="{% url 'cms_item_action' page.slug section.pk item.pk 'toggle' %}">{% csrf_token %}<button class="btn ghost sm">{% if item.is_visible %}Hide{% else %}Show{% endif %}</button></form>
+    <form data-save="reload" method="post" data-frag data-confirm="Remove this item?"
+          action="{% url 'cms_item_action' page.slug section.pk item.pk 'delete' %}">{% csrf_token %}<button class="btn ghost sm">Delete</button></form>
+  </div>
+  {% empty %}
+  <div class="card" style="text-align:center;padding:28px;color:var(--muted);font-size:13px">
+    No items yet — this section will render empty.
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

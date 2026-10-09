@@ -1,0 +1,50 @@
+{# templates/core/my_aji.html #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}myAJi — AJi Hub{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow"><span class="kc">myAJi</span></div>
+    <h1>Services</h1>
+    <p>Everything available to your role, in one place.</p>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">
+  {% if show_approvals_menu %}
+  <a href="{{ approvals_url }}" class="card rise" style="display:flex;align-items:center;gap:14px;text-decoration:none;color:inherit;position:relative">
+    <span style="width:44px;height:44px;flex:none;border-radius:50%;background:var(--disc);color:var(--yellow);display:flex;align-items:center;justify-content:center">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:20px;height:20px"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    </span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:700;font-size:15px">Approvals</div>
+      <div class="muted" style="font-size:12.5px">Items waiting on your decision</div>
+    </div>
+    <span style="background:var(--yellow);color:var(--on-yellow);font-size:12px;font-weight:800;min-width:24px;height:24px;border-radius:12px;display:flex;align-items:center;justify-content:center;padding:0 7px;flex:none">{{ pending_approvals_count }}</span>
+  </a>
+  {% endif %}
+
+  {% for svc in services_menu %}
+  <a href="{{ svc.url }}" class="card rise" style="display:flex;align-items:center;gap:14px;text-decoration:none;color:inherit">
+    <span style="width:44px;height:44px;flex:none;border-radius:50%;background:var(--disc);color:var(--yellow);display:flex;align-items:center;justify-content:center">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:20px;height:20px"><path d="M20 7h-3V5a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v2H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1zM9 5h6v2H9z"/></svg>
+    </span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:700;font-size:15px">{{ svc.label }}</div>
+      {% if svc.description %}<div class="muted" style="font-size:12.5px">{{ svc.description }}</div>{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+{% if not show_approvals_menu and not services_menu %}
+<div class="card rise" style="text-align:center;color:var(--muted);padding:40px 20px">
+  No services are available for your role yet.
+</div>
+{% endif %}
+{# Sections added through the edit toolbar render here. #}
+{% cms_sections %}
+
+{% endblock %}

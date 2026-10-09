@@ -1,0 +1,117 @@
+{% extends 'core/it/_shell.html' %}
+{% load cms_tags %}
+{% block title %}Audit log — IT Portal{% endblock %}
+{% block it_note %}Every change made through this portal: who, what, when, and from where.{% endblock %}
+
+{% block it_content %}
+<div class="it-card">
+  <form method="get" class="it-filters">
+    <input class="it-in" name="q" value="{{ q }}" placeholder="Search the log…">
+    {# Each kind carries how many there are, so choosing one that comes back #}
+    {# empty was plainly empty before you chose it. #}
+    <select class="it-in" name="action" style="flex:none;width:auto">
+      <option value="">Everything ({{ grand_total }})</option>
+      {% for value, label, n in actions %}
+      <option value="{{ value }}" {% if action == value %}selected{% endif %}
+              {% if not n %}class="it-opt-none"{% endif %}>{{ label }} ({{ n }})</option>
+      {% endfor %}
+    </select>
+    <select class="it-in" name="period" style="flex:none;width:auto">
+      {% for value, label in periods %}
+      <option value="{{ value }}" {% if period == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn y sm" type="submit">Filter</button>
+    {% if filtered %}<a class="btn ghost sm" href="{% url 'it_logs' %}">Clear</a>{% endif %}
+  </form>
+
+  <div class="it-card-b flush">
+    <table class="it-table">
+      <thead>
+        <tr>
+          <th style="text-align:left;width:150px">When</th>
+          <th style="text-align:left;width:150px">Who</th>
+          <th style="text-align:left">What</th>
+          <th style="text-align:left;width:120px">From</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td style="white-space:nowrap;color:var(--muted)">{{ row.created_at|date:"j M Y, H:i" }}</td>
+          <td>{% if row.actor %}{{ row.actor.get_full_name|default:row.actor.username }}
+              {% else %}<span style="color:var(--muted)">system</span>{% endif %}</td>
+          <td><span class="it-chip">{{ row.get_action_display }}</span> {{ row.summary }}</td>
+          <td class="it-mono">{{ row.ip|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4">
+          <div class="it-none">
+            {% if filtered %}
+              <b style="display:block;font-size:13.5px;color:var(--ink);margin-bottom:4px">
+                Nothing matches that filter</b>
+              The log still holds {{ grand_total }} entr{{ grand_total|pluralize:"y,ies" }} —
+              <a href="{% url 'it_logs' %}" style="color:var(--ink)">show all of them</a>.
+            {% else %}
+              <b style="display:block;font-size:13.5px;color:var(--ink);margin-bottom:4px">
+                Nothing recorded yet</b>
+              Entries appear here as people sign in and make changes.
+            {% endif %}
+          </div>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# The pager. Every link carries the filters, or moving to page 2 quietly #}
+  {# widens the view back to the whole log. #}
+  {% if page.paginator.num_pages > 1 %}
+  <div class="it-bar it-pager">
+    {% if page.has_previous %}
+    <a class="it-pg" href="?page={{ page.previous_page_number }}{% if filter_qs %}&amp;{{ filter_qs }}{% endif %}"
+       rel="prev">{% icon "chevron-left" 13 %} Newer</a>
+    {% else %}<span class="it-pg off">{% icon "chevron-left" 13 %} Newer</span>{% endif %}
+
+    <span class="it-pg-nums">
+      {% for n in page_window %}
+        {% if n is None %}<span class="it-pg-gap">…</span>
+        {% elif n == page.number %}<span class="it-pg on">{{ n }}</span>
+        {% else %}<a class="it-pg" href="?page={{ n }}{% if filter_qs %}&amp;{{ filter_qs }}{% endif %}">{{ n }}</a>
+        {% endif %}
+      {% endfor %}
+    </span>
+
+    {% if page.has_next %}
+    <a class="it-pg" href="?page={{ page.next_page_number }}{% if filter_qs %}&amp;{{ filter_qs }}{% endif %}"
+       rel="next">Older {% icon "chevron-right" 13 %}</a>
+    {% else %}<span class="it-pg off">Older {% icon "chevron-right" 13 %}</span>{% endif %}
+  </div>
+  {% endif %}
+
+  {# The footer always names the size of the whole log. A filtered view #}
+  {# showing "0 entries" and nothing else reads as a log that was wiped. #}
+  <div class="it-bar">
+    <span style="font-size:12.5px;color:var(--muted)">
+      {% if total %}
+        <b style="color:var(--ink-2)">{{ page.start_index }}&ndash;{{ page.end_index }}</b>
+        of {{ total }}{% if filtered %} matching · {{ grand_total }} in the log
+        altogether{% else %} entr{{ total|pluralize:"y,ies" }}{% endif %}
+      {% elif filtered %}
+        nothing matching · {{ grand_total }} in the log altogether
+      {% else %}
+        the log is empty
+      {% endif %}{% if oldest %} · oldest {{ oldest|date:"j M Y" }}{% endif %}.
+      The log is written to, never edited: the portal offers no way to change or
+      remove an entry.
+    </span>
+  </div>
+</div>
+
+<style>
+/* A kind nothing has been recorded under is still selectable — you may be
+   checking that it hasn't — but it reads as the empty shelf it is. */
+.it-opt-none{color:var(--muted-2)}
+.it-none a{text-decoration:underline;text-underline-offset:2px}
+</style>
+{% endblock %}

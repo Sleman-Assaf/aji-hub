@@ -1,0 +1,391 @@
+{# templates/dam/browse.html — the reusable library browser. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}{{ folder.name|default:space.name }} — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ══ Library browser ══ Square, yellow-accented, consistent with the Hub. ══ */
+.dam-bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:16px;
+  padding-bottom:14px;border-bottom:1px solid var(--line)}
+.dam-search{flex:1;min-width:200px;display:flex;align-items:center;gap:8px;
+  background:var(--paper-2);border:1px solid var(--line-2);padding:8px 12px}
+.dam-search input{border:none;outline:none;background:none;font-family:inherit;
+  font-size:13.5px;width:100%}
+.dam-sel{border:1px solid var(--line-2);background:var(--paper-2);padding:8px 11px;
+  font-family:inherit;font-size:12.5px;font-weight:600;outline:none;cursor:pointer}
+.dam-toggle{display:inline-flex;border:1px solid var(--line-2)}
+.dam-toggle a{padding:8px 12px;font-size:12px;font-weight:700;text-decoration:none;
+  color:var(--muted);background:var(--paper-2)}
+.dam-toggle a.on{background:var(--ink);color:var(--paper-2)}
+
+.dam-crumbs{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:12.5px;
+  color:var(--muted);margin-bottom:14px}
+.dam-crumbs a{color:var(--muted);text-decoration:none;font-weight:600}
+.dam-crumbs a:hover{color:var(--ink);text-decoration:underline}
+.dam-crumbs b{color:var(--ink)}
+
+.dam-folders{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+  gap:10px;margin-bottom:18px}
+.dam-folder{position:relative;border:1px solid var(--line);background:var(--paper-2);
+  transition:box-shadow .16s,border-color .16s}
+.dam-folder:hover{border-color:var(--line-2);box-shadow:0 10px 24px -18px rgba(18,18,16,.4)}
+.dam-folder.c-yellow{border-left:3px solid var(--yellow)}
+.dam-folder.c-green{border-left:3px solid var(--ok)}
+.dam-folder.c-blue{border-left:3px solid var(--info)}
+.dam-folder.c-red{border-left:3px solid var(--bad)}
+.dam-folder.c-grey{border-left:3px solid var(--muted)}
+.dam-folder-hit{display:flex;align-items:center;gap:11px;padding:13px 14px;
+  text-decoration:none;color:inherit}
+.dam-folder-ic{width:34px;height:34px;background:var(--paper-3);display:flex;flex:none;
+  align-items:center;justify-content:center;color:var(--ink-3)}
+.dam-folder-txt{min-width:0}
+.dam-folder-name{display:block;font-weight:700;font-size:13.5px}
+.dam-folder-meta{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+.dam-folder-acts{position:absolute;top:8px;right:8px;display:flex;gap:4px;opacity:0;
+  transition:opacity .14s}
+.dam-folder:hover .dam-folder-acts{opacity:1}
+.dam-folder-acts button{width:24px;height:24px;border:1px solid var(--line-2);
+  background:var(--paper-2);cursor:pointer;font-size:11px;line-height:1;font-family:inherit}
+.dam-folder-acts button:hover{border-color:var(--on-yellow);background:var(--yellow);color:var(--on-yellow)}
+
+.dam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.dam-card{position:relative;border:1px solid var(--line);background:var(--paper-2);
+  display:flex;flex-direction:column;transition:box-shadow .18s,transform .18s,border-color .18s}
+.dam-card:hover{transform:translateY(-2px);border-color:var(--line-2);
+  box-shadow:0 2px 4px rgba(18,18,16,.03),0 18px 34px -24px rgba(18,18,16,.28)}
+.dam-card.picked{border-color:var(--ink);box-shadow:inset 0 0 0 2px var(--yellow)}
+.dam-thumb{display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;
+  background:var(--paper-3);border-bottom:1px solid var(--line);overflow:hidden}
+.dam-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.dam-ext{font-size:15px;font-weight:800;letter-spacing:.06em;color:var(--muted)}
+.dam-thumb.k-pdf .dam-ext{color:var(--bad)}
+.dam-thumb.k-sheet .dam-ext{color:var(--ok)}
+.dam-thumb.k-slide .dam-ext{color:var(--warn)}
+.dam-thumb.k-doc .dam-ext{color:var(--info)}
+.dam-body{padding:11px 12px;flex:1}
+.dam-name{display:block;font-weight:700;font-size:13px;line-height:1.3;color:var(--ink);
+  text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dam-name:hover{text-decoration:underline}
+.dam-meta{font-size:11px;color:var(--muted);margin-top:4px;display:flex;gap:5px;flex-wrap:wrap}
+.dam-dot{opacity:.5}
+.dam-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
+.dam-tag{font-size:10px;font-weight:700;padding:2px 7px;background:var(--paper-3);
+  color:var(--ink-3);text-decoration:none}
+.dam-tag:hover{background:var(--yellow);color:var(--on-yellow)}
+.dam-acts{display:flex;gap:3px;padding:8px 10px;border-top:1px solid var(--line);
+  flex-wrap:wrap}
+.dam-act{width:26px;height:26px;border:1px solid transparent;background:none;cursor:pointer;
+  font-size:12px;line-height:1;font-family:inherit;color:var(--muted);text-decoration:none;
+  display:flex;align-items:center;justify-content:center}
+.dam-act:hover{border-color:var(--line-2);background:var(--paper-3);color:var(--ink)}
+.dam-act.danger:hover{background:var(--bad-bg);color:var(--bad);border-color:var(--bad)}
+.dam-pick{position:absolute;top:8px;left:8px;z-index:2;background:var(--paper-2);
+  border:1px solid var(--line-2);width:22px;height:22px;display:flex;
+  align-items:center;justify-content:center;cursor:pointer}
+
+.dam-grid.as-list{grid-template-columns:1fr;gap:7px}
+.dam-grid.as-list .dam-card{flex-direction:row;align-items:center}
+.dam-grid.as-list .dam-thumb{width:64px;aspect-ratio:1;flex:none;border-bottom:none;
+  border-right:1px solid var(--line)}
+.dam-grid.as-list .dam-acts{border-top:none;flex:none}
+.dam-grid.as-list .dam-pick{position:static;margin-left:10px}
+
+.dam-empty{border:1px dashed var(--line-2);background:var(--paper-2);padding:50px 24px;
+  text-align:center}
+.dam-empty svg{width:32px;height:32px;color:var(--line-2);margin-bottom:10px}
+.dam-empty h3{font-size:15.5px;margin-bottom:5px}
+.dam-empty p{font-size:13px;color:var(--muted);margin:0}
+
+.dam-bulk{display:none;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:14px;
+  padding:10px 13px;background:var(--raised);color:var(--raised-fg);font-size:12.5px;font-weight:600}
+.dam-bulk.on{display:flex}
+.dam-bulk b{color:var(--yellow)}
+.dam-bulk button,.dam-bulk select{font-family:inherit;font-size:12px;font-weight:700;
+  padding:6px 10px;border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;cursor:pointer}
+.dam-bulk button:hover{background:rgba(255,255,255,.14)}
+.dam-bulk select option{color:var(--ink)}
+
+.dam-drop{position:fixed;inset:0;z-index:880;background:rgba(18,18,16,.55);display:none;
+  align-items:center;justify-content:center;color:#fff;font-size:17px;font-weight:700}
+.dam-drop.on{display:flex}
+.dam-note{font-size:11.5px;color:var(--muted);margin-top:14px}
+@media(max-width:620px){.dam-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head rise" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div>
+    <div class="eyebrow">Library</div>
+    <h1>{{ folder.name|default:space.name }}</h1>
+    {# Never fall back to the space blurb inside a folder: it read as though it #}
+    {# described the folder you had just opened. #}
+    {% if folder %}{% if folder.description %}<p>{{ folder.description }}</p>{% endif %}
+    {% elif space.description %}<p>{{ space.description }}</p>{% endif %}
+  </div>
+  {% if can_manage %}
+  <div style="display:flex;gap:8px;flex:none;flex-wrap:wrap">
+    <button type="button" class="btn ghost" onclick="damNewFolder()">+ Folder</button>
+    <button type="button" class="btn y" onclick="document.getElementById('damFiles').click()">Upload</button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="dam-crumbs rise">
+  <a href="{% url 'dam_spaces' %}">Library</a><span>/</span>
+  <a href="{% url 'dam_space' space.slug %}">{{ space.name }}</a>
+  {% for c in breadcrumbs %}<span>/</span>
+    {% if forloop.last %}<b>{{ c.name }}</b>
+    {% else %}<a href="{% url 'dam_folder' space.slug c.pk %}">{{ c.name }}</a>{% endif %}
+  {% endfor %}
+</div>
+
+<form class="dam-bar rise" method="get" id="damFilters">
+  <label class="dam-search">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    <input type="search" name="q" value="{{ q }}" placeholder="Search this library…"
+           aria-label="Search the library">
+  </label>
+  <select name="kind" class="dam-sel" onchange="this.form.submit()" aria-label="File type">
+    <option value="">All types</option>
+    <option value="image" {% if kind == 'image' %}selected{% endif %}>Images</option>
+    <option value="pdf"   {% if kind == 'pdf' %}selected{% endif %}>PDF</option>
+    <option value="doc"   {% if kind == 'doc' %}selected{% endif %}>Documents</option>
+    <option value="sheet" {% if kind == 'sheet' %}selected{% endif %}>Spreadsheets</option>
+    <option value="slide" {% if kind == 'slide' %}selected{% endif %}>Presentations</option>
+    <option value="video" {% if kind == 'video' %}selected{% endif %}>Video</option>
+    <option value="archive" {% if kind == 'archive' %}selected{% endif %}>Archives</option>
+  </select>
+  <select name="tag" class="dam-sel" onchange="this.form.submit()" aria-label="Tag">
+    <option value="">All tags</option>
+    {% for t in tags %}<option value="{{ t.slug }}" {% if tag == t.slug %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+  </select>
+  <select name="sort" class="dam-sel" onchange="this.form.submit()" aria-label="Sort">
+    <option value="name"    {% if sort == 'name' %}selected{% endif %}>Name A–Z</option>
+    <option value="-name"   {% if sort == '-name' %}selected{% endif %}>Name Z–A</option>
+    <option value="new"     {% if sort == 'new' %}selected{% endif %}>Newest</option>
+    <option value="old"     {% if sort == 'old' %}selected{% endif %}>Oldest</option>
+    <option value="updated" {% if sort == 'updated' %}selected{% endif %}>Recently updated</option>
+    <option value="big"     {% if sort == 'big' %}selected{% endif %}>Largest</option>
+  </select>
+  <span class="dam-toggle">
+    <a href="?{% if q %}q={{ q }}&{% endif %}view=grid" class="{% if view_mode != 'list' %}on{% endif %}">Grid</a>
+    <a href="?{% if q %}q={{ q }}&{% endif %}view=list" class="{% if view_mode == 'list' %}on{% endif %}">List</a>
+  </span>
+  <select name="archived" class="dam-sel" onchange="this.form.submit()" aria-label="Archive">
+    <option value="">Active</option>
+    <option value="1" {% if archived %}selected{% endif %}>Archived</option>
+  </select>
+</form>
+
+{% if can_manage %}
+<div class="dam-bulk" id="damBulk">
+  <b id="damBulkN">0</b> selected
+  <button type="button" onclick="damBulk('archive')">Archive</button>
+  <button type="button" onclick="damBulk('restore')">Restore</button>
+  <select id="damBulkFolder" aria-label="Move selection to">
+    <option value="">Move to…</option>
+    {% for t in move_targets %}<option value="{{ t.pk }}">{{ t.label }}</option>{% endfor %}
+  </select>
+  <button type="button" onclick="damBulk('move')">Move</button>
+  <button type="button" onclick="damBulk('delete')">Delete</button>
+  <button type="button" onclick="damClearPicks()" style="margin-left:auto">Clear</button>
+</div>
+{% endif %}
+
+<div class="rise" id="damBody">
+  {% include 'dam/_browser_body.html' %}
+</div>
+
+<div class="dam-note">
+  {{ storage.count }} file{{ storage.count|pluralize }} in this library · {{ storage.pretty }} stored.
+  {% if can_manage %}
+  Previews: images{% if thumb_caps.pdf %} and PDFs{% endif %} are rendered{% if thumb_caps.video %}, as is video{% endif %}.
+  {% if not thumb_caps.office %}Word, Excel and PowerPoint files show a typed icon — page previews for those need LibreOffice on the server.{% endif %}
+  {% endif %}
+</div>
+
+{% if can_manage %}
+<input type="file" id="damFiles" multiple style="display:none" onchange="damUpload(this.files)">
+<input type="file" id="damReplaceFile" style="display:none">
+<div class="dam-drop" id="damDrop">Drop files to upload</div>
+{% endif %}
+
+<script>
+const DAM = {
+  space: '{{ space.slug }}',
+  folder: {{ folder.pk|default:"null" }},
+  csrf: '{{ csrf_token }}',
+  replacing: null
+};
+
+function damUrl(name, extra){
+  const base = '/library/' + DAM.space + '/';
+  return base + name + (extra || '');
+}
+
+/* Re-fetch only the grid, keeping the current query string — so folder,
+   search, filters, sort and scroll position are all preserved. */
+function damRefresh(){
+  const qs = new URLSearchParams(window.location.search);
+  qs.set('fragment', '1');
+  fetch(window.location.pathname + '?' + qs.toString())
+    .then(r => r.text())
+    .then(html => {
+      document.getElementById('damBody').innerHTML = html;
+      damClearPicks();
+    })
+    .catch(() => damToast('Could not refresh the list.', true));
+}
+
+function damToast(msg, bad){
+  const t = document.getElementById('toast');
+  if (!t) { if (bad) alert(msg); return; }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._damTs);
+  window._damTs = setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+function damPost(url, data, done){
+  const fd = data instanceof FormData ? data : new FormData();
+  if (!(data instanceof FormData)) {
+    Object.keys(data || {}).forEach(k => {
+      if (Array.isArray(data[k])) data[k].forEach(v => fd.append(k, v));
+      else fd.append(k, data[k]);
+    });
+  }
+  fd.append('csrfmiddlewaretoken', DAM.csrf);
+  fetch(url, {method: 'POST', body: fd})
+    .then(r => r.json().then(d => ({ok: r.ok, d})))
+    .then(({ok, d}) => {
+      damToast(d.message || d.error || (ok ? 'Done.' : 'That did not work.'), !ok);
+      if (ok) { damRefresh(); if (done) done(d); }
+    })
+    .catch(() => damToast('Network unavailable.', true));
+}
+
+/* ── folders ── */
+function damNewFolder(){
+  const name = prompt('Folder name');
+  if (!name) return;
+  damPost(damUrl('folder/new/'), {name, parent: DAM.folder || ''});
+}
+function damFolderRename(pk, current){
+  const name = prompt('Rename folder', current);
+  if (!name || name === current) return;
+  damPost(damUrl('folder/' + pk + '/update/'), {action: 'rename', name});
+}
+function damFolderAct(pk, action){
+  damPost(damUrl('folder/' + pk + '/update/'), {action});
+}
+function damFolderDelete(pk, name){
+  if (!confirm('Delete the folder “' + name + '”?\nIt must be empty first.')) return;
+  damPost(damUrl('folder/' + pk + '/update/'), {action: 'delete'});
+}
+
+/* ── assets ── */
+function damUpload(files){
+  if (!files || !files.length) return;
+  if (!DAM.folder) { damToast('Open a folder first, then upload into it.', true); return; }
+  const fd = new FormData();
+  fd.append('folder', DAM.folder);
+  for (const f of files) fd.append('files', f);
+  damToast('Uploading ' + files.length + ' file(s)…');
+  damPost(damUrl('upload/'), fd);
+  document.getElementById('damFiles').value = '';
+}
+function damAsset(pk, action, extra){
+  damPost(damUrl('asset/' + pk + '/update/'), Object.assign({action}, extra || {}));
+}
+function damRename(pk, current){
+  const name = prompt('File name', current);
+  if (!name || name === current) return;
+  damAsset(pk, 'rename', {name});
+}
+function damDelete(pk, name){
+  if (!confirm('Delete “' + name + '” permanently?\nThis cannot be undone.')) return;
+  damAsset(pk, 'delete');
+}
+function damMove(pk){
+  const sel = document.getElementById('damBulkFolder');
+  if (!sel || !sel.options.length) { damToast('No folders to move into yet.', true); return; }
+  const to = prompt('Move to folder id?\n' +
+    Array.from(sel.options).filter(o => o.value)
+      .map(o => o.value + ' = ' + o.text.replace(/—\s*/g, '')).join('\n'));
+  if (!to) return;
+  damAsset(pk, 'move', {folder: to});
+}
+function damReplace(pk){
+  DAM.replacing = pk;
+  document.getElementById('damReplaceFile').click();
+}
+function damCopy(url){
+  const full = window.location.origin + url;
+  (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject())
+    .then(() => damToast('Link copied.'))
+    .catch(() => damToast(full));
+}
+
+/* ── selection + bulk ── */
+function damPicked(){
+  return Array.from(document.querySelectorAll('#damBody .dam-pick input:checked'))
+              .map(i => i.value);
+}
+function damSyncBulk(){
+  const ids = damPicked();
+  const bar = document.getElementById('damBulk');
+  if (bar) { bar.classList.toggle('on', ids.length > 0);
+             document.getElementById('damBulkN').textContent = ids.length; }
+  document.querySelectorAll('#damBody .dam-card').forEach(c => {
+    const box = c.querySelector('.dam-pick input');
+    c.classList.toggle('picked', !!(box && box.checked));
+  });
+}
+function damClearPicks(){
+  document.querySelectorAll('#damBody .dam-pick input').forEach(i => i.checked = false);
+  damSyncBulk();
+}
+function damBulk(action){
+  const ids = damPicked();
+  if (!ids.length) return;
+  if (action === 'delete' &&
+      !confirm('Delete ' + ids.length + ' file(s) permanently?')) return;
+  const data = {action, 'ids[]': ids};
+  if (action === 'move') {
+    const to = document.getElementById('damBulkFolder').value;
+    if (!to) { damToast('Choose a destination folder.', true); return; }
+    data.folder = to;
+  }
+  damPost(damUrl('bulk/'), data);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const rep = document.getElementById('damReplaceFile');
+  if (rep) rep.addEventListener('change', function(){
+    if (!this.files[0] || !DAM.replacing) return;
+    const fd = new FormData();
+    fd.append('action', 'replace');
+    fd.append('file', this.files[0]);
+    damPost(damUrl('asset/' + DAM.replacing + '/update/'), fd);
+    this.value = ''; DAM.replacing = null;
+  });
+
+  /* Drag files anywhere onto the page to upload into the current folder. */
+  const drop = document.getElementById('damDrop');
+  if (!drop) return;
+  let depth = 0;
+  window.addEventListener('dragenter', e => {
+    if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
+    depth++; drop.classList.add('on');
+  });
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; drop.classList.remove('on'); } });
+  window.addEventListener('drop', e => {
+    e.preventDefault(); depth = 0; drop.classList.remove('on');
+    if (e.dataTransfer && e.dataTransfer.files.length) damUpload(e.dataTransfer.files);
+  });
+});
+</script>
+{% endblock %}

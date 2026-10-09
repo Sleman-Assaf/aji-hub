@@ -1,0 +1,301 @@
+{# templates/exchange/community_detail.html #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}{{ community.name }} — AJi Exchange{% endblock %}
+{% block content %}
+
+<a href="{% url 'exchange_home' %}" class="ctx-back" title="AJi Exchange"><span class="ctx-back-lab">AJi Exchange</span></a>
+
+{# ── header ───────────────────────────────────────────────────────────── #}
+<div class="cx-head">
+  <div class="cx-head-ic">{% icon community.icon|default:"users-three" 24 %}</div>
+  <div class="cx-head-txt">
+    <div class="cx-head-line">
+      <h1>{{ community.name }}</h1>
+      {% if community.is_private %}
+        <span class="cx-tag priv">{% icon "lock-simple" 11 %} Private</span>
+      {% else %}
+        <span class="cx-tag pub">{% icon "globe" 11 %} Public</span>
+      {% endif %}
+    </div>
+    {% if community.description %}<p>{{ community.description }}</p>{% endif %}
+    <div class="cx-head-meta">
+      <span>{% icon "users-three" 14 1.8 %} {{ community.member_count }} member{{ community.member_count|pluralize }}</span>
+      <span>{% icon "chats-circle" 14 1.8 %} {{ community.threads.count }} thread{{ community.threads.count|pluralize }}</span>
+      {% if community.created_by %}<span>Owner: {{ community.created_by.get_full_name|default:community.created_by.username }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="cx-head-act">
+    {% if is_member %}
+      <a href="{% url 'create_thread' community.slug %}" class="btn y">{% icon "plus" 14 %} New thread</a>
+    {% endif %}
+    {% if not is_member %}
+      <form data-save="reload" method="post" style="margin:0">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="join">
+        <button type="submit" class="btn y">{% icon "user-plus" 14 %} Join community</button>
+      </form>
+    {% else %}
+      <form method="post" data-save="reload" style="margin:0"
+            data-confirm="Leave {{ community.name }}? You can rejoin later{% if community.is_private %} if the owner adds you back{% endif %}.">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="join">
+        <button type="submit" class="btn ghost sm">Leave</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{# ── tabs ─────────────────────────────────────────────────────────────── #}
+<div class="cx-tabs">
+  <a href="?tab=threads" class="ctab{% if tab == 'threads' %} on{% endif %}">Threads</a>
+  <a href="?tab=docs" class="ctab{% if tab == 'docs' %} on{% endif %}">Documents</a>
+  <a href="?tab=members" class="ctab{% if tab == 'members' %} on{% endif %}">
+    Members
+    {% if pending_requests %}<span class="cx-badge">{{ pending_requests|length }}</span>{% endif %}
+  </a>
+  {% if is_admin %}<a href="?tab=about" class="ctab{% if tab == 'about' %} on{% endif %}">Settings</a>{% endif %}
+</div>
+
+<div class="cx-layout">
+  <div class="cx-main">
+
+  {# ── threads ────────────────────────────────────────────────────────── #}
+  {% if tab == 'threads' %}
+    <div class="cx-threads">
+      {% for thread in threads %}
+      <div class="cx-thread{% if thread.pinned %} starred{% endif %}">
+        <a class="cx-thread-link" href="{% url 'thread_detail' community.slug thread.pk %}">
+          <div class="cx-thread-tags">
+            {% if thread.pinned %}<span class="pill warn">{% icon "star" 10 %} Starred</span>{% endif %}
+            <span class="pill{% if thread.thread_type == 'question' %} info{% else %} mut{% endif %}">{{ thread.get_thread_type_display }}</span>
+            {% if thread.n_files %}<span class="pill mut">{% icon "paperclip" 10 %} {{ thread.n_files }}</span>{% endif %}
+          </div>
+          <div class="cx-thread-title">{{ thread.title }}</div>
+          <div class="cx-thread-meta">
+            <span>{{ thread.author.get_full_name|default:thread.author.username }}</span>
+            <span>{{ thread.created_at|date:"j M Y" }}</span>
+            <span>{{ thread.n_replies }} repl{{ thread.n_replies|pluralize:"y,ies" }}</span>
+            {% if thread.edited_at %}<span class="cx-edited">edited</span>{% endif %}
+          </div>
+        </a>
+        {% if is_admin %}
+        <form data-save="reload" method="post" action="{% url 'thread_pin' community.slug thread.pk %}" class="cx-thread-star">
+          {% csrf_token %}
+          <button type="submit" class="cx-starbtn{% if thread.pinned %} on{% endif %}"
+                  title="{% if thread.pinned %}Remove from Starred{% else %}Star this thread{% endif %}">
+            {% icon "star" 15 %}
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      {% empty %}
+      <div class="cx-empty">
+        <b>No threads yet</b>
+        <span>{% if is_member %}Start the first discussion — ask a question or share something you have learned.{% else %}Join the community to post the first thread.{% endif %}</span>
+        {% if is_member %}<a href="{% url 'create_thread' community.slug %}" class="btn y sm">{% icon "plus" 13 %} New thread</a>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+  {# ── documents ──────────────────────────────────────────────────────── #}
+  {% elif tab == 'docs' %}
+    {% if is_member %}
+    <form data-save="reload" method="post" action="{% url 'attachment_add' community.slug %}"
+          enctype="multipart/form-data" class="cx-doc-add">
+      {% csrf_token %}
+      <div class="ff" data-filefield>
+        <input type="file" name="file" id="docFile" multiple>
+        <label for="docFile" class="ff-label">
+          {% icon "plus" 15 %}
+          <span><b>Choose files</b> or drag them here — up to 35 MB each</span>
+        </label>
+        <div class="ff-list" data-filelist></div>
+      </div>
+      <div class="cx-doc-or">or paste a link</div>
+      <div class="cx-doc-link">
+        <input type="text" name="name" placeholder="Name (optional)" maxlength="300">
+        <input type="url" name="url" placeholder="https://…">
+        <button type="submit" class="btn y sm">Add</button>
+      </div>
+    </form>
+    {% endif %}
+
+    <div class="cx-docs">
+      {% for att in attachments %}
+      <div class="cx-doc{% if att.pinned %} starred{% endif %}">
+        <span class="cx-doc-ic">
+          {% if att.attach_type == 'image' %}{% icon "image" 17 %}
+          {% elif att.attach_type == 'video' %}{% icon "video" 17 %}
+          {% elif att.attach_type == 'link' %}{% icon "link-simple" 17 %}
+          {% else %}{% icon "file" 17 %}{% endif %}
+        </span>
+        <div class="cx-doc-txt">
+          <b>{{ att.name }}</b>
+          {% if att.description %}<span class="cx-doc-desc">{{ att.description }}</span>{% endif %}
+          <span class="cx-doc-meta">
+            {% if att.filesize %}{{ att.filesize }} · {% endif %}{{ att.created_at|date:"j M Y" }}
+            {% if att.uploaded_by %} · {{ att.uploaded_by.get_full_name|default:att.uploaded_by.username }}{% endif %}
+            {% if att.thread %} · in <a href="{% url 'thread_detail' community.slug att.thread.pk %}">{{ att.thread.title|truncatechars:40 }}</a>{% endif %}
+          </span>
+        </div>
+        <div class="cx-doc-act">
+          {% if is_admin %}
+          <form data-save="reload" method="post" action="{% url 'attachment_pin' community.slug att.pk %}" style="margin:0">
+            {% csrf_token %}
+            <button type="submit" class="cx-starbtn{% if att.pinned %} on{% endif %}"
+                    title="{% if att.pinned %}Remove from Starred{% else %}Star this document{% endif %}">{% icon "star" 14 %}</button>
+          </form>
+          {% endif %}
+          {% if att.is_viewable %}
+          {# Read it in the Hub. The href is the file, so this still works as a #}
+          {# download if the viewer script has not loaded. #}
+          <a href="{{ att.file.url }}" class="btn ghost sm"
+             data-doc="{% url 'document_meta' 'exchange' att.pk %}">{% icon "eye" 13 %} View</a>
+          {% endif %}
+          {% if att.file %}<a href="{{ att.file.url }}" class="btn ghost sm" download>{% icon "download-simple" 13 %} Download</a>{% endif %}
+          {% if att.url %}<a href="{{ att.url }}" class="btn ghost sm" target="_blank" rel="noopener">Open</a>{% endif %}
+          {% if is_admin or att.uploaded_by == request.user %}
+          <form data-save="reload" method="post" action="{% url 'attachment_delete' community.slug att.pk %}" style="margin:0"
+                data-confirm="Remove “{{ att.name|escapejs }}” from this community?">
+            {% csrf_token %}
+            <button type="submit" class="cx-iconbtn danger" title="Remove">{% icon "trash" 14 %}</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <div class="cx-empty">
+        <b>No documents yet</b>
+        <span>Files posted in a thread appear here too, so nothing has to be filed twice.</span>
+      </div>
+      {% endfor %}
+    </div>
+
+  {# ── members ────────────────────────────────────────────────────────── #}
+  {% elif tab == 'members' %}
+    {% if pending_requests %}
+    <div class="cx-panel">
+      <h3>Requests to join</h3>
+      {% for req in pending_requests %}
+      <div class="cx-member">
+        <span class="cx-av">{{ req.user.first_name.0 }}{{ req.user.last_name.0 }}</span>
+        <div class="cx-member-txt">
+          <b>{{ req.user.get_full_name|default:req.user.username }}</b>
+          <span>{% if req.message %}“{{ req.message }}” · {% endif %}{{ req.created_at|date:"j M Y" }}</span>
+        </div>
+        <div class="cx-member-act">
+          <form data-save="reload" method="post" action="{% url 'join_request_action' community.slug req.pk 'approve' %}" style="margin:0">
+            {% csrf_token %}<button type="submit" class="btn y sm">Approve</button>
+          </form>
+          <form data-save="reload" method="post" action="{% url 'join_request_action' community.slug req.pk 'decline' %}" style="margin:0">
+            {% csrf_token %}<button type="submit" class="btn ghost sm">Decline</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if is_admin %}
+    <form data-save="reload" method="post" action="{% url 'community_members_edit' community.slug %}" class="cx-panel">
+      {% csrf_token %}
+      <h3>Add members</h3>
+      <div class="f-foot">
+        {% url 'community_member_search' community.slug as add_search %}
+        {% include 'exchange/_people_picker.html' with search_url=add_search field='members' placeholder='Search colleagues by name…' note='They are added straight away and get a notification.' %}
+        <button type="submit" class="btn y sm" style="margin-top:12px">{% icon "user-plus" 13 %} Add to community</button>
+      </div>
+    </form>
+    {% endif %}
+
+    <div class="cx-panel">
+      <h3>{{ community.member_count }} member{{ community.member_count|pluralize }}</h3>
+      {% for m in community_members %}
+      <div class="cx-member">
+        {% if m.employee.photo %}<img class="cx-av" src="{{ m.employee.photo.url }}" alt="">
+        {% else %}<span class="cx-av">{{ m.first_name.0 }}{{ m.last_name.0 }}</span>{% endif %}
+        <div class="cx-member-txt">
+          <b>{{ m.get_full_name|default:m.username }}</b>
+          <span>{{ m.employee.role|default:"" }}{% if m == community.created_by %}{% if m.employee.role %} · {% endif %}Owner{% endif %}</span>
+        </div>
+        <div class="cx-member-act">
+          {% if is_admin and m != community.created_by %}
+          <form data-save="reload" method="post" action="{% url 'community_members_edit' community.slug %}" style="margin:0"
+                data-confirm="Remove {{ m.get_full_name|default:m.username|escapejs }} from this community?">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="remove">
+            <input type="hidden" name="user" value="{{ m.pk }}">
+            <button type="submit" class="cx-iconbtn danger" title="Remove from community">{% icon "x" 14 %}</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <div class="cx-side-empty">Nobody has joined yet.</div>
+      {% endfor %}
+    </div>
+
+  {# ── settings ───────────────────────────────────────────────────────── #}
+  {% elif tab == 'about' and is_admin %}
+    <form data-save method="post" action="{% url 'community_update' community.slug %}" class="cx-panel">
+      {% csrf_token %}
+      <h3>Community settings</h3>
+      {# The icon and the name together: the icon is what the card is recognised #}
+      {# by in a grid of them, and community_update has always accepted one — #}
+      {# there was simply nowhere to choose it, so every community showed the #}
+      {# same group of people. data-icon-field is the shared picker. #}
+      <div class="cx-field">
+        <label for="cName">Icon and name</label>
+        <div class="cx-name-row">
+          <input type="text" name="icon" value="{{ community.icon }}"
+                 data-icon-field data-icon-only
+                 title="Choose an icon for this community" aria-label="Community icon">
+          <input id="cName" type="text" name="name" value="{{ community.name }}" maxlength="200" required>
+        </div>
+      </div>
+      <div class="cx-field">
+        <label for="cDesc">Description</label>
+        <textarea id="cDesc" name="description" rows="3">{{ community.description }}</textarea>
+      </div>
+      <div class="cx-field">
+        <label>Who can see inside</label>
+        <div class="cx-vis">
+          <label class="cx-vis-opt{% if not community.is_private %} on{% endif %}">
+            <input type="radio" name="visibility" value="public" {% if not community.is_private %}checked{% endif %}>
+            <span class="cx-vis-ic">{% icon "globe" 17 %}</span>
+            <span class="cx-vis-txt"><b>Public</b><i>Anyone at AJi can read it and join.</i></span>
+          </label>
+          <label class="cx-vis-opt{% if community.is_private %} on{% endif %}">
+            <input type="radio" name="visibility" value="private" {% if community.is_private %}checked{% endif %}>
+            <span class="cx-vis-ic">{% icon "lock-simple" 17 %}</span>
+            <span class="cx-vis-txt"><b>Private</b><i>Listed, but only members see the threads. People ask to join.</i></span>
+          </label>
+        </div>
+      </div>
+      <div class="f-foot">
+        <button type="submit" class="btn y sm">Save changes</button>
+      </div>
+    </form>
+
+    <div class="cx-panel danger">
+      <h3>Delete this community</h3>
+      <p class="cx-note">
+        The threads and documents are kept. An Intranet Admin can restore the
+        whole community from the removed list, so this is not final.
+      </p>
+      <form method="post" action="{% url 'community_delete' community.slug %}" style="margin:0"
+            data-confirm="Delete “{{ community.name|escapejs }}”? It is recoverable — an Intranet Admin can restore it.">
+        {% csrf_token %}
+        <button type="submit" class="btn ghost sm danger">{% icon "trash" 13 %} Delete community</button>
+      </form>
+    </div>
+  {% endif %}
+
+  </div>
+
+  {% include 'exchange/_starred.html' %}
+</div>
+
+{% include 'exchange/_exchange_js.html' %}
+{% endblock %}

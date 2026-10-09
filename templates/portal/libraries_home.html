@@ -1,0 +1,100 @@
+{# templates/portal/libraries_home.html — the libraries you run. #}
+{# The way in. Previously the only list of libraries was the reader's grid of #}
+{# tiles, which shows the ones you can *open* — not the ones you are #}
+{# responsible for, and with no sign of which is which. This page answers one #}
+{# question: what am I looking after, and what is waiting on me. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}Document libraries{% endblock %}
+{% block content %}
+
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">Policies &amp; Manuals</div>
+    <h1>Document libraries</h1>
+    <p>
+      The libraries you own or help run. Open one to add folders and documents,
+      or to change who can see it.
+    </p>
+  </div>
+  <div class="lh-head-go">
+    <a href="{% url 'library_new' %}" class="btn y">{% icon "plus" 15 2 %} New document library</a>
+    <a href="{% url 'policies' %}" class="btn ghost">{% icon "eye" 15 %} See it as a reader</a>
+  </div>
+</div>
+
+{% if waiting %}
+<div class="ls-note rise">
+  {% icon "clock" 15 %}
+  <span>
+    <b>{{ waiting }} {% if waiting == 1 %}person is{% else %}people are{% endif %}
+    waiting</b> to be let into one of your libraries. Open it and look under
+    Settings.
+  </span>
+</div>
+{% endif %}
+
+{% if libraries %}
+<div class="lh-list rise">
+  {% for lib in libraries %}
+  <div class="lh-row">
+    <a class="lh-go" href="{% url 'library_workspace' lib.pk %}">
+      <span class="lh-ic">{% icon lib.icon|default:"books" 18 1.7 %}</span>
+      <span class="lh-id">
+        <b>{{ lib.name }}</b>
+        <i>
+          {{ lib.n_docs }} document{{ lib.n_docs|pluralize }} ·
+          {{ lib.n_folders }} folder{{ lib.n_folders|pluralize }}
+          {% if lib.description %} · {{ lib.description }}{% endif %}
+        </i>
+      </span>
+    </a>
+
+    <span class="lh-tags">
+      {# What a reader would find, said plainly. A manager who cannot tell an #}
+      {# open library from a closed one at a glance will eventually put the #}
+      {# wrong document in the wrong one. #}
+      {% if lib.access == 'everyone' %}
+      <span class="lh-tag open">{% icon "users" 12 %} Everyone</span>
+      {% elif lib.access == 'request' %}
+      <span class="lh-tag ask">{% icon "user-plus" 12 %} By request</span>
+      {% else %}
+      <span class="lh-tag shut">{% icon "lock-simple" 12 %} Chosen people</span>
+      {% endif %}
+      {% if not lib.downloadable %}
+      <span class="lh-tag">{% icon "eye" 12 %} Read only</span>
+      {% endif %}
+      {% if lib.n_pending %}
+      <span class="lh-tag wait">{% icon "clock" 12 %} {{ lib.n_pending }} waiting</span>
+      {% endif %}
+      {% if lib.is_owner %}
+      <span class="lh-tag">Yours</span>
+      {% elif lib.created_by %}
+      <span class="lh-tag">Helping {{ lib.owner_name }}</span>
+      {% else %}
+      <span class="lh-tag">No owner</span>
+      {% endif %}
+    </span>
+
+    <span class="lh-acts">
+      <a href="{% url 'library_workspace' lib.pk %}" class="btn ghost sm">Open</a>
+      <a href="{% url 'library_workspace' lib.pk %}?tab=settings" class="btn ghost sm">
+        {% icon "sliders" 13 %} Settings
+      </a>
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="lh-empty rise">
+  {% icon "books" 30 1.4 %}
+  <h3>You do not run any libraries yet</h3>
+  <p>
+    A document library is a place for a set of manuals, SOPs or forms — with its
+    own folders, and its own answer to who may read them.
+  </p>
+  <a href="{% url 'library_new' %}" class="btn y">{% icon "plus" 15 2 %} Create the first one</a>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,86 @@
+{% load cms_tags %}
+{# The right-hand column of a thread page. #}
+{# #}
+{# It used to hold the starred panel and nothing else, so on a community that #}
+{# has starred nothing it was a blank column the height of the conversation. #}
+{# Three cards now, each answering a question somebody actually has while #}
+{# reading a thread: where am I, what should I read first, and what else has #}
+{# been going on. #}
+<aside class="cx-side">
+
+  {# ── where am I ── #}
+  <div class="cx-side-card cx-about">
+    <a class="cx-about-top" href="{% url 'community_detail' community.slug %}">
+      <span class="cx-about-ic">{% icon "users-group" 16 %}</span>
+      <span class="cx-about-txt">
+        <b>{{ community.name }}</b>
+        <i>{{ community.member_count }} member{{ community.member_count|pluralize }}{% if community.is_private %} · Private{% endif %}</i>
+      </span>
+    </a>
+    {% if is_member %}
+    <a class="cx-side-cta" href="{% url 'create_thread' community.slug %}">
+      {% icon "plus" 14 %} New thread
+    </a>
+    {% endif %}
+  </div>
+
+  {# ── what to read first ── #}
+  {% if starred_threads or starred_docs %}
+  <div class="cx-side-card">
+    <div class="cx-side-head">
+      {% icon "star" 15 %}
+      <span>Starred in this community</span>
+    </div>
+
+    {% for t in starred_threads %}
+    <a class="cx-star-row" href="{% url 'thread_detail' community.slug t.pk %}">
+      <span class="cx-star-ic">{% icon "chat-circle-text" 14 %}</span>
+      <span class="cx-star-txt">
+        <b>{{ t.title }}</b>
+        <i>{{ t.author.get_full_name|default:t.author.username }} · {{ t.created_at|date:"j M Y" }}</i>
+      </span>
+    </a>
+    {% endfor %}
+
+    {% for d in starred_docs %}
+    <a class="cx-star-row" {% if d.file %}href="{{ d.file.url }}" download{% elif d.url %}href="{{ d.url }}" target="_blank" rel="noopener"{% else %}href="{% url 'community_detail' community.slug %}?tab=docs"{% endif %}>
+      <span class="cx-star-ic">
+        {% if d.attach_type == 'image' %}{% icon "image" 14 %}
+        {% elif d.attach_type == 'video' %}{% icon "video" 14 %}
+        {% elif d.attach_type == 'link' %}{% icon "link-simple" 14 %}
+        {% else %}{% icon "file" 14 %}{% endif %}
+      </span>
+      <span class="cx-star-txt">
+        <b>{{ d.name }}</b>
+        <i>{% if d.filesize %}{{ d.filesize }} · {% endif %}{{ d.created_at|date:"j M Y" }}</i>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── what else has been going on, newest first ── #}
+  {% if more_threads %}
+  <div class="cx-side-card">
+    <div class="cx-side-head">
+      {% icon "chat-circle-text" 15 %}
+      <span>More in this community</span>
+    </div>
+    {% for t in more_threads %}
+    <a class="cx-more-row" href="{% url 'thread_detail' community.slug t.pk %}">
+      <span class="cx-more-title">{{ t.title }}</span>
+      <span class="cx-more-meta">
+        {% if t.thread_type == 'question' %}<span class="cx-more-kind q">Question</span>
+        {% else %}<span class="cx-more-kind">Discussion</span>{% endif %}
+        <span>{{ t.created_at|date:"j M" }}</span>
+        {% if t.n_replies %}<span>· {{ t.n_replies }} repl{{ t.n_replies|pluralize:"y,ies" }}</span>{% endif %}
+      </span>
+    </a>
+    {% endfor %}
+    <a class="cx-side-all" href="{% url 'community_detail' community.slug %}">
+      All threads {% icon "chevron-right" 13 %}
+    </a>
+  </div>
+  {% endif %}
+
+</aside>

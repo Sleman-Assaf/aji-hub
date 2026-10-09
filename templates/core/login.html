@@ -1,0 +1,284 @@
+{# templates/core/login.html #}
+{# Two clips of AJi Group behind the sign-in, cycling one into the other. #}
+{# #}
+{# Both are letterbox — 2.5:1 and 3.3:1 — so object-fit:cover crops their sides #}
+{# hard on an ordinary monitor and harder on a phone. That is the right trade #}
+{# here: they are an ambient background under a dark veil, not something being #}
+{# watched, and a video letterboxed into a corner would look like a mistake. #}
+<!DOCTYPE html>
+{# data-theme="dark" is load-bearing, not a preference. This page does not #}
+{# extend base.html, so nothing set the attribute — and every var(--paper-*) #}
+{# and var(--ink) in the shared stylesheet therefore resolved to the *light* #}
+{# palette on a page that is dark by design. `.field input` from that sheet #}
+{# says background:var(--paper-2), which painted both sign-in fields solid #}
+{# white while this page's own rule set the text to #fff: white on white. A #}
+{# typed username was visible only because of the yellow ::selection behind it. #}
+{# Stating the theme fixes it at the source instead of with another override: #}
+{# the shared rule now yields a dark field with light text, which is what the #}
+{# design wanted. Hardcoded rather than read from storage — this page is dark #}
+{# in both themes. #}
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AJi Hub — Sign In</title>
+{% load static %}
+{# ?v= is the stylesheet mtime — see base.html; this page does not extend it. #}
+<link rel="stylesheet" href="{% static 'css/aji_hub.css' %}?v={{ asset_version }}">
+<style>
+/* ── the stage ─────────────────────────────────────────────────────────── */
+/* Dark from the first paint, so nothing flashes white before the video has
+   decoded a frame and nothing flashes black if it never does. */
+html,body{height:100%}
+/* border-box, or the 28px of padding is added to the 100svh and the page
+   scrolls by exactly that much — which puts a scrollbar down the side and
+   leaves the fixed video ten pixels short of the window. */
+body{margin:0;box-sizing:border-box;background:#0d0d0c;color:#fff;
+  display:flex;align-items:center;justify-content:center;padding:28px 20px;
+  min-height:100svh}          /* svh, not vh: mobile browser chrome */
+
+.lg-bg{position:fixed;inset:0;overflow:hidden;background:#0d0d0c;z-index:0}
+.lg-v{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  opacity:0;transition:opacity 1.1s ease}
+.lg-v.on{opacity:1}
+
+/* The veil. Three layers rather than one flat wash: a tint for legibility, a
+   diagonal that sinks the bottom-left so the card sits on the darkest part of
+   the frame, and a vignette to stop the corners competing with the logo. */
+.lg-veil{position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(120% 90% at 50% 40%, rgba(0,0,0,0) 35%, rgba(0,0,0,.55) 100%),
+    linear-gradient(200deg, rgba(13,13,12,.45) 0%, rgba(13,13,12,.72) 55%, rgba(13,13,12,.88) 100%),
+    rgba(13,13,12,.30)}
+/* A single hairline of brand colour across the very top, the same device the
+   header uses on the rest of the site. */
+.lg-veil::after{content:"";position:absolute;top:0;left:0;right:0;height:4px;
+  background:var(--yellow);color:var(--on-yellow)}
+
+/* ── the panel ─────────────────────────────────────────────────────────── */
+.lg-wrap{position:relative;z-index:1;width:100%;max-width:404px;
+  animation:lgIn .5s cubic-bezier(.22,1,.36,1) both}
+@keyframes lgIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+.lg-logo{display:block;width:196px;max-width:62%;height:auto;margin:0 auto 26px;
+  filter:drop-shadow(0 3px 14px rgba(0,0,0,.5))}
+
+/* Frosted, so the video reads through it as movement rather than detail. The
+   background stands on its own where backdrop-filter is unsupported. */
+.lg-card{background:rgba(24,24,21,.62);border:1px solid rgba(255,255,255,.13);
+  border-top:3px solid var(--yellow);border-radius:14px;padding:28px 26px 26px;
+  box-shadow:0 26px 70px rgba(0,0,0,.5);
+  -webkit-backdrop-filter:blur(20px) saturate(115%);
+  backdrop-filter:blur(20px) saturate(115%)}
+@supports (backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px)){
+  .lg-card{background:rgba(24,24,21,.46)}
+}
+
+.lg-h{font-size:19px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px;color:#fff}
+.lg-sub{font-size:13px;color:rgba(255,255,255,.62);margin:0 0 22px}
+
+/* The global field styles are drawn for a white page, so they are restated for
+   a dark one rather than fought with !important. */
+.lg-card .field{margin-bottom:15px}
+.lg-card .field label{display:block;font-size:11px;font-weight:700;
+  letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.58);
+  margin-bottom:7px}
+.lg-card .field input{width:100%;box-sizing:border-box;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);
+  border-radius:9px;padding:12px 14px;color:#fff;
+  font-family:inherit;font-size:14.5px;outline:none;
+  transition:border-color .14s, background .14s, box-shadow .14s}
+.lg-card .field input::placeholder{color:rgba(255,255,255,.35)}
+.lg-card .field input:hover{border-color:rgba(255,255,255,.28)}
+.lg-card .field input:focus{border-color:var(--yellow);background:rgba(255,255,255,.1);
+  box-shadow:0 0 0 3px rgba(255,214,0,.16)}
+/* Chrome paints its own colours over a remembered password; this keeps the
+   field dark instead of a white block appearing on the panel. */
+.lg-card .field input:-webkit-autofill,
+.lg-card .field input:-webkit-autofill:focus{
+  -webkit-text-fill-color:#fff;
+  -webkit-box-shadow:0 0 0 40px #23231f inset;
+  caret-color:#fff}
+
+.lg-go{width:100%;justify-content:center;margin-top:8px;padding:13px;
+  font-size:14.5px;border-radius:9px}
+
+.lg-msg{background:rgba(214,63,63,.16);border:1px solid rgba(255,120,120,.45);
+  color:#ffc9c9;padding:11px 13px;border-radius:9px;margin-bottom:16px;
+  font-size:13px;font-weight:600}
+
+.lg-foot{text-align:center;font-size:12px;color:rgba(255,255,255,.5);margin:18px 0 0}
+.lg-foot a{color:rgba(255,255,255,.85);font-weight:600;text-decoration:none;
+  border-bottom:1px solid rgba(255,214,0,.5);padding-bottom:1px}
+.lg-foot a:hover{color:#fff;border-bottom-color:var(--yellow)}
+
+@media (max-width:420px){
+  .lg-card{padding:24px 20px 22px}
+  .lg-logo{margin-bottom:22px}
+}
+
+/* Asked not to be animated: hold a still frame and let the veil carry the page.
+   The script checks the same thing, so nothing is downloaded either. */
+@media (prefers-reduced-motion:reduce){
+  .lg-v{display:none}
+  .lg-wrap{animation:none}
+  .lg-bg{background:
+    radial-gradient(120% 100% at 70% 15%, #2a2a25 0%, #0d0d0c 62%)}
+}
+</style>
+</head>
+<body>
+
+<div class="lg-bg">
+  {# The first clip carries `loop` in the markup, so with the script broken it #}
+  {# still plays on its own forever. The script removes it once the pair is    #}
+  {# wired and takes over the hand-off. #}
+  <video class="lg-v on" id="lgA" autoplay muted loop playsinline preload="auto"
+         aria-hidden="true" tabindex="-1"
+         src="{% static 'video/aji-group-1.mp4' %}"></video>
+  {# The second is 12.5 MB and is not needed for nine seconds, so it has no src #}
+  {# until the first one is actually playing. #}
+  <video class="lg-v" id="lgB" muted playsinline preload="none"
+         aria-hidden="true" tabindex="-1"
+         data-src="{% static 'video/aji-group-2.mp4' %}"></video>
+  <div class="lg-veil"></div>
+</div>
+
+<main class="lg-wrap">
+  <img class="lg-logo" src="{% static 'img/logo-light.png' %}"
+       alt="AJi Hub" width="887" height="453">
+
+  {% if messages %}
+    {% for message in messages %}
+    <div class="lg-msg">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="lg-card">
+    <h1 class="lg-h">Sign in</h1>
+    <p class="lg-sub">Use your AJi network account.</p>
+    <form method="post">
+      {% csrf_token %}
+      <div class="field">
+        <label for="id_username">Username</label>
+        <input id="id_username" type="text" name="username"
+               autocomplete="username" required autofocus>
+      </div>
+      <div class="field">
+        <label for="id_password">Password</label>
+        <input id="id_password" type="password" name="password"
+               autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn y lg-go">Sign in</button>
+    </form>
+  </div>
+
+  <p class="lg-foot">
+    For access, contact IT at <a href="https://ajigsdesk/">Servicedesk</a>
+  </p>
+</main>
+
+<script>
+/* Two clips, one after the other, on a loop.
+   Everything here is an enhancement: with it removed the first clip still
+   autoplays and loops, and the page looks the same bar the second video. */
+(function () {
+  var a = document.getElementById('lgA');
+  var b = document.getElementById('lgB');
+  if (!a || !b || !a.canPlayType || !a.canPlayType('video/mp4')) return;
+
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    a.removeAttribute('autoplay');
+    a.pause();
+    a.removeAttribute('src');      // nothing fetched for a background nobody wants moving
+    a.load();
+    return;
+  }
+
+  /* The hand-off is ours now, so the single-clip fallback loop comes off. */
+  a.loop = false;
+  var cur = a, nxt = b, swapping = false, loaded = false;
+
+  function lazyLoadB() {
+    if (loaded) return;
+    loaded = true;
+    b.src = b.dataset.src;
+    b.load();               // preload="none" means it waits to be asked
+  }
+
+  /* Start the fade before the end rather than at it, so the two overlap and
+     neither the last frame nor the first one is ever held on screen alone. */
+  var FADE = 1.1;
+
+  function handoff() {
+    if (swapping) return;
+    swapping = true;
+    var from = cur, to = nxt;
+    to.currentTime = 0;
+    /* play() returns a promise in current browsers and nothing in older ones,
+       hence the wrap. Only cross-fade once it has actually started: fading to a
+       clip that then refuses to play would leave a blank screen. */
+    Promise.resolve(to.play()).then(function () {
+      to.classList.add('on');
+      from.classList.remove('on');
+      // Pause the outgoing clip only once it is invisible, or the frame stops
+      // mid-fade and the change reads as a stutter.
+      setTimeout(function () { if (from !== cur) from.pause(); }, FADE * 1000);
+      cur = to; nxt = from;
+      swapping = false;
+    }).catch(function () {
+      // The other clip would not start — usually it has not buffered yet. Run
+      // this one again rather than freeze on its last frame, and try the swap
+      // again next time round.
+      swapping = false;
+      from.currentTime = 0;
+      Promise.resolve(from.play()).catch(function () {});
+    });
+  }
+
+  function early() {
+    if (this !== cur || swapping) return;
+    if (!cur.duration || isNaN(cur.duration)) return;
+    if (cur.currentTime >= cur.duration - FADE) handoff();
+  }
+
+  a.addEventListener('timeupdate', early);
+  b.addEventListener('timeupdate', early);
+
+  /* The backstop, and the reason the first version of this froze: timeupdate is
+     throttled to a crawl in a tab that is not being composited, so the fade
+     never got its cue and the clip simply stopped on its last frame. `ended`
+     still fires. A hard cut is worse than a cross-fade and far better than a
+     still photograph. */
+  function onEnded() { if (this === cur) handoff(); }
+  a.addEventListener('ended', onEnded);
+  b.addEventListener('ended', onEnded);
+
+  a.addEventListener('playing', lazyLoadB, {once: true});
+  /* If A is already past its first frame by the time this runs, `playing` has
+     been and gone and B would never be fetched. */
+  if (!a.paused && a.currentTime > 0) lazyLoadB();
+
+  /* Autoplay is refused until the tab is visible, and a tab restored from the
+     background comes back paused: Chrome suspends muted, audio-less video to
+     save power, which is most of what a background video is. Left alone, the
+     sign-in page would sit on a frozen frame for as long as the window stayed
+     open. So the current clip is restarted whenever it is paused by something
+     other than us, and whenever the tab comes back into view. */
+  function nudge() {
+    if (document.hidden || swapping) return;
+    Promise.resolve(cur.play()).catch(function () {});
+  }
+  document.addEventListener('visibilitychange', nudge);
+  function onPause() {
+    // Not the outgoing clip mid-fade, and not a clip that simply finished.
+    if (this !== cur || swapping || this.ended) return;
+    setTimeout(nudge, 120);
+  }
+  a.addEventListener('pause', onPause);
+  b.addEventListener('pause', onPause);
+  nudge();
+})();
+</script>
+</body>
+</html>

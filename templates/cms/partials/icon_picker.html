@@ -1,0 +1,39 @@
+{# templates/cms/partials/icon_picker.html — the shared icon chooser. #}
+{# Loaded into any form that sets an icon, so there is one way to pick one #}
+{# across the whole Hub instead of a text field per model. #}
+{# #}
+{# It was a flat grid of whatever rows the library happened to hold, filtered by #}
+{# a client-side substring test. That worked at 76 icons. There are 1,512 now, so #}
+{# the set is browsable by category and searched on the server. #}
+{% load cms_tags %}
+<div class="ip-head">
+  <input type="search" class="inp" id="ipSearch" value="{{ q }}"
+         placeholder="Search {{ set.count }} icons…" autocomplete="off" spellcheck="false">
+  <button type="button" class="btn ghost sm" onclick="ipClear()">No icon</button>
+  {% if can_manage %}
+  <a href="{% url 'cms_icons' %}" class="btn ghost sm" target="_blank" rel="noopener">Manage</a>
+  {% endif %}
+</div>
+
+<div class="ip-body">
+  {# Real buttons, so the rail is reachable by keyboard and announced properly, #}
+  {# rather than a column of divs with click handlers. #}
+  <nav class="ip-rail" id="ipRail" aria-label="Icon categories">
+    {% for key, label, count in groups %}
+    <button type="button" class="ip-cat{% if key == category %} on{% endif %}"
+            data-cat="{{ key }}">
+      <span>{{ label }}</span>
+      {% if count %}<i>{{ count }}</i>{% endif %}
+    </button>
+    {% endfor %}
+  </nav>
+
+  <div class="ip-results" id="ipResults">
+    {% include 'cms/partials/icon_picker_grid.html' %}
+  </div>
+</div>
+
+<p class="ip-foot muted">
+  {{ set.set|title }} {{ set.version }}, {{ set.weight }} weight — {{ set.count }} icons.
+  Anything uploaded or edited here is under &ldquo;Uploaded and edited&rdquo;.
+</p>

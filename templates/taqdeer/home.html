@@ -1,0 +1,521 @@
+{# templates/taqdeer/home.html — AJi Taqdeer, rebuilt to the specification. #}
+{# #}
+{# Section 2 sets the shape: praises down the main column, certifications #}
+{# beside them, and the released Athar results in their own prominent band. #}
+{# Section 11 sets that band's lifespan — it leaves the page after its window #}
+{# and lives on in the archive. #}
+{# #}
+{# Three bands rather than one feed, because the three kinds of recognition are #}
+{# not equivalent: an award is quarterly and rare, a certification is a fact, #}
+{# and Kudos is a Tuesday afternoon. Reading them as one list flattened all #}
+{# three into a noticeboard. #}
+{% extends 'base.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}AJi Taqdeer{% endblock %}
+
+{% block content %}
+
+{# ── masthead ──────────────────────────────────────────────────────────── #}
+<header class="tk-top">
+  <div class="tk-top-txt">
+    <div class="eyebrow">Recognition</div>
+    <h1>AJi Taqdeer <span class="tk-ar">تقدير</span></h1>
+    <p>Good work, on the record.</p>
+  </div>
+  {# Each counter goes where its number came from. Kudos and Certifications #}
+  {# set the feed's filter and scroll to it; Athar has no filter because it is #}
+  {# not in the feed, so it goes to the archive — every award ever given. #}
+  {# Certifications pointed at #certs, an anchor that exists nowhere on this #}
+  {# page, so the counter that most looked like a button did nothing at all. #}
+  <div class="tk-nums">
+    <a class="tk-num" href="#kudos" data-jump="praise"><b>{{ n_praise }}</b><span>Kudos</span></a>
+    <a class="tk-num" href="{% url 'taqdeer_archive' %}"><b>{{ n_awards }}</b><span>Athar</span></a>
+    <a class="tk-num" href="#kudos" data-jump="certification"><b>{{ n_certs }}</b><span>Certifications</span></a>
+  </div>
+  <div class="tk-acts">
+    <button class="btn y sm" type="button" data-give>{% icon "hands-clapping" 14 %} Give Kudos</button>
+    {% if can_nominate %}
+    <a class="btn ghost sm" href="{% url 'taqdeer_submissions' %}">Nominate for Athar</a>
+    {% endif %}
+    <a class="btn ghost sm" href="{% url 'taqdeer_mine' %}">My recognition</a>
+    {% if is_hr %}
+    {# One button, and everything HR runs is under it. Four separate links in #}
+    {# the rail put admin in front of every employee who opened the page. #}
+    <details class="tk-hr">
+      <summary class="btn ghost sm">{% icon "settings" 14 %} HR tools</summary>
+      <div class="tk-hr-menu">
+        <a href="{% url 'taqdeer_athar_manage' %}">
+          <b>Athar Management</b><span>Periods, who can nominate, limits</span></a>
+        <a href="{% url 'taqdeer_manage' %}">
+          <b>Review nominations</b><span>Approve or send back</span></a>
+        <a href="{% url 'taqdeer_certifications' %}">
+          <b>Certifications</b><span>Add and publish</span></a>
+        <a href="{% url 'taqdeer_praise_queue' %}">
+          <b>Kudos queue</b><span>Moderation, when it is on</span></a>
+        <a href="{% url 'taqdeer_settings' %}">
+          <b>Settings</b><span>Templates, notifications, visibility</span></a>
+      </div>
+    </details>
+    {% endif %}
+  </div>
+</header>
+
+{# ── the Athar band ────────────────────────────────────────────────────── #}
+{# Only while inside its visibility window. Past that it is in the archive, #}
+{# which is what keeps this page from becoming a list of every quarter run. #}
+{% if live_cycle and winners %}
+<section class="tk-athar" id="athar">
+  <div class="tk-athar-h">
+    <div>
+      <span class="tk-athar-k">{% icon "medal" 13 %} The Athar Award · {{ live_cycle.label }}</span>
+      <h2>Celebrating our colleagues who made an impact this quarter</h2>
+    </div>
+    <a class="btn ghost sm tk-athar-prev" href="{% url 'taqdeer_archive' %}">
+      {% icon "medal" 13 %} Previous awards</a>
+  </div>
+  <div class="tk-winners">
+    {% for n in winners %}
+    <article class="tk-winner">
+      {% if n.recipient.employee.photo %}
+      <img class="tk-winner-av" src="{{ n.recipient.employee.photo.url }}" alt="">
+      {% else %}<span class="tk-winner-av tone">{{ n.recipient|initials }}</span>{% endif %}
+      <b>{{ n.recipient_name }}</b>
+      {% if n.recipient.employee.department %}
+      <span class="tk-winner-dep">{{ n.recipient.employee.department.name }}</span>{% endif %}
+      <p>{{ n.citation }}</p>
+      {# The certificate is the recipient's alone — section 10. #}
+      {% if n.recipient_id == request.user.pk and n.certificate %}
+      <a class="tk-winner-cert" href="{% url 'taqdeer_certificate' n.pk %}">
+        {% icon "certificate" 12 %} Your certificate</a>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<div class="cx-layout tk-solo">
+  {# ── praises ─────────────────────────────────────────────────────────── #}
+  <div class="cx-main">
+
+    {# The composer is a dialog. It was a permanent form at the top of the #}
+    {# page, which put a blank text box above the thing people came to read. #}
+    <dialog class="tk-modal" id="giveDlg">
+      <form method="post" action="{% url 'taqdeer_praise_new' %}"
+            enctype="multipart/form-data" class="tk-give">
+        {% csrf_token %}
+        <div class="tk-give-h">
+          <span class="tq-badge">{% icon "hands-clapping" 13 %} Kudos</span>
+          <span class="tk-give-h-t">Thank anyone at AJi.</span>
+          <button type="button" class="tk-x" data-close aria-label="Close">
+            {% icon "x" 15 %}</button>
+        </div>
+
+      <div class="tk-give-b">
+        <div class="tq-field">
+          <label class="tq-lab">Who would you like to recognise?</label>
+          {% url 'taqdeer_people' as ppl %}
+          {% include 'exchange/_people_picker.html' with search_url=ppl field='recipient' placeholder='Search colleagues…' one=1 %}
+        </div>
+
+        <div class="tq-field">
+          <label class="tq-lab" for="tk-sub">What for?</label>
+          <input class="tq-in" id="tk-sub" name="subject" maxlength="140" required
+                 placeholder="e.g. Held the MODON submission together">
+        </div>
+
+        <div class="tq-field">
+          <label class="tq-lab" for="tk-msg">Why are you recognising them?</label>
+          <textarea class="tq-in" id="tk-msg" name="message" rows="3" required
+                    placeholder="What they did, and why it mattered."></textarea>
+        </div>
+
+        <div class="tk-give-row">
+          <div class="tq-field">
+            <label class="tq-lab" for="tk-cat">Category — optional</label>
+            <select class="tq-in" id="tk-cat" name="category">
+              {% include 'taqdeer/_category_options.html' %}
+            </select>
+          </div>
+          <div class="tq-field">
+            <label class="tq-lab" for="tk-proj">Project or team — optional</label>
+            <input class="tq-in" id="tk-proj" name="project" maxlength="160"
+                   placeholder="e.g. MODON Phase 2">
+          </div>
+          {% if settings.praise_allow_attachment %}
+          <div class="tq-field">
+            <label class="tq-lab">Attachment — optional</label>
+            {# The Hub's own file field rather than the browser's. The native #}
+            {# control draws its own "No file chosen" and wants 338px to do it, #}
+            {# so on a line of three it came out as "No ...sen" — breakage, to #}
+            {# read. This one fits whatever width it is given and names the file #}
+            {# in the label, so choosing one does not change the row's height. #}
+            <div class="ff tk-att">
+              <input type="file" name="attachment" id="tk-att">
+              <label for="tk-att" class="ff-label">
+                {% icon "paperclip" 13 %}<span data-filename>Choose a file</span></label>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="tk-give-f">
+        <span>Your name is shown with it — Kudos is signed.{% if settings.praise_needs_approval %}
+          HR publishes it.{% endif %}</span>
+        <button class="btn ghost" type="button" data-close>Cancel</button>
+        <button class="btn y" type="submit">Submit Kudos</button>
+      </div>
+      </form>
+    </dialog>
+
+    {# ── what is open, and what came before ──────────────────────────── #}
+    {# These were a right-hand rail. A manager opening this page needs to know #}
+    {# a quarter is taking nominations before they start reading the feed, and #}
+    {# a column beside the feed is where notices go to be missed. #}
+    {% if open_cycle and can_nominate or earlier %}
+    <div class="tk-strip">
+      {% if open_cycle and can_nominate %}
+      <a class="tk-note open" href="{% url 'taqdeer_submissions' %}">
+        <span class="tk-note-k">{% icon "clock" 13 %} {{ open_cycle.label }} is open</span>
+        <b>Nominations for The Athar Award are open{% if open_cycle.closes_on %}
+          until {{ open_cycle.closes_on|date:"j F" }}{% endif %}.</b>
+        <span class="tk-note-go">Nominate somebody {% icon "arrow-right" 13 %}</span>
+      </a>
+      {% endif %}
+      {# The previous quarter's winners used to sit here as a second strip. The #}
+      {# page shows the current period and nothing else now — the archive is one #}
+      {# link away from the award's own heading, and two lists of winners on one #}
+      {# page made neither of them the news. #}
+    </div>
+    {% endif %}
+
+    <div class="sec-head" id="kudos">
+      <h2>Recognition</h2>
+      <div class="tk-filter" role="group" aria-label="Filter recognition">
+        <button type="button" class="on" data-filter="all">All</button>
+        <button type="button" data-filter="praise">Kudos</button>
+        <button type="button" data-filter="certification">Certifications</button>
+      </div>
+      {% if is_hr and settings.praise_needs_approval %}
+      <a class="lk" href="{% url 'taqdeer_praise_queue' %}">Moderation queue →</a>
+      {% endif %}
+    </div>
+
+    <div class="tk-feed cards" data-feed>
+      {% if feed %}{% include 'taqdeer/_feed_cards.html' %}{% else %}
+      <div class="tq-none">
+        <span class="tq-none-ic">{% icon "hands-clapping" 20 %}</span>
+        <b>Nothing here yet</b>
+        <span>Be the first — thank a colleague above.</span>
+      </div>
+      {% endif %}
+    </div>
+    {% if feed_has_more %}
+    {# Appended, not paged. The feed is a wall; sending somebody to page two of #}
+    {# a wall loses the place they had got to. #}
+    <div class="tk-more-wrap">
+      <button type="button" class="tk-more" data-feed-more
+              data-url="{% url 'taqdeer_feed_more' %}"
+              data-offset="{{ feed_next }}">
+        <span class="tk-more-ic">{% icon "arrow-down" 18 %}</span>
+        <span class="tk-more-t">Show older</span>
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+{# The post dialog is filled by fetch, so one element serves every card. #}
+<dialog class="tk-modal po-modal" id="postDlg"><div data-post-body></div></dialog>
+
+{% include 'includes/people_picker_js.html' %}
+{# The comment box inside the post dialog is fetched, so its @autocomplete #}
+{# cannot ship with it — a script set by innerHTML never runs. This one is #}
+{# delegated from the document and is already here when the dialog opens. #}
+{% include 'includes/mentions.html' %}
+{% include 'includes/comment_tools_js.html' %}
+<script>
+/* Opening a post, and liking without leaving the feed.
+   Delegated from the document, so the handlers survive the dialog's contents
+   being replaced by a fetch — binding per card would work once and then not. */
+(function () {
+  var dlg = document.getElementById('postDlg');
+  var body = dlg ? dlg.querySelector('[data-post-body]') : null;
+  if (!dlg) return;
+
+  /* Filtering. Hiding rather than re-fetching: the feed is already here, and
+     a round trip to show fewer of the things on screen is a round trip for
+     nothing. */
+  /* Older recognition, appended under what is already there. The cards that
+     arrive have not been through the filter, so whichever one is on is applied
+     again afterwards — otherwise pressing "Show older" while filtered to Kudos
+     quietly brings certifications back onto the screen. */
+  var moreBtn = document.querySelector('[data-feed-more]');
+  if (moreBtn) {
+    moreBtn.addEventListener('click', function () {
+      if (moreBtn.dataset.busy) return;
+      moreBtn.dataset.busy = '1';
+      var label = moreBtn.querySelector('.tk-more-t');
+      var was = label ? label.textContent : '';
+      if (label) label.textContent = 'Loading…';
+      fetch(moreBtn.dataset.url + '?offset=' + moreBtn.dataset.offset,
+            {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var feed = document.querySelector('[data-feed]');
+          if (feed) feed.insertAdjacentHTML('beforeend', d.html);
+          moreBtn.dataset.offset = d.next;
+          var on = document.querySelector('.tk-filter button.on');
+          if (on) on.click();
+          if (!d.more) {
+            var wrap = moreBtn.closest('.tk-more-wrap');
+            if (wrap) wrap.remove();
+            return;
+          }
+          delete moreBtn.dataset.busy;
+          if (label) label.textContent = was;
+        })
+        .catch(function () {
+          delete moreBtn.dataset.busy;
+          if (label) label.textContent = 'Try again';
+        });
+    });
+  }
+
+  /* The counters in the masthead are the filters, said as numbers. */
+  document.querySelectorAll('.tk-num[data-jump]').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      var want = a.getAttribute('data-jump');
+      var btn = document.querySelector('.tk-filter [data-filter="' + want + '"]');
+      if (!btn) return;                 /* leave the href to do its work */
+      e.preventDefault();
+      btn.click();
+      var band = document.getElementById('kudos');
+      if (band) band.scrollIntoView({behavior: 'smooth', block: 'start'});
+    });
+  });
+
+  var bar = document.querySelector('.tk-filter');
+  if (bar) {
+    bar.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-filter]');
+      if (!b) return;
+      var want = b.getAttribute('data-filter');
+      bar.querySelectorAll('button').forEach(function (x) {
+        x.classList.toggle('on', x === b);
+      });
+      document.querySelectorAll('.tk-feed [data-kind]').forEach(function (card) {
+        card.hidden = want !== 'all' && card.getAttribute('data-kind') !== want;
+      });
+    });
+  }
+
+  function token() {
+    var el = document.querySelector('[name=csrfmiddlewaretoken]');
+    return el ? el.value : '';
+  }
+
+  function open(url, kind, andEdit) {
+    body.innerHTML = '<div class="po-load">Loading…</div>';
+    /* The dialog has to be wide before the content lands, or a certificate
+       arrives into a 680px box and reflows. Set from the card's own kind rather
+       than by matching the fetched HTML with :has(), which would make the width
+       depend on selector support. */
+    dlg.classList.toggle('wide', kind === 'certification');
+    dlg.showModal();
+    fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        body.innerHTML = html;
+        /* Arrived from the card's Edit: open the form rather than making the
+           reader find the same button a second time. */
+        if (andEdit) {
+          var t = body.querySelector('[data-praise-edit]');
+          if (t) t.click();
+        }
+      })
+      .catch(function () { body.innerHTML = '<div class="po-load">Could not load that.</div>'; });
+  }
+
+  /* Arrived from the homepage strip, which links to ?post=praise:12. Opening it
+     here rather than giving each post a page of its own keeps one way of
+     reading a post: the same dialog, whether it was clicked in the feed or
+     linked to from the homepage. The card's own URL is preferred when the post
+     is on this page; the path is built only when it is not, which happens
+     whenever the feed is longer than the homepage strip's five rows. */
+  (function fromLink(){
+    const want = new URLSearchParams(location.search).get('post');
+    if (!want) return;
+    const bits = want.split(':');
+    const kind = bits[0], pk = bits[1];
+    if ((kind !== 'praise' && kind !== 'certification') || !/^\d+$/.test(pk)) return;
+    const card = document.querySelector('[data-kind="' + kind + '"][data-post$="/' + pk + '/"]');
+    open(card ? card.getAttribute('data-post')
+              : '/taqdeer/post/' + kind + '/' + pk + '/', kind);
+  })();
+
+  document.addEventListener('click', function (e) {
+    /* The card's own Edit, handled before the data-stop guard below: the button
+       sits inside a data-stop wrapper so that pressing it does not also open the
+       post twice, and the guard would otherwise swallow it. */
+    var editBtn = e.target.closest('[data-edit-post]');
+    if (editBtn) {
+      e.preventDefault();
+      open(editBtn.getAttribute('data-edit-post'), 'praise', true);
+      return;
+    }
+
+    /* Anything marked data-stop is its own control — a hide form, the like
+       bar — and must not also open the post behind it. */
+    if (e.target.closest('[data-stop]') && !e.target.closest('[data-open]')) {
+      if (!e.target.closest('.rx [data-emoji]')) return;
+    }
+
+    var rx = e.target.closest('.rx [data-emoji]');
+    if (rx) {
+      e.preventDefault();
+      e.stopPropagation();
+      var group = rx.closest('.rx');
+      var body = new FormData();
+      body.append('emoji', rx.getAttribute('data-emoji'));
+      fetch(group.getAttribute('data-rx'), {
+        method: 'POST', body: body,
+        headers: {'X-CSRFToken': token(), 'X-Requested-With': 'XMLHttpRequest'},
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (group.classList.contains('one')) {
+            /* One button, so it carries the total rather than the count for its
+               own emoji — a post liked with a party popper before this change
+               still shows as liked once. */
+            var b = group.querySelector('[data-emoji]');
+            b.querySelector('.rx-n').textContent = d.count;
+            b.classList.toggle('zero', !d.count);
+            b.classList.toggle('on', !!d.liked);
+            b.setAttribute('aria-pressed', d.liked ? 'true' : 'false');
+            return;
+          }
+          group.querySelectorAll('[data-emoji]').forEach(function (b) {
+            var key = b.getAttribute('data-emoji');
+            var n = (d.counts || {})[key] || 0;
+            b.querySelector('.rx-n').textContent = n;
+            b.classList.toggle('zero', !n);
+            var mine = d.liked && d.emoji === key;
+            b.classList.toggle('on', mine);
+            b.setAttribute('aria-pressed', mine ? 'true' : 'false');
+          });
+        })
+        .catch(function () {});
+      return;
+    }
+
+    if (e.target.closest('[data-close]')) { dlg.close(); return; }
+
+    /* The giver editing their own Kudos. The words and the form swap places
+       rather than sitting one above the other, so it reads as the same thing
+       being changed and not as a second copy of it. */
+    var ed = e.target.closest('[data-praise-edit]');
+    var cancel = e.target.closest('[data-praise-cancel]');
+    if (ed || cancel) {
+      var po = (ed || cancel).closest('.po');
+      var form = po.querySelector('.po-edit');
+      var view = po.querySelector('.po-view');
+      var tools = po.querySelector('.po-own');
+      var opening = !!ed;
+      if (form) form.hidden = !opening;
+      if (view) view.hidden = opening;
+      if (tools) tools.hidden = opening;
+      if (opening && form) { var f = form.querySelector('[name=subject]');
+                             if (f) f.focus(); }
+      return;
+    }
+
+    var card = e.target.closest('[data-post]');
+    if (card) { open(card.getAttribute('data-post'),
+                     card.getAttribute('data-kind')); return; }
+  });
+
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+
+  /* The celebrations type into the comment box at the caret, so they can be
+     used mid-sentence and repeated. Focus goes back to the field afterwards —
+     tapping an emoji and then finding the cursor gone is the whole reason
+     pickers get abandoned. */
+  dlg.addEventListener('mousedown', function (e) {
+    var b = e.target.closest('[data-emo]');
+    if (!b) return;
+    e.preventDefault();
+    var box = b.closest('.po-write').querySelector('[name=text]');
+    if (!box) return;
+    var at = box.selectionStart == null ? box.value.length : box.selectionStart;
+    var end = box.selectionEnd == null ? at : box.selectionEnd;
+    var emo = b.getAttribute('data-emo');
+    box.value = box.value.slice(0, at) + emo + box.value.slice(end);
+    box.focus();
+    var pos = at + emo.length;
+    box.setSelectionRange(pos, pos);
+  });
+
+  /* Commenting posts the form and swaps the dialog for the fresh thread, so
+     the count and the new comment appear without reloading the feed. */
+  dlg.addEventListener('submit', function (e) {
+    /* The composer, and now the edit and delete forms on each comment. All of
+       them answer with the refreshed dialog, so the reader stays where they
+       were instead of being redirected to the top of the feed. */
+    var form = e.target.closest('.po-write, [data-po-form]');
+    if (!form) return;
+    e.preventDefault();
+    fetch(form.action, {method: 'POST', body: new FormData(form),
+                        headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then(function (r) { return r.text(); })
+      .then(function (html) { body.innerHTML = html; })
+      .catch(function () {});
+  });
+})();
+</script>
+<script>
+/* Opening and closing the composer. A native dialog so Escape and the backdrop
+   behave without writing either, and so the page underneath is properly inert
+   rather than merely covered. */
+(function () {
+  var dlg = document.getElementById('giveDlg');
+  if (!dlg) return;
+  document.querySelectorAll('[data-give]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      dlg.showModal();
+      /* Deliberately not focusing the search box. The picker opens its list on
+         focus, so focusing it here meant the whole directory dropped open the
+         instant the composer appeared — a wall of names in front of a form
+         nobody had started filling in. The list belongs to the moment somebody
+         clicks the box. showModal() still moves focus into the dialog on its
+         own, so nothing is stranded outside it. */
+    });
+  });
+  dlg.querySelectorAll('[data-close]').forEach(function (b) {
+    b.addEventListener('click', function () { dlg.close(); });
+  });
+
+  /* The attachment names itself in its own label. Written there rather than on a
+     line underneath so that choosing a file cannot change the row's height. */
+  var att = dlg.querySelector('.tk-att input[type=file]');
+  if (att) {
+    att.addEventListener('change', function () {
+      var out = dlg.querySelector('.tk-att [data-filename]');
+      var got = att.files && att.files.length;
+      out.textContent = got ? att.files[0].name : 'Choose a file';
+      out.parentNode.classList.toggle('has', !!got);
+      if (got) out.title = att.files[0].name;   // the full name, when it is long
+      else out.removeAttribute('title');
+    });
+  }
+
+  /* Clicking the backdrop closes it. The dialog element itself covers the whole
+     viewport, so the test is whether the click landed outside the form. */
+  dlg.addEventListener('click', function (e) {
+    if (e.target === dlg) dlg.close();
+  });
+})();
+</script>
+{% endblock %}

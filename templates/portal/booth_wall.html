@@ -1,0 +1,20 @@
+{# portal/booth_wall.html — now built from blocks. #}
+{# The page body moved to portal/_feature_booth.html and is rendered by the feature #}
+{# block on this page, so content can be arranged around it in the editor #}
+{# without the working part being editable. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}AJi Booth — AJi Hub{% endblock %}
+
+{% block content %}
+{% cms_page_body %}
+
+{% if cms_can_edit and not cms_bound_page %}
+<div class="card" style="text-align:center;padding:40px">
+  <b style="display:block;font-size:14.5px;margin-bottom:5px">This page has no blocks yet</b>
+  <span class="muted" style="font-size:12.5px">
+    Run <code>manage.py convert_pages</code> to build it from the original layout.
+  </span>
+</div>
+{% endif %}
+{% endblock %}

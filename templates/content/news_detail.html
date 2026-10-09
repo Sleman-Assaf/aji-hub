@@ -1,0 +1,319 @@
+{# templates/content/news_detail.html #}
+{# Built on the same two-column shell as an AJi Exchange thread: the article in #}
+{# the main column, a rail of what to read next beside it. It used to be one #}
+{# 820px card in a 1600px shell, which left most of a wide screen empty and #}
+{# made a company announcement look like a memo in a drawer. #}
+{% extends 'base.html' %}
+{% load hub_extras cms_tags %}
+{% block title %}{{ article.title }} — AJi News{% endblock %}
+{% block content %}
+
+<a href="/news/" class="ctx-back" title="AJi News"><span class="ctx-back-lab">AJi News</span></a>
+
+<div class="cx-layout">
+  <div class="cx-main">
+
+    <article class="card rise nd-art">
+      {# The cover is the top of the card, edge to edge. 16:9 is the ratio the #}
+      {# crop tool wrote, so nothing is re-cropped here. #}
+      {% if article.image %}
+      <div class="nd-cover"><img src="{{ article.image.url }}" alt=""></div>
+      {% endif %}
+
+      <div class="nd-pad">
+        <div class="nd-tags">
+          {% if article.category %}<span class="nd-cat">{{ article.category.name }}</span>{% endif %}
+          {% if article.pinned %}<span class="nd-tag pin">{% icon "push-pin" 11 %} Pinned</span>{% endif %}
+          {% if article.is_new %}<span class="nd-tag new">New</span>{% endif %}
+          {% if not article.published %}<span class="nd-tag draft">Draft</span>{% endif %}
+          {% if is_hr %}
+          <span class="nd-admin">
+            <a href="{% url 'news_edit' article.slug %}" class="cx-iconbtn">{% icon "edit" 13 %}<span>Edit</span></a>
+            <a href="{% url 'news_delete' article.slug %}" class="cx-iconbtn danger">{% icon "trash" 13 %}<span>Delete</span></a>
+          </span>
+          {% endif %}
+        </div>
+
+        <h1 class="nd-title">{{ article.title }}</h1>
+
+        {% if article.excerpt %}
+        <p class="nd-standfirst">{{ article.excerpt }}</p>
+        {% endif %}
+
+        {# Who wrote it and what it costs to read, on one line with a face. #}
+        <div class="nd-by">
+          <span class="cx-av tone sm" aria-hidden="true">{{ article.initials }}</span>
+          <span class="nd-by-who">
+            <b>{{ article.author_name|default:"AJi Hub" }}</b>
+            <span>{{ article.date|date:"j F Y" }}</span>
+          </span>
+          <span class="nd-by-stats">
+            <span title="Reading time">{% icon "clock" 14 %} {{ article.read_minutes }} min</span>
+            <span title="Views">{% icon "eye" 14 %} {{ article.views }}</span>
+          </span>
+        </div>
+
+        <div class="news-body nd-body">{{ article.body|linebreaks }}</div>
+
+        {# ── attachments ─────────────────────────────────────────────── #}
+        {% if attachments or is_hr %}
+        <div class="nd-files">
+          <div class="nd-files-head">
+            {% icon "paperclip" 13 %} {{ attachments|length }} attachment{{ attachments|length|pluralize }}
+          </div>
+
+          {# ── the pictures ────────────────────────────────────────────── #}
+          {# One at a time with a thumbnail strip, rather than a column of #}
+          {# stacked figures: an article with five photographs pushed its own #}
+          {# comments a screen and a half down the page, and every picture was #}
+          {# given the same weight as the one the writer led with. #}
+          {# The whole thing is a scroll-snapping strip, so it works by touch and #}
+          {# trackpad before any script runs; the arrows, dots and thumbnails are #}
+          {# the enhancement. See includes/carousel_js.html. #}
+          {% if images %}
+          <div class="nd-gal carou shots" data-carou data-gal>
+            <div class="nd-gal-head">
+              <b>{% icon "images" 13 %} {{ images|length }} picture{{ images|length|pluralize }}</b>
+              <span class="carou-count" data-carou-count></span>
+            </div>
+
+            <div class="carou-track" data-carou-track tabindex="0"
+                 aria-label="Pictures in this article">
+              {% for a in images %}
+              <div class="carou-slide" data-carou-slide>
+                {# Opens the full-size file, which is what somebody wanting to #}
+                {# read a scanned page or a plan actually needs. #}
+                <a class="nd-gal-shot" href="{{ a.file.url }}" target="_blank" rel="noopener">
+                  <img src="{{ a.file.url }}" alt="{{ a.caption }}"
+                       {% if not forloop.first %}loading="lazy"{% endif %}>
+                </a>
+                <div class="nd-gal-cap">
+                  <span>{{ a.caption|default:a.filename }}</span>
+                  {% if is_hr %}
+                  <form data-save="reload" method="post"
+                        data-confirm="Remove this picture?"
+                        data-confirm-kind="danger" data-confirm-ok="Remove">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="attach_delete">
+                    <input type="hidden" name="attachment_id" value="{{ a.pk }}">
+                    <button type="submit" class="cx-iconbtn danger">{% icon "x" 12 %}<span>Remove</span></button>
+                  </form>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+
+            <button type="button" class="carou-go prev" data-carou-go="-1"
+                    aria-label="Previous picture">{% icon "chevron-left" 15 2 %}</button>
+            <button type="button" class="carou-go next" data-carou-go="1"
+                    aria-label="Next picture">{% icon "chevron-right" 15 2 %}</button>
+
+            {# The strip, for reaching the fifth picture without four clicks. #}
+            {% if images|length > 1 %}
+            <div class="nd-gal-thumbs" data-gal-thumbs>
+              {% for a in images %}
+              <button type="button" class="nd-gal-thumb{% if forloop.first %} on{% endif %}"
+                      data-gal-to="{{ forloop.counter0 }}"
+                      aria-label="Picture {{ forloop.counter }}">
+                <img src="{{ a.file.url }}" alt="" loading="lazy">
+              </button>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% for a in files %}
+          <div class="nd-file">
+            <span class="nd-file-ic">{% icon "file-text" 16 %}</span>
+            <a href="{{ a.file.url }}" download class="nd-file-name">{{ a.caption|default:a.filename }}</a>
+            {% if is_hr %}
+            <form data-save="reload" method="post" style="margin:0"
+                  data-confirm="Remove this file?">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="attach_delete">
+              <input type="hidden" name="attachment_id" value="{{ a.pk }}">
+              <button type="submit" class="cx-iconbtn danger">{% icon "x" 12 %}<span>Remove</span></button>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
+
+          {% if not attachments %}
+          <div class="nd-files-none">Nothing attached yet.</div>
+          {% endif %}
+
+          {% if is_hr %}
+          <form data-save="reload" method="post" enctype="multipart/form-data" class="nd-attach">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="attach">
+            <input type="file" name="file" required>
+            <input type="text" name="caption" placeholder="Caption (optional)">
+            <div class="f-foot">
+              <button type="submit" class="btn y sm">Add attachment</button>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      {# ── the one action bar, at the foot of the article ───────────────── #}
+      <div class="nd-actions">
+        <button id="likeBtn" type="button" onclick="toggleLike()"
+                class="nd-like{% if liked %} on{% endif %}"
+                aria-pressed="{% if liked %}true{% else %}false{% endif %}">
+          {% icon "heart-round" 15 %}
+          <span id="likeCount">{{ article.likes.count }}</span>
+          <span class="nd-like-word">{% if liked %}Liked{% else %}Like{% endif %}</span>
+        </button>
+        <a href="#comments" class="nd-jump">
+          {% icon "chat" 15 %} {{ article.comments.count }} comment{{ article.comments.count|pluralize }}
+        </a>
+      </div>
+    </article>
+
+    {# ── comments ─────────────────────────────────────────────────────── #}
+    {# One surface for the whole conversation, composer at the foot, exactly #}
+    {# as a thread reads in AJi Exchange. #}
+    <section class="card rise cx-talk" id="comments">
+      <div class="cx-talk-head">
+        <h2>{{ article.comments.count }} comment{{ article.comments.count|pluralize }}</h2>
+      </div>
+
+      {% for comment in comments %}
+      <article class="cx-msg">
+        {% include 'exchange/_avatar.html' with user=comment.author size='sm' %}
+        <div class="cx-msg-main">
+          <div class="cx-msg-top">
+            <b>{{ comment.author.get_full_name|default:comment.author.username }}</b>
+            <time datetime="{{ comment.created_at|date:'c' }}">{{ comment.created_at|date:"j M, H:i" }}</time>
+          </div>
+          <div class="cx-msg-text">{{ comment.text|mentions }}
+            {% if comment.edited_at %}<span class="cmt-edited">edited</span>{% endif %}</div>
+          {% url 'news_comment_edit' comment.pk as ed %}
+          {% url 'news_comment_delete' comment.pk as dl %}
+          {% include 'includes/_comment_tools.html' with obj=comment edit_url=ed delete_url=dl field='text' value=comment.text label='comment' %}
+        </div>
+      </article>
+      {% empty %}
+      <div class="cx-talk-none">
+        <span class="cx-talk-none-ic">{% icon "chat-circle" 20 %}</span>
+        <b>No comments yet</b>
+        <span>Be the first to say something.</span>
+      </div>
+      {% endfor %}
+
+      <form data-save="reload" method="post" class="cx-write">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="comment">
+        {% include 'exchange/_avatar.html' with user=request.user size='sm' %}
+        <div class="cx-write-fill">
+          <textarea name="text" rows="2" data-mentions required
+                    placeholder="Write a comment… use @ to mention someone"></textarea>
+          <div class="cx-write-foot">
+            <span class="mention-hint">Type <b>@</b> to mention a colleague and notify them.</span>
+            <button type="submit" class="btn y">Post comment</button>
+          </div>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  {# ── the rail ───────────────────────────────────────────────────────── #}
+  <aside class="cx-side">
+    <div class="cx-side-card">
+      <div class="cx-side-head">
+        {% icon "newspaper" 14 %}
+        {% if article.category %}More in {{ article.category.name }}{% else %}More from AJi News{% endif %}
+      </div>
+      {% for a in others %}
+      <a class="cx-more-row" href="{% url 'news_detail' a.slug %}">
+        <span class="nd-more-t">{{ a.title }}</span>
+        <span class="nd-more-m">
+          {% if a.category %}{{ a.category.name }} · {% endif %}{{ a.date|date:"j M Y" }} · {{ a.read_minutes }} min
+        </span>
+      </a>
+      {% empty %}
+      <div class="cx-side-empty">Nothing else published yet.</div>
+      {% endfor %}
+      <a class="cx-side-all" href="/news/">All news {% icon "arrow-right" 13 %}</a>
+    </div>
+
+    {# Only when there is something to browse. No article carries a category #}
+    {# today, and a permanently empty "Browse by topic" box is worse than no #}
+    {# box: it reads as something broken rather than something unused. #}
+    {% if rail_categories %}
+    <div class="cx-side-card">
+      <div class="cx-side-head">{% icon "list" 14 %} Browse by topic</div>
+      {% for c in rail_categories %}
+      <a class="cx-more-row nd-topic" href="/news/?cat={{ c.slug }}">
+        <span class="nd-more-t">{{ c.name }}</span>
+        <span class="nd-topic-n">{{ c.n }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </aside>
+</div>
+
+<script>
+function toggleLike() {
+  var btn = document.getElementById('likeBtn');
+  var fd = new FormData();
+  fd.append('action', 'like');
+  fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+  fetch(window.location.pathname, {
+    method: 'POST',
+    headers: {'X-Requested-With': 'XMLHttpRequest'},
+    body: fd,
+  })
+  .then(function (r) { return r.json(); })
+  .then(function (d) {
+    document.getElementById('likeCount').textContent = d.likes;
+    var on = btn.classList.toggle('on');
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.querySelector('.nd-like-word').textContent = on ? 'Liked' : 'Like';
+  })
+  .catch(function () {});
+}
+</script>
+
+{% include 'includes/mentions.html' %}
+{% include 'includes/comment_tools_js.html' %}
+
+<script>
+/* The thumbnail strip and the track, kept in step. Delegated from the gallery so
+   it costs one listener however many pictures there are. */
+(function () {
+  document.querySelectorAll('[data-gal]').forEach(function (gal) {
+    var track = gal.querySelector('[data-carou-track]');
+    var thumbs = gal.querySelector('[data-gal-thumbs]');
+    if (!track || !thumbs) return;
+
+    thumbs.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-gal-to]');
+      if (!b) return;
+      var slide = track.querySelectorAll('[data-carou-slide]')[Number(b.dataset.galTo)];
+      if (slide) { track.scrollTo({left: slide.offsetLeft - track.offsetLeft, behavior: 'smooth'}); }
+    });
+
+    /* Scrolled by any means — arrow, dot, swipe — the strip follows, and the
+       current thumbnail is brought into view so it is never off the end. */
+    track.addEventListener('scroll', function () {
+      var w = track.clientWidth || 1;
+      var at = Math.round(track.scrollLeft / w);
+      var all = thumbs.querySelectorAll('[data-gal-to]');
+      all.forEach(function (b, i) { b.classList.toggle('on', i === at); });
+      if (all[at]) {
+        var b = all[at].getBoundingClientRect(), box = thumbs.getBoundingClientRect();
+        if (b.left < box.left || b.right > box.right) {
+          all[at].scrollIntoView({block: 'nearest', inline: 'nearest', behavior: 'smooth'});
+        }
+      }
+    }, {passive: true});
+  });
+})();
+</script>
+{% endblock %}

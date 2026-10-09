@@ -1,0 +1,312 @@
+{# templates/services/fleet_approvers.html #}
+{% extends 'base.html' %}
+{% block title %}Car Approvers — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+.ap-lede{max-width:760px;font-size:13.5px;line-height:1.65;color:var(--muted);
+  margin:0 0 24px}
+/* Positioned, and lifted while the picker inside it is in use. Each card
+   animates in with .rise, and an element with a filling transform animation
+   is its own stacking context — so without this the next card down paints
+   over the open results list however high its own z-index is. */
+.ap-div{border:1px solid var(--line);background:var(--paper);margin-bottom:16px;
+  position:relative;z-index:1}
+.ap-div:focus-within{z-index:60}
+.ap-head{display:flex;gap:11px;align-items:baseline;flex-wrap:wrap;
+  padding:15px 18px;border-bottom:1px solid var(--line);background:var(--paper-2)}
+.ap-code{font-size:16px;font-weight:800;letter-spacing:.02em}
+.ap-sub{font-size:12px;color:var(--muted)}
+.ap-count{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted)}
+.ap-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+  padding:12px 18px;border-bottom:1px solid var(--line)}
+.ap-row:last-of-type{border-bottom:none}
+.ap-who{flex:1;min-width:200px}
+.ap-who b{display:block;font-size:13.5px}
+.ap-who span{display:block;font-size:11.5px;color:var(--muted)}
+.ap-mail{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  padding:4px 8px;border:1px solid var(--line-2);background:var(--paper-2);
+  color:var(--muted);cursor:pointer;font-family:inherit}
+.ap-mail.on{background:var(--ink);border-color:var(--ink);color:var(--yellow)}
+.ap-x{border:none;background:none;color:var(--muted);cursor:pointer;font-size:16px;
+  line-height:1;padding:4px 6px;font-family:inherit}
+.ap-x:hover{color:var(--bad)}
+.ap-none{padding:14px 18px;font-size:12.5px;line-height:1.6;color:var(--muted);
+  border-bottom:1px solid var(--line);background:var(--yellow-soft)}
+.ap-none b{color:var(--ink)}
+.ap-add{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:13px 18px;
+  background:var(--paper-2)}
+.ap-add input[type=text]{flex:1;min-width:230px;padding:9px 12px;
+  border:1px solid var(--line-2);background:var(--paper);font-family:inherit;
+  font-size:13px;color:var(--ink)}
+.ap-add input[type=text]:focus{outline:none;border-color:var(--ink);
+  box-shadow:0 0 0 3px rgba(252,215,0,.24)}
+.ap-add label{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+
+/* ══ the picker ══════════════════════════════════════════════════════════
+   Reads the staff directory as you type and lets several people be chosen
+   before anything is saved. Naming approvers one at a time meant a page
+   reload between each, which is how a division ends up with exactly one. */
+.ap-search{position:relative;flex:1;min-width:260px;display:flex;flex-wrap:wrap;
+  gap:6px;align-items:center;border:1px solid var(--line-2);background:var(--paper);
+  padding:6px}
+.ap-search:focus-within{border-color:var(--ink);box-shadow:0 0 0 3px rgba(252,215,0,.24)}
+.ap-search .ap-q{flex:1;min-width:170px;border:none;background:none;padding:4px 6px;
+  font-family:inherit;font-size:13px;color:var(--ink)}
+.ap-search .ap-q:focus{outline:none;box-shadow:none;border:none}
+.ap-chips{display:contents}
+.ap-chip{display:inline-flex;gap:7px;align-items:center;background:var(--ink);
+  color:var(--paper-2);font-size:12px;font-weight:600;padding:5px 7px 5px 10px}
+.ap-chip button{border:none;background:none;color:var(--yellow);cursor:pointer;
+  font-size:13px;line-height:1;padding:0;font-family:inherit}
+.ap-results{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:30;
+  max-height:264px;overflow:auto;border:1px solid var(--ink);background:var(--paper);
+  box-shadow:0 12px 30px rgba(0,0,0,.25)}
+.ap-hit{display:flex;gap:10px;align-items:center;width:100%;text-align:left;
+  padding:9px 12px;border:none;border-bottom:1px solid var(--line);
+  background:none;cursor:pointer;font-family:inherit;color:var(--ink)}
+.ap-hit:last-child{border-bottom:none}
+.ap-hit:hover,.ap-hit.on{background:var(--yellow-soft)}
+.ap-hit b{font-size:13px;font-weight:700}
+.ap-hit span{display:block;font-size:11px;color:var(--muted)}
+.ap-hit em{margin-left:auto;font-style:normal;font-size:10.5px;font-weight:800;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.ap-empty{padding:11px 12px;font-size:12.5px;color:var(--muted)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow"><a href="{% url 'services:car_booking' %}" style="color:inherit">Car Booking</a> / Approvers</div>
+    <h1>Who approves which cars</h1>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a href="{% url 'services:car_requests' %}" class="btn">Requests</a>
+    <a href="{% url 'services:car_schedule' %}" class="btn">Schedule</a>
+    <a href="{% url 'services:fleet_console' %}" class="btn">Fleet</a>
+  </div>
+</div>
+
+<p class="ap-lede rise">
+  A request only ever reaches the people named against its own division, so an
+  AJiWE trip goes to whoever approves AJiWE and nobody else. Name more than one
+  per division — somebody is always on leave, and a division whose only
+  approver is away is a division whose cars cannot be booked.
+</p>
+
+{% for d in divisions %}
+<div class="ap-div rise">
+  <div class="ap-head">
+    <span class="ap-code">{{ d.entity.code }}</span>
+    <span class="ap-sub">{{ d.entity.name }} · {{ d.cars }} car{{ d.cars|pluralize }}</span>
+    <span class="ap-count">
+      {% if d.waiting %}{{ d.waiting }} waiting{% else %}nothing waiting{% endif %}</span>
+  </div>
+
+  {% if d.people %}
+    {% for p in d.people %}
+      <div class="ap-row">
+        <div class="ap-who">
+          <b>{{ p.name }}</b>
+          <span>{{ p.email }}</span>
+        </div>
+        <form method="post" action="{% url 'services:fleet_approver_save' %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="email">
+          <input type="hidden" name="row" value="{{ p.row.pk }}">
+          <button class="ap-mail {% if p.row.notify %}on{% endif %}"
+                  title="{% if p.row.notify %}Emailed on every request. Click to stop.{% else %}Sees requests in the Hub only. Click to email them.{% endif %}">
+            {% if p.row.notify %}Emailed{% else %}Hub only{% endif %}</button>
+        </form>
+        <form method="post" action="{% url 'services:fleet_approver_save' %}"
+              onsubmit="return confirm('Take {{ p.name|escapejs }} off {{ d.entity.code }}?')">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="remove">
+          <input type="hidden" name="row" value="{{ p.row.pk }}">
+          <button class="ap-x" title="Remove">&times;</button>
+        </form>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="ap-none">
+      <b>Nobody is named for {{ d.entity.code }}.</b>
+      Until somebody is, these requests go to everyone who runs the desk:
+      {% for f in fallback %}{{ f.name }}{% if not forloop.last %}, {% endif %}{% empty %}nobody at all{% endfor %}.
+    </div>
+  {% endif %}
+
+  <form class="ap-add ap-pick" method="post" data-entity="{{ d.entity.pk }}"
+        action="{% url 'services:fleet_approver_save' %}">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add">
+    <input type="hidden" name="entity" value="{{ d.entity.pk }}">
+    <div class="ap-search">
+      <div class="ap-chips"></div>
+      <input type="text" class="ap-q" name="person" list="apPeople"
+             autocomplete="off" placeholder="Add people — type a name, pick as many as you like">
+      <div class="ap-results" hidden></div>
+    </div>
+    <label><input type="checkbox" name="notify" value="1" checked> Email them</label>
+    <button class="btn btn-sm btn-primary">Add</button>
+  </form>
+</div>
+{% empty %}
+  <div class="card rise" style="padding:20px">
+    <b>No division owns a car yet.</b>
+    <p class="muted" style="margin:6px 0 0;font-size:13px">
+      Add cars under <a href="{% url 'services:fleet_console' %}">Fleet</a> first.</p>
+  </div>
+{% endfor %}
+
+{% if others %}
+<div class="ap-div rise">
+  <div class="ap-head">
+    <span class="ap-code" style="font-size:13px">Another division</span>
+    <span class="ap-sub">No cars in the Hub yet — name someone now and the
+      routing is ready the day one is added.</span>
+  </div>
+  <form class="ap-add ap-pick" method="post" action="{% url 'services:fleet_approver_save' %}">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add">
+    <select name="entity" style="padding:9px 11px;border:1px solid var(--line-2);
+            background:var(--paper);font-family:inherit;font-size:13px;color:var(--ink)">
+      {% for e in others %}<option value="{{ e.pk }}">{{ e.code }}</option>{% endfor %}
+    </select>
+    <div class="ap-search">
+      <div class="ap-chips"></div>
+      <input type="text" class="ap-q" name="person" list="apPeople"
+             autocomplete="off" placeholder="Who approves it — type a name">
+      <div class="ap-results" hidden></div>
+    </div>
+    <label><input type="checkbox" name="notify" value="1" checked> Email them</label>
+    <button class="btn btn-sm">Add</button>
+  </form>
+</div>
+{% endif %}
+
+{# The plain list is the fallback for a browser with no scripting: the same #}
+{# box then behaves as it did, one name at a time, typed against a datalist. #}
+<datalist id="apPeople">
+  {% for p in people %}<option value="{{ p.label }}"></option>{% endfor %}
+</datalist>
+
+<script>
+(function () {
+  'use strict';
+  var URL_PEOPLE = '{% url "services:fleet_people_api" %}';
+
+  document.querySelectorAll('.ap-pick').forEach(function (form) {
+    var box = form.querySelector('.ap-search');
+    var chips = form.querySelector('.ap-chips');
+    var input = form.querySelector('.ap-q');
+    var results = form.querySelector('.ap-results');
+    var picked = [];                 /* [{id, name, email}] */
+    var timer = null, last = '';
+
+    /* The typed box is only a search field once scripting is on: what gets
+       posted is one hidden input per chosen person. */
+    input.removeAttribute('name');
+    input.removeAttribute('list');
+
+    function draw() {
+      chips.innerHTML = '';
+      picked.forEach(function (p, i) {
+        var chip = document.createElement('span');
+        chip.className = 'ap-chip';
+        chip.textContent = p.name;
+        var hidden = document.createElement('input');
+        hidden.type = 'hidden'; hidden.name = 'person'; hidden.value = p.id;
+        chip.appendChild(hidden);
+        var x = document.createElement('button');
+        x.type = 'button'; x.textContent = '×';
+        x.title = 'Remove ' + p.name;
+        x.onclick = function () { picked.splice(i, 1); draw(); };
+        chip.appendChild(x);
+        chips.appendChild(chip);
+      });
+    }
+
+    function hide() { results.hidden = true; results.innerHTML = ''; }
+
+    function show(people) {
+      results.innerHTML = '';
+      if (!people.length) {
+        results.innerHTML = '<div class="ap-empty">Nobody by that name.</div>';
+        results.hidden = false;
+        return;
+      }
+      people.forEach(function (p) {
+        var hit = document.createElement('button');
+        hit.type = 'button';
+        hit.className = 'ap-hit';
+        var taken = picked.some(function (q) { return q.id === p.id; });
+        if (taken) hit.classList.add('on');
+        var main = document.createElement('div');
+        main.innerHTML = '<b></b><span></span>';
+        main.querySelector('b').textContent = p.name;
+        main.querySelector('span').textContent =
+          [p.role, p.email].filter(Boolean).join(' · ');
+        hit.appendChild(main);
+        if (p.entity) {
+          var tag = document.createElement('em');
+          tag.textContent = p.entity;
+          hit.appendChild(tag);
+        }
+        hit.onclick = function () {
+          if (!picked.some(function (q) { return q.id === p.id; })) {
+            picked.push(p);
+            draw();
+          }
+          input.value = '';
+          input.focus();
+          hide();
+        };
+        results.appendChild(hit);
+      });
+      results.hidden = false;
+    }
+
+    input.addEventListener('input', function () {
+      var q = input.value.trim();
+      clearTimeout(timer);
+      if (q.length < 2) { hide(); return; }
+      timer = setTimeout(function () {
+        if (q === last) return;
+        last = q;
+        fetch(URL_PEOPLE + '?q=' + encodeURIComponent(q))
+          .then(function (r) { return r.json(); })
+          .then(function (d) { show(d.people || []); })
+          .catch(hide);
+      }, 180);
+    });
+
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { hide(); return; }
+      if (e.key === 'Enter') {
+        /* Enter picks the first match rather than submitting a form that has
+           nobody on it yet. */
+        var first = results.querySelector('.ap-hit');
+        if (!results.hidden && first) { e.preventDefault(); first.click(); }
+        else if (!picked.length) { e.preventDefault(); }
+      }
+      if (e.key === 'Backspace' && !input.value && picked.length) {
+        picked.pop(); draw();
+      }
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!box.contains(e.target)) hide();
+    });
+
+    form.addEventListener('submit', function (e) {
+      if (!picked.length) {
+        e.preventDefault();
+        input.focus();
+      }
+    });
+  });
+}());
+</script>
+{% endblock %}

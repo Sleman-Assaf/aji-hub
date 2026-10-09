@@ -1,0 +1,47 @@
+{# templates/portal/_drop_js.html — dropping a file on a box is choosing it. #}
+{# Shared by the upload box, the zip box on the creation form and the zip box #}
+{# in the workspace, so all three behave the same way. The idle label is read #}
+{# off the element rather than written in here: one box asks for documents and #}
+{# another for an archive, and resetting both to "files" was wrong for one. #}
+<script>
+(function () {
+  document.querySelectorAll('[data-drop]').forEach(function (box) {
+    var input = box.querySelector('[data-drop-input]');
+    var label = box.querySelector('[data-drop-label]');
+    var go = box.querySelector('[data-drop-submit]');
+    if (!input || !label) return;
+    var idle = label.textContent;
+
+    function shown(n) {
+      /* Not every box has a button of its own — the one on the creation form is
+         submitted with the rest of the page. */
+      if (go) { go.disabled = !n; }
+      label.textContent = n
+        ? (n + ' file' + (n === 1 ? '' : 's') + ' ready')
+        : idle;
+    }
+    input.addEventListener('change', function () { shown(input.files.length); });
+
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      box.addEventListener(ev, function (e) {
+        e.preventDefault();
+        box.classList.add('over');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      box.addEventListener(ev, function (e) {
+        /* dragleave fires on every child too, so the class would flicker off
+           while the pointer is still inside the box. */
+        if (ev === 'dragleave' && box.contains(e.relatedTarget)) return;
+        box.classList.remove('over');
+      });
+    });
+    box.addEventListener('drop', function (e) {
+      e.preventDefault();
+      if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+      input.files = e.dataTransfer.files;
+      shown(input.files.length);
+    });
+  });
+})();
+</script>

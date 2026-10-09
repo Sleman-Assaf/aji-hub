@@ -1,0 +1,235 @@
+{# templates/includes/cms_touch_drag.html — dragging that works on a finger. #}
+{# #}
+{# The editor moved blocks with the HTML5 drag-and-drop API. Those events never #}
+{# fire from a touch screen, so on an iPad a block could only be moved with the #}
+{# keyboard, and the Layers tree said "drag to move it" while setting #}
+{# draggable=true and listening for nothing at all -- so that one never worked #}
+{# on any device. #}
+{# #}
+{# Pointer events cover mouse, pen and touch with one set of handlers. The #}
+{# engine below only decides *where the finger is*; every question about #}
+{# whether a block may land there, and what to save afterwards, goes through #}
+{# the functions the mouse path already uses -- edCanDrop, edDropBefore, #}
+{# edPlace, edOrderOf. One set of rules, two ways of pointing at them. #}
+{# #}
+{# Mouse keeps the existing HTML5 path for the canvas and the palette, because #}
+{# it works and is covered by tests. Touch and pen come here instead. #}
+{% if cms_edit_mode %}
+<script>
+(function(){
+  const DRAG_SLOP = 8;        /* px before a press becomes a drag, so a tap still taps */
+  const EDGE = 72;            /* px from the viewport edge where it starts scrolling */
+  const EDGE_SPEED = 14;
+
+  let live = null;            /* the drag in progress, or null */
+
+  /* A small label that follows the finger. On touch there is no cursor and no
+     native drag image, so without this there is nothing to tell you a drag has
+     begun at all. */
+  function makeGhost(text){
+    const g = document.createElement('div');
+    g.className = 'pd-ghost';
+    g.textContent = text;
+    g.setAttribute('aria-hidden', 'true');
+    document.body.append(g);
+    return g;
+  }
+
+  function moveGhost(g, x, y){
+    g.style.transform = `translate(${x + 14}px, ${y + 14}px)`;
+  }
+
+  /* Dragging to the bottom of a long page is impossible if the page will not
+     scroll while a finger is down. */
+  function autoScroll(y){
+    if (y < EDGE) window.scrollBy(0, -EDGE_SPEED);
+    else if (y > window.innerHeight - EDGE) window.scrollBy(0, EDGE_SPEED);
+  }
+
+  /* What is under the finger. The pointer is captured by the element the drag
+     started on, so e.target is useless from here on. */
+  function under(x, y, selector){
+    const el = document.elementFromPoint(x, y);
+    return el ? el.closest(selector) : null;
+  }
+
+  function start(e, spec){
+    if (live) return;
+    live = Object.assign({
+      x0: e.clientX, y0: e.clientY, moved: false, ghost: null, el: e.target,
+    }, spec);
+    /* Capture so the moves keep arriving even when the finger leaves the grip,
+       which it does immediately. */
+    try { e.target.setPointerCapture(e.pointerId); } catch (err) {}
+    live.pointerId = e.pointerId;
+    e.preventDefault();
+  }
+
+  window.addEventListener('pointermove', e => {
+    if (!live || e.pointerId !== live.pointerId) return;
+    if (!live.moved){
+      if (Math.hypot(e.clientX - live.x0, e.clientY - live.y0) < DRAG_SLOP) return;
+      live.moved = true;
+      live.ghost = makeGhost(live.label);
+      live.onStart?.();
+      document.body.classList.add('pd-dragging');
+    }
+    e.preventDefault();
+    autoScroll(e.clientY);
+    moveGhost(live.ghost, e.clientX, e.clientY);
+    live.onMove(e.clientX, e.clientY);
+  }, {passive: false});
+
+  window.addEventListener('pointerup', e => {
+    if (!live || e.pointerId !== live.pointerId) return;
+    const d = live;
+    live = null;
+    document.body.classList.remove('pd-dragging');
+    d.ghost?.remove();
+    /* A press that never moved is a tap. Letting it fall through is what keeps
+       tapping a component to insert it, and tapping a tree row to select it,
+       working exactly as before. */
+    if (!d.moved){ d.onCancel?.(); return; }
+    d.onDrop(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('pointercancel', () => {
+    if (!live) return;
+    live.ghost?.remove();
+    document.body.classList.remove('pd-dragging');
+    live.onCancel?.();
+    live = null;
+  });
+
+  /* ── moving a block on the canvas ─────────────────────────────────────── */
+  document.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse') return;      /* the HTML5 path already handles it */
+    const grip = e.target.closest?.('.ed-grip');
+    if (!grip) return;
+    const block = grip.closest('[data-block]');
+    if (!block) return;
+
+    const home = {parent: block.parentElement, next: block.nextElementSibling};
+    start(e, {
+      label: block.querySelector('.ed-lbl')?.textContent?.trim() || 'Block',
+      onStart(){ block.classList.add('ed-drag'); },
+      onMove(x, y){
+        const zone = under(x, y, '.cms-col, #cmsPage');
+        if (!zone || !edCanDrop(block, zone)){ edClearDrop(); return; }
+        document.querySelectorAll('.ed-over').forEach(c => c.classList.remove('ed-over'));
+        if (zone.classList.contains('cms-col')) zone.classList.add('ed-over');
+        const line = edLine();
+        line.classList.add('on');
+        edPlace(zone, line, edDropBefore(zone, block, y));
+      },
+      async onDrop(x, y){
+        block.classList.remove('ed-drag');
+        const zone = under(x, y, '.cms-col, #cmsPage');
+        edClearDrop();
+        if (!zone || !edCanDrop(block, zone)) return;
+
+        const isCol = zone.classList.contains('cms-col');
+        edPlace(zone, block, edDropBefore(zone, block, y));
+        const d = await edPost('/p/edit/block/' + block.dataset.block + '/reparent/', {
+          parent: isCol ? zone.dataset.rowId : '',
+          column: isCol ? zone.dataset.col : 0,
+          order: edOrderOf(zone),
+        }, true);
+        if (!d){
+          /* Put it back rather than leaving the page showing a layout that was
+             never saved. */
+          if (home.next) home.parent.insertBefore(block, home.next);
+          else home.parent.append(block);
+          return;
+        }
+        if (d.reload_page) location.reload();
+        else window.cshRefreshTree?.();
+      },
+      onCancel(){ block.classList.remove('ed-drag'); edClearDrop(); },
+    });
+  }, {passive: false});
+
+  /* ── dragging a component out of the palette ──────────────────────────── */
+  document.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse') return;
+    const btn = e.target.closest?.('.csh-comp');
+    /* A preset is a whole row and goes at the top level, so it is inserted by
+       tapping rather than dropped into a column. */
+    if (!btn || btn.dataset.preset) return;
+
+    start(e, {
+      label: btn.querySelector('.csh-comp-n')?.textContent?.trim() || 'Component',
+      onMove(x, y){
+        const zone = under(x, y, '.cms-col, #cmsPage');
+        if (!zone){ edClearDrop(); return; }
+        document.querySelectorAll('.ed-over').forEach(c => c.classList.remove('ed-over'));
+        if (zone.classList.contains('cms-col')) zone.classList.add('ed-over');
+        const line = edLine();
+        line.classList.add('on');
+        edPlace(zone, line, edDropBefore(zone, null, y));
+      },
+      onDrop(x, y){
+        const zone = under(x, y, '.cms-col, #cmsPage');
+        edClearDrop();
+        if (!zone || !window.cshInsert) return;
+        if (zone.classList.contains('cms-col'))
+          cshInsert(btn.dataset.type, zone.dataset.rowId, zone.dataset.col);
+        else cshInsert(btn.dataset.type);
+      },
+      onCancel(){ edClearDrop(); },
+    });
+  }, {passive: false});
+
+  /* ── moving a block from the Layers tree ──────────────────────────────── */
+  /* This one runs for every pointer type: the tree told you to drag it and then
+     listened for nothing, so there is no working behaviour here to preserve. */
+  document.addEventListener('pointerdown', e => {
+    const row = e.target.closest?.('.csh-row[data-pk]');
+    if (!row || e.target.closest('[data-a]')) return;   /* its own action buttons */
+    const block = document.querySelector(`[data-block="${row.dataset.pk}"]`);
+    if (!block) return;
+
+    const home = {parent: block.parentElement, next: block.nextElementSibling};
+    start(e, {
+      label: row.querySelector('.csh-row-n')?.textContent?.trim() || 'Block',
+      onStart(){ row.classList.add('pd-row-drag'); block.classList.add('ed-drag'); },
+      onMove(x, y){
+        const zone = under(x, y, '.cms-col, #cmsPage');
+        if (!zone || !edCanDrop(block, zone)){ edClearDrop(); return; }
+        document.querySelectorAll('.ed-over').forEach(c => c.classList.remove('ed-over'));
+        if (zone.classList.contains('cms-col')) zone.classList.add('ed-over');
+        const line = edLine();
+        line.classList.add('on');
+        edPlace(zone, line, edDropBefore(zone, block, y));
+      },
+      async onDrop(x, y){
+        row.classList.remove('pd-row-drag');
+        block.classList.remove('ed-drag');
+        const zone = under(x, y, '.cms-col, #cmsPage');
+        edClearDrop();
+        if (!zone || !edCanDrop(block, zone)) return;
+        const isCol = zone.classList.contains('cms-col');
+        edPlace(zone, block, edDropBefore(zone, block, y));
+        const d = await edPost('/p/edit/block/' + block.dataset.block + '/reparent/', {
+          parent: isCol ? zone.dataset.rowId : '',
+          column: isCol ? zone.dataset.col : 0,
+          order: edOrderOf(zone),
+        }, true);
+        if (!d){
+          if (home.next) home.parent.insertBefore(block, home.next);
+          else home.parent.append(block);
+          return;
+        }
+        if (d.reload_page) location.reload();
+        else window.cshRefreshTree?.();
+      },
+      onCancel(){
+        row.classList.remove('pd-row-drag');
+        block.classList.remove('ed-drag');
+        edClearDrop();
+      },
+    });
+  }, {passive: false});
+})();
+</script>
+{% endif %}

@@ -1,0 +1,40 @@
+{% load cms_tags %}
+{# _feature_onboarding_handbook.html - one section of the onboarding page, as its own block. #}
+{# Split out so it can be moved, retitled or removed on its own, #}
+{# rather than the whole page being one locked lump. Its heading is #}
+{# rendered by the block, which is what makes it editable. #}
+{# ── EMPLOYEE HANDBOOK ── #}
+{# This used .page-head as a mid-page divider rather than as the page title, so #}
+{# it is a section heading, not the duplicate that was removed above it. #}
+{# A section heading like every other one on the site. It used .page-head with #}
+{# an inline margin and a doubled rule, which is why the gap under it did not #}
+{# match anything else, and it carried a "Reference" eyebrow the reader does #}
+{# not need above a heading that already says Employee Handbook. #}
+<div class="sec-head rise">{% feature_text section "heading" "h2" %}</div>
+
+<div class="card rise handbook-banner">
+  <div class="handbook-icon">
+    {% icon "book" 2 2 %}
+  </div>
+  <div class="handbook-text">
+    <h3>{{ handbook_file.title }}</h3>
+    <p>{{ handbook_file.description }}</p>
+  </div>
+  <div class="handbook-btns">
+    {% if handbook_file.file %}
+    {# Opens in the Hub's viewer rather than a new tab handing the browser #}
+    {# the raw /media/ address, which is served with no check at all. #}
+    <button type="button" class="btn y sm"
+            data-doc="{% url 'document_meta' 'handbook' handbook_file.pk %}">
+      {% icon "book" 15 2 %}
+      Open handbook
+    </button>
+    <a href="{% url 'document_file' 'handbook' handbook_file.pk %}" download class="btn ghost sm">
+      {% icon "download-tray" 15 2 %}
+      Download
+    </a>
+    {% else %}
+    <span class="pill mut" style="padding:8px 14px">Not yet uploaded</span>
+    {% endif %}
+  </div>
+</div>

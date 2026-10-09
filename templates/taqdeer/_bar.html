@@ -1,0 +1,21 @@
+{# templates/taqdeer/_bar.html — one like, the comment count, nothing else. #}
+{# There were four reaction buttons here. On a wall of cards that is sixteen #}
+{# controls competing with the words somebody wrote, and picking between four #}
+{# marks is a decision nobody wanted to make to say "well done". The four #}
+{# celebrations moved to the comment box, where "Congrats! 🎉🎉" is the thing #}
+{# people were reaching for anyway. #}
+{% load cms_tags %}
+<div class="tk-bar" data-stop>
+  <div class="rx one" data-rx="{% url 'taqdeer_like' kind item.pk %}">
+    <button type="button" class="rx-b{% if item.liked %} on{% endif %}{% if not item.n_likes %} zero{% endif %}"
+            data-emoji="❤️" title="Like this"
+            aria-pressed="{% if item.liked %}true{% else %}false{% endif %}">
+<span class="rx-e">
+        <span class="rx-off">{% icon "heart-round" 15 %}</span>
+        <span class="rx-on">{% icon "heart" 15 %}</span>
+      </span><span class="rx-n">{{ item.n_likes }}</span>
+    </button>
+  </div>
+  <button type="button" class="tk-cbtn" data-open>
+    {% icon "chat" 14 %} {{ item.n_comments }}</button>
+</div>

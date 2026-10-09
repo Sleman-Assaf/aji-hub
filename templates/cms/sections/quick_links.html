@@ -1,0 +1,16 @@
+{% load cms_tags %}
+{% include 'cms/_section_head.html' %}
+{# Reuses the Hub's existing .btile tile so quick links match Brand Files etc. #}
+<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr))">
+  {% for item in section.visible_items %}
+  <a href="{{ item.href|default:'#' }}" class="btile" {% if item.file %}download{% endif %}>
+    <span class="btile-ic">{% cms_icon item.icon|default:"link" 19 %}</span>
+    <span style="min-width:0">
+      <span style="display:block;font-weight:700;font-size:13.5px">{{ item.title }}</span>
+      {% if item.meta %}<span class="muted" style="display:block;font-size:11.5px;margin-top:2px">{{ item.meta }}</span>{% endif %}
+    </span>
+  </a>
+  {% empty %}
+  <div class="muted" style="font-size:13px">No links yet.</div>
+  {% endfor %}
+</div>

@@ -1,0 +1,290 @@
+{# templates/services/fleet_vehicle.html #}
+{% extends 'base.html' %}
+{% block title %}{{ v.make }} {{ v.model }} — Fleet — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+.fv-grid{display:grid;grid-template-columns:1fr 1.25fr;gap:22px;align-items:start}
+@media (max-width:1040px){.fv-grid{grid-template-columns:1fr}}
+.fv-form label{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.fv-form input,.fv-form select,.fv-form textarea{width:100%;padding:9px 11px;
+  border:1px solid var(--line);background:var(--paper);font-family:inherit;
+  font-size:13px;color:var(--ink)}
+.fv-form textarea{min-height:60px;resize:vertical}
+.fv-two{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:13px}
+.fv-one{margin-bottom:13px}
+.fv-sec{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink);border-bottom:1px solid var(--line);padding-bottom:6px;margin:22px 0 13px}
+.fv-row{display:flex;gap:12px;align-items:flex-start;padding:11px 0;
+  border-top:1px solid var(--line);font-size:13px}
+.fv-row:first-of-type{border-top:none}
+.fv-row-main{flex:1;min-width:0}
+.fv-row-main b{display:block}
+.fv-row-main span{font-size:12px;color:var(--muted)}
+.fv-cost{font-weight:700;font-size:13px;white-space:nowrap}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow"><a href="{% url 'services:fleet_console' %}" style="color:inherit">Fleet</a> / {{ v.entity.code }}</div>
+    <h1>{{ v.make }} {{ v.model }}</h1>
+    <p>{{ v.plate|default:"No plate recorded" }} · {{ v.seats }} seats
+       {% if v.odometer %}· {{ v.odometer }} km{% endif %}</p>
+  </div>
+  <a href="{% url 'services:fleet_console' %}" class="btn">Back to the fleet</a>
+</div>
+
+{% if v.alerts %}
+<div class="card rise" style="padding:14px 18px;margin-bottom:18px;border-color:var(--bad)">
+  {% for kind, text in v.alerts %}
+    <span class="pill {% if kind == 'expired' %}bad{% else %}warn{% endif %}"
+          style="font-size:10.5px;margin-right:6px">{{ text }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="fv-grid rise">
+  {# ── the car ───────────────────────────────────────────────────────── #}
+  <form class="card fv-form" style="padding:20px" method="post"
+        action="{% url 'services:fleet_vehicle_save' v.pk %}" enctype="multipart/form-data">
+    {% csrf_token %}
+    <h2 style="margin:0 0 14px;font-size:16px">The car</h2>
+
+    {% if v.photo %}
+      <img src="{{ v.photo.url }}" alt=""
+           style="width:100%;aspect-ratio:3/2;object-fit:cover;
+                  background:var(--paper-3);border:1px solid var(--line);
+                  margin-bottom:14px;display:block">
+    {% endif %}
+    <div class="fv-one">
+      <label for="fvPhoto">Picture</label>
+      <input type="file" id="fvPhoto" name="photo" accept="image/*">
+      <p class="muted" style="font-size:11.5px;margin:5px 0 0">
+        A drawing stands in until there is a photograph of the real car.
+        Upload one and it replaces the drawing.</p>
+    </div>
+
+    <div class="fv-two">
+      <div><label for="fvEntity">Division</label>
+        <select id="fvEntity" name="entity">
+          {% for e in entities %}
+            <option value="{{ e.pk }}" {% if e.pk == v.entity_id %}selected{% endif %}>{{ e.code }}</option>
+          {% endfor %}
+        </select></div>
+      <div><label for="fvStatus">Status</label>
+        <select id="fvStatus" name="status">
+          {% for val, label in statuses %}
+            <option value="{{ val }}" {% if val == v.status %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select></div>
+    </div>
+    <div class="fv-two">
+      <div><label for="fvMake">Make</label>
+        <input type="text" id="fvMake" name="make" value="{{ v.make }}" required></div>
+      <div><label for="fvModel">Model</label>
+        <input type="text" id="fvModel" name="model" value="{{ v.model }}"></div>
+    </div>
+    <div class="fv-two">
+      <div><label for="fvPlate">Plate</label>
+        <input type="text" id="fvPlate" name="plate" value="{{ v.plate }}"></div>
+      <div><label for="fvSeats">Seats</label>
+        <input type="number" id="fvSeats" name="seats" value="{{ v.seats }}" min="1" max="60"></div>
+    </div>
+
+    <div class="fv-sec">Insurance and licence</div>
+    <div class="fv-two">
+      <div><label for="fvInsurer">Insurer</label>
+        <input type="text" id="fvInsurer" name="insurer" value="{{ v.insurer }}"></div>
+      <div><label for="fvPolicy">Policy number</label>
+        <input type="text" id="fvPolicy" name="insurance_policy" value="{{ v.insurance_policy }}"></div>
+    </div>
+    <div class="fv-two">
+      <div><label for="fvIns">Insurance expires</label>
+        <input type="date" id="fvIns" name="insurance_expiry"
+               value="{{ v.insurance_expiry|date:'Y-m-d' }}"></div>
+      <div><label for="fvReg">Licence expires</label>
+        <input type="date" id="fvReg" name="registration_expiry"
+               value="{{ v.registration_expiry|date:'Y-m-d' }}"></div>
+    </div>
+
+    <div class="fv-sec">Servicing</div>
+    <div class="fv-two">
+      <div><label for="fvOdo">Odometer (km)</label>
+        <input type="number" id="fvOdo" name="odometer" value="{{ v.odometer|default_if_none:'' }}"></div>
+      <div><label for="fvNextKm">Next service at (km)</label>
+        <input type="number" id="fvNextKm" name="next_service_km"
+               value="{{ v.next_service_km|default_if_none:'' }}"></div>
+    </div>
+    <div class="fv-one"><label for="fvNextDue">Next service due</label>
+      <input type="date" id="fvNextDue" name="next_service_due"
+             value="{{ v.next_service_due|date:'Y-m-d' }}"></div>
+    <div class="fv-one"><label for="fvNotes">Notes</label>
+      <textarea id="fvNotes" name="notes">{{ v.notes }}</textarea></div>
+
+    <button class="btn btn-primary" style="width:100%">Save</button>
+  </form>
+
+  <div>
+    {# ── coming up ──────────────────────────────────────────────────── #}
+    <div class="card" style="padding:20px;margin-bottom:18px">
+      <h2 style="margin:0 0 12px;font-size:16px">Booked</h2>
+      {% for a in upcoming %}
+        <div class="fv-row">
+          <div class="fv-row-main">
+            <b>{{ a.booking.date|date:"D, d M" }} · {{ a.booking.departure_time|time:"H:i" }}–{{ a.booking.return_time|time:"H:i" }}</b>
+            <span>{{ a.booking.to_address|truncatechars:44 }} ·
+              {{ a.booking.booked_by.get_full_name|default:a.booking.booked_by.username }}</span>
+          </div>
+          {% if a.booking.status == 'pending' %}<span class="pill warn" style="font-size:10px">Waiting</span>
+          {% else %}<span class="pill ok" style="font-size:10px">Approved</span>{% endif %}
+        </div>
+      {% empty %}
+        <p class="muted" style="font-size:13px;margin:0">Nothing booked.</p>
+      {% endfor %}
+    </div>
+
+    {# ── the history ────────────────────────────────────────────────── #}
+    <div class="card" style="padding:20px;margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <h2 style="margin:0 0 12px;font-size:16px">Service, fines and renewals</h2>
+        {% if spend %}<span class="muted" style="font-size:12.5px">{{ spend }} spent</span>{% endif %}
+      </div>
+      {% for e in events %}
+        <div class="fv-row">
+          <div class="fv-row-main">
+            <b>{{ e.title }}</b>
+            <span>{{ e.get_kind_display }} · {{ e.happened_on|date:"d M Y" }}
+              {% if e.vendor %} · {{ e.vendor }}{% endif %}
+              {% if e.reference %} · {{ e.reference }}{% endif %}
+              {% if e.driver %} · {{ e.driver.full_name }}{% endif %}</span>
+            {% if e.detail %}<span>{{ e.detail|truncatechars:120 }}</span>{% endif %}
+          </div>
+          {% if e.is_outstanding %}<span class="pill bad" style="font-size:10px">Open</span>{% endif %}
+          {% if e.cost %}<span class="fv-cost">{{ e.cost }} {{ e.currency }}</span>{% endif %}
+          <form method="post" action="{% url 'services:fleet_event_delete' e.pk %}"
+                onsubmit="return confirm('Remove this entry?')">
+            {% csrf_token %}
+            <button class="btn btn-sm" style="color:var(--bad)">&times;</button>
+          </form>
+        </div>
+      {% empty %}
+        <p class="muted" style="font-size:13px;margin:0">Nothing recorded yet.</p>
+      {% endfor %}
+
+      <form class="fv-form" method="post" action="{% url 'services:fleet_event_new' %}"
+            enctype="multipart/form-data" style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
+        {% csrf_token %}
+        <input type="hidden" name="vehicle" value="{{ v.pk }}">
+        <div class="fv-two">
+          <div><label for="evKind">What</label>
+            <select id="evKind" name="kind">
+              {% for val, label in kinds %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+            </select></div>
+          <div><label for="evDate">When</label>
+            <input type="date" id="evDate" name="happened_on" required></div>
+        </div>
+        <div class="fv-one"><label for="evTitle">Title</label>
+          <input type="text" id="evTitle" name="title" required
+                 placeholder="30,000 km service · Speeding fine · Annual renewal"></div>
+        <div class="fv-two">
+          <div><label for="evCost">Cost</label>
+            <input type="number" step="0.01" id="evCost" name="cost"></div>
+          <div><label for="evVendor">Garage / insurer / authority</label>
+            <input type="text" id="evVendor" name="vendor"></div>
+        </div>
+        <div class="fv-two">
+          <div><label for="evRef">Reference</label>
+            <input type="text" id="evRef" name="reference" placeholder="Ticket or invoice no."></div>
+          <div><label for="evDriver">Driver at the time</label>
+            <select id="evDriver" name="driver">
+              <option value="">Unknown</option>
+              {% for d in drivers %}<option value="{{ d.pk }}">{{ d.full_name }}</option>{% endfor %}
+            </select></div>
+        </div>
+        <div class="fv-two">
+          <div><label for="evNew">New expiry / next service</label>
+            <input type="date" id="evNew" name="new_expiry"></div>
+          <div><label for="evNextDue">…or next service due</label>
+            <input type="date" id="evNextDue" name="next_service_due"></div>
+        </div>
+        <p class="muted" style="font-size:11.5px;margin:-4px 0 12px">
+          Filling either of those moves the date on the car, so it stops reading as overdue.</p>
+        <div class="fv-one"><label for="evDetail">Detail</label>
+          <textarea id="evDetail" name="detail"></textarea></div>
+        <div class="fv-two">
+          <div><label for="evDoc">Document</label>
+            <input type="file" id="evDoc" name="document"></div>
+          <div style="display:flex;align-items:flex-end;gap:8px;padding-bottom:9px">
+            <input type="checkbox" id="evSettled" name="is_settled" value="1"
+                   style="width:16px;height:16px;accent-color:var(--ink)">
+            <label for="evSettled" style="margin:0">Settled</label>
+          </div>
+        </div>
+        <button class="btn btn-primary">Record it</button>
+      </form>
+    </div>
+
+    {# ── the trip log ───────────────────────────────────────────────── #}
+    <div class="card" style="padding:20px">
+      <h2 style="margin:0 0 12px;font-size:16px">Trip log</h2>
+      {% for l in logs %}
+        <div class="fv-row">
+          <div class="fv-row-main">
+            <b>{% if l.left_at %}{{ l.left_at|date:"d M Y, H:i" }}{% else %}Undated{% endif %}
+               {% if l.returned_at %}&rarr; {{ l.returned_at|date:"H:i" }}{% endif %}</b>
+            <span>{% if l.driver %}{{ l.driver.full_name }}{% else %}No driver recorded{% endif %}
+              {% if l.distance_km %} · {{ l.distance_km }} km{% endif %}
+              {% if l.fuel_cost %} · {{ l.fuel_cost }} {{ l.currency }} fuel{% endif %}</span>
+            {% if l.notes %}<span>{{ l.notes|truncatechars:120 }}</span>{% endif %}
+          </div>
+        </div>
+      {% empty %}
+        <p class="muted" style="font-size:13px;margin:0">Nothing logged yet.</p>
+      {% endfor %}
+
+      <form class="fv-form" method="post" action="{% url 'services:fleet_trip_new' %}"
+            style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
+        {% csrf_token %}
+        <input type="hidden" name="vehicle" value="{{ v.pk }}">
+        <div class="fv-two">
+          <div><label for="tlOut">Left</label>
+            <input type="datetime-local" id="tlOut" name="left_at"></div>
+          <div><label for="tlIn">Returned</label>
+            <input type="datetime-local" id="tlIn" name="returned_at"></div>
+        </div>
+        <div class="fv-two">
+          <div><label for="tlKmOut">Odometer out</label>
+            <input type="number" id="tlKmOut" name="odometer_out"></div>
+          <div><label for="tlKmIn">Odometer in</label>
+            <input type="number" id="tlKmIn" name="odometer_in"></div>
+        </div>
+        <div class="fv-two">
+          <div><label for="tlDriver">Driver</label>
+            <select id="tlDriver" name="driver">
+              <option value="">Not recorded</option>
+              {% for d in drivers %}<option value="{{ d.pk }}">{{ d.full_name }}</option>{% endfor %}
+            </select></div>
+          <div><label for="tlFuel">Fuel cost</label>
+            <input type="number" step="0.01" id="tlFuel" name="fuel_cost"></div>
+        </div>
+        <div class="fv-one"><label for="tlNotes">Notes</label>
+          <textarea id="tlNotes" name="notes"></textarea></div>
+        <button class="btn btn-primary">Log it</button>
+        <p class="muted" style="font-size:11.5px;margin:8px 0 0">
+          The odometer-in reading updates the car, if it is higher than what is on it.</p>
+      </form>
+    </div>
+
+    <form method="post" action="{% url 'services:fleet_vehicle_retire' v.pk %}"
+          style="margin-top:18px" onsubmit="return confirm('Retire this car? Its history is kept.')">
+      {% csrf_token %}
+      <button class="btn btn-sm" style="color:var(--bad)">Retire this car</button>
+      <span class="muted" style="font-size:11.5px;margin-left:8px">
+        It leaves every booking form and keeps its records.</span>
+    </form>
+  </div>
+</div>
+{% endblock %}

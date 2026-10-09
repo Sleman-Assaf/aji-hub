@@ -1,0 +1,118 @@
+{# templates/cms/page_index.html — every page the Hub manages. #}
+{# It used to list only pages flagged show_in_nav, and binding a route never #}
+{# sets that, so it read "No pages published yet" while managing eighteen. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}Hub pages — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+.pi-note{font-size:12.5px;line-height:1.6;max-width:74ch;margin:0 0 var(--sp-4)}
+.pi-list{display:flex;flex-direction:column;gap:7px}
+.pi-row{display:flex;align-items:center;gap:12px;padding:11px 14px;
+  background:var(--paper-2);border:1px solid var(--line)}
+.pi-main{flex:1;min-width:0}
+.pi-title{font-weight:700;font-size:13.5px;display:flex;align-items:center;
+  gap:7px;flex-wrap:wrap}
+.pi-meta{font-size:11.5px;color:var(--muted);margin-top:2px;display:flex;gap:7px;
+  flex-wrap:wrap}
+.pi-acts{display:flex;gap:6px;flex:none;flex-wrap:wrap}
+.pi-acts .btn{padding:5px 10px;font-size:11.5px}
+.pi-out{color:var(--bad)}
+.pi-empty{text-align:center;padding:30px;color:var(--muted);font-size:13px}
+@media(max-width:720px){
+  .pi-row{flex-wrap:wrap}
+  .pi-acts{width:100%}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-head rise" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div>
+    <div class="eyebrow">Hub</div>
+    <h1>Pages</h1>
+    {% if can_edit %}
+    <p>Every page on the Hub, and whether it is in the menu across the top.</p>
+    {% else %}
+    <p>Pages published by departments across <span class="kc">AJi</span>.</p>
+    {% endif %}
+  </div>
+  {% if can_edit %}
+  <div style="display:flex;gap:8px;flex:none;flex-wrap:wrap">
+    {# The two site-wide screens. Neither had a way in before: the icon library #}
+    {# was only reachable from inside a picker, and the navigation had no #}
+    {# screen at all. #}
+    {% if can_publish %}
+    <a href="{% url 'cms_nav' %}" data-frag class="btn ghost">Navigation &amp; logo</a>
+    {% endif %}
+    <a href="{% url 'cms_icons' %}" data-frag class="btn ghost">Icons</a>
+    <a href="{% url 'cms_page_create' %}" class="btn y">+ New page</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if not can_edit %}
+{# A reader still gets the directory this always was. #}
+<div class="grid rise" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+  {% for p in reader_pages %}
+  <a href="{{ p.get_absolute_url }}" class="card" style="text-decoration:none;color:inherit;display:block">
+    {% if p.eyebrow %}<div class="eyebrow" style="margin-bottom:8px">{{ p.eyebrow }}</div>{% endif %}
+    <div style="font-weight:700;font-size:16px;letter-spacing:-.015em">{{ p.title }}</div>
+    {% if p.subtitle %}<div class="muted" style="font-size:13px;line-height:1.55;margin-top:6px">{{ p.subtitle }}</div>{% endif %}
+  </a>
+  {% empty %}
+  <div class="card" style="text-align:center;padding:44px;color:var(--muted);font-size:13.5px">
+    No pages published yet.
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+
+<div class="sec-head rise">
+  <h2>In the menu</h2>
+  <span class="muted" style="font-size:11.5px">{{ in_nav|length }}</span>
+</div>
+<div class="rise pi-list">
+  {% for r in in_nav %}{% include 'cms/partials/_page_row.html' %}{% empty %}
+  <div class="card pi-empty">Nothing is in the top menu yet.</div>
+  {% endfor %}
+</div>
+
+<div class="sec-head rise" style="margin-top:var(--sp-7)">
+  <h2>Not in the menu</h2>
+  <span class="muted" style="font-size:11.5px">{{ off_nav|length }}</span>
+</div>
+<p class="muted rise pi-note">
+  These are managed and reachable at their own address; they are just not links
+  in the bar across the top. Some are meant to be — the calendar and the
+  cafeteria are reached from My AJi rather than the menu.
+</p>
+<div class="rise pi-list">
+  {% for r in off_nav %}{% include 'cms/partials/_page_row.html' %}{% empty %}
+  <div class="card pi-empty">Every page is in the menu.</div>
+  {% endfor %}
+</div>
+
+<script>
+/* Adding a page to the menu changes the header of every page on the Hub —
+   including the one this is running on — so the screen is reloaded rather than
+   patched. */
+const PI_CSRF = '{{ csrf_token }}';
+async function piToggleNav(slug, label, inNav){
+  if (inNav && !confirm(`Take “${label}” out of the top menu?`)) return;
+  try {
+    const r = await fetch(`/p/${slug}/in-nav/`,
+      {method: 'POST', headers: {'X-CSRFToken': PI_CSRF,
+                                 'X-Requested-With': 'XMLHttpRequest'}});
+    const d = await r.json();
+    if (!r.ok || d.error){ (window.toast || alert)(d.error || 'That did not work.'); return; }
+    location.reload();
+  } catch (e){ (window.toast || alert)('Could not reach the server.'); }
+}
+</script>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,180 @@
+{# templates/core/notification_settings.html #}
+{# A row per kind of event, a column per channel. The point is that somebody can #}
+{# see the whole picture at once and switch off the one thing annoying them, #}
+{# rather than hunting for a single checkbox called "notifications". #}
+{% extends 'base.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}Notification settings — AJi Hub{% endblock %}
+
+{% block content %}
+<a href="{% url 'alerts_history' %}" class="ctx-back" title="Notifications"><span class="ctx-back-lab">Notifications</span></a>
+
+<div class="page-head rise">
+  <div class="eyebrow">Your settings</div>
+  <h1>Notifications</h1>
+  <p>Choose what the Hub tells you about, and how it reaches you.</p>
+</div>
+
+<form data-save method="post" class="ns-form rise">
+  {% csrf_token %}
+
+  {# ── desktop pop-ups: the browser has to agree first ── #}
+  <div class="ns-card ns-perm" data-perm>
+    <div class="ns-perm-ic">{% icon "bell" 20 %}</div>
+    <div class="ns-perm-txt">
+      <b>Desktop pop-ups</b>
+      <span data-perm-state>Checking…</span>
+    </div>
+    <button type="button" class="btn y sm" data-perm-ask hidden>Turn on</button>
+  </div>
+
+  {# ── the matrix ── #}
+  <div class="ns-card">
+    <h2>What to tell me about</h2>
+    <div class="ns-scroll">
+      <table class="ns-table">
+        <thead>
+          <tr>
+            <th scope="col">Event</th>
+            {% for value, label in channels %}
+            <th scope="col">{{ label }}<i>{{ channel_help|lookup:value }}</i></th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for event, label, states in matrix %}
+          <tr>
+            <th scope="row"><b>{{ label }}</b><i>{{ event_help|lookup:event }}</i></th>
+            {% for value, clabel in channels %}
+            <td>
+              <label class="ns-sw">
+                <input type="checkbox" name="{{ event }}_{{ value }}"
+                       {% if states|lookup:value %}checked{% endif %}
+                       aria-label="{{ label }} — {{ clabel }}">
+                <span class="ns-sw-track"><span class="ns-sw-knob"></span></span>
+              </label>
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="ns-note">
+      Anything else the Hub has to tell you — news, brand updates, community
+      activity — always goes to the bell and never to your inbox.
+    </p>
+  </div>
+
+  {# ── the daily summary ── #}
+  <div class="ns-card">
+    <h2>Daily summary</h2>
+    <p class="ns-note">
+      One email at the end of the day listing the messages you have not opened —
+      <em>“You have 3 unread messages from Ayah Haji”</em>. It only arrives if
+      there is something to say.
+    </p>
+    <label class="ns-row">
+      <span class="ns-sw">
+        <input type="checkbox" name="digest_email" {% if prefs.digest_email %}checked{% endif %}>
+        <span class="ns-sw-track"><span class="ns-sw-knob"></span></span>
+      </span>
+      <span class="ns-row-txt"><b>Email me a daily summary</b>
+        <i>By email only, so it reaches you whether or not a tab is open.</i></span>
+    </label>
+    <div class="ns-row">
+      <label for="digest_hour" class="ns-row-txt ns-row-fixed"><b>Send it at</b></label>
+      <select name="digest_hour" id="digest_hour" class="ns-select">
+        {% for value, label in hours %}
+        <option value="{{ value }}" {% if prefs.digest_hour == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <span class="ns-tz">Amman time</span>
+    </div>
+  </div>
+
+  {# ── where email goes, and whether it can ── #}
+  <div class="ns-card{% if not transport %} warn{% endif %}">
+    <h2>Email</h2>
+    <p class="ns-note">
+      {% if transport %}{% icon "check-circle" 14 %}{% else %}{% icon "warning" 14 %}{% endif %}
+      {{ transport_note }}
+    </p>
+    {% if request.user.email %}
+      <p class="ns-note">Your address: <b>{{ request.user.email }}</b></p>
+    {% else %}
+      <p class="ns-note">
+        Your account has no email address on it, so the Hub cannot email you at
+        all. Ask IT to add one.
+      </p>
+    {% endif %}
+    {% if not site_url and is_intranet_admin %}
+      <p class="ns-note">
+        {% icon "warning" 14 %} No site address is set, so links inside emails will
+        be missing. Add one under
+        <a href="{% url 'it_integrations' %}">the IT portal</a>.
+      </p>
+    {% endif %}
+    <div class="ns-actions">
+      <button type="submit" name="action" value="test_email" class="btn ghost sm"
+              {% if not transport or not request.user.email %}disabled{% endif %}>
+        {% icon "paper-plane-tilt" 13 %} Send me a test email
+      </button>
+      {% if is_intranet_admin %}
+      <a href="{% url 'it_integrations' %}" class="btn ghost sm">Email server settings</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="ns-save">
+    <button type="submit" class="btn y">Save settings</button>
+    <a href="{% url 'alerts_history' %}" class="btn ghost">Cancel</a>
+  </div>
+</form>
+
+<script>
+/* The browser decides whether pop-ups are allowed, and it will only ask in
+   response to a real click — so this states where things stand and offers a
+   button, rather than firing a permission prompt at somebody who has just
+   arrived on a page. */
+(function () {
+  const card = document.querySelector('[data-perm]');
+  if (!card) return;
+  const state = card.querySelector('[data-perm-state]');
+  const ask = card.querySelector('[data-perm-ask]');
+
+  function paint() {
+    if (!('Notification' in window)) {
+      state.textContent = 'This browser cannot show desktop pop-ups.';
+      card.classList.add('off');
+      ask.hidden = true;
+      return;
+    }
+    const p = Notification.permission;
+    card.classList.toggle('on', p === 'granted');
+    card.classList.toggle('off', p === 'denied');
+    ask.hidden = p !== 'default';
+    state.textContent = p === 'granted'
+      ? 'Allowed. Pop-ups appear while a Hub tab is open.'
+      : p === 'denied'
+        ? 'Blocked by your browser. Allow notifications for this site from the '
+          + 'padlock beside the address bar, then reload this page.'
+        : 'Your browser has not been asked yet.';
+  }
+
+  ask.addEventListener('click', function () {
+    Notification.requestPermission().then(function (result) {
+      paint();
+      if (result === 'granted') {
+        new Notification('AJi Hub', {
+          body: 'Desktop pop-ups are on. This is what they look like.',
+          icon: '/static/img/logo.png',
+        });
+      }
+    });
+  });
+
+  paint();
+})();
+</script>
+{% endblock %}

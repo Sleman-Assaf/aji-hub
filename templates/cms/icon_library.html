@@ -1,0 +1,278 @@
+{# templates/cms/icon_library.html — every icon on the Hub, editable. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}Icons — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+.ic-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:var(--sp-2)}
+.ic-cell{border:1px solid var(--line);background:var(--paper-2);padding:var(--sp-4) var(--sp-2);
+  text-align:center;cursor:pointer;transition:.13s;position:relative;font-family:inherit}
+.ic-cell:hover{border-color:var(--yellow-deep);background:var(--paper-2)}
+.ic-cell svg{display:block;margin:0 auto var(--sp-2)}
+.ic-name{font-size:10.5px;color:var(--muted);word-break:break-all;line-height:1.35}
+.ic-dot{position:absolute;top:5px;right:5px;width:6px;height:6px;background:var(--yellow-deep)}
+.ic-form{display:grid;gap:var(--sp-4)}
+.ic-preview{width:74px;height:74px;border:1px solid var(--line-2);display:flex;align-items:center;
+  justify-content:center;background:var(--paper-2);flex:none}
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="{% url 'cms_index' %}" class="lk" style="display:inline-block;margin-bottom:var(--sp-3)">← Hub pages</a>
+
+<div class="page-head rise" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-3)">
+  <div>
+    <div class="eyebrow">Design system</div>
+    <h1>Icons</h1>
+    <p>
+      Every icon on the Hub, including navigation and buttons. Edit one to change it
+      everywhere it appears, or upload your own.
+    </p>
+  </div>
+  <div style="display:flex;gap:var(--sp-2);flex:none;flex-wrap:wrap">
+    <button type="button" class="btn y" onclick="icNew()">{% icon "plus" 15 %} Add an icon</button>
+  </div>
+</div>
+
+{# The library screen lists rows in this table -- the ones somebody here has #}
+{# edited or uploaded. It is no longer the whole set: that is Phosphor, and it is #}
+{# browsed from the picker, so this says which set is installed rather than #}
+{# implying these are all the icons there are. #}
+<div class="card rise" style="display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;font-size:12.5px">
+  <span><b>{{ set.count }}</b> icons in {{ set.set|title }} {{ set.version }}
+    <span class="muted">({{ set.weight }} weight)</span></span>
+  <span class="muted">·</span>
+  <span><b>{{ total }}</b> named here</span>
+  <span class="muted">·</span>
+  <span><b>{{ customised }}</b> drawn or changed by hand</span>
+  <form method="get" style="margin-left:auto;display:flex;gap:var(--sp-2)">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search by name"
+           class="inp" style="width:190px">
+    <button class="btn ghost sm">Search</button>
+    {% if q %}<a href="{% url 'cms_icons' %}" class="btn ghost sm">Clear</a>{% endif %}
+  </form>
+</div>
+
+<p class="muted rise" style="font-size:12.5px;line-height:1.6;max-width:70ch;margin-top:var(--sp-4)">
+  Built-in icons can be changed or restored but not deleted, because templates refer
+  to them by name. If one is left empty it falls back to its original shape, so an
+  edit here can never leave a blank button or an invisible menu.
+</p>
+
+{% for g in groups %}
+<div class="sec-head rise"><h2>{{ g.label }}</h2><span class="muted" style="font-size:11.5px">{{ g.icons|length }}</span></div>
+<div class="ic-grid rise">
+  {% for i in g.icons %}
+  {# Everything the editor needs travels on the cell, so opening it costs no request. #}
+  <button type="button" class="ic-cell" data-pk="{{ i.pk }}" data-name="{{ i.name }}"
+          data-label="{{ i.label }}" data-body="{{ i.body }}" data-stroke="{{ i.stroke }}"
+          data-filled="{{ i.filled|yesno:"1,0" }}" data-builtin="{{ i.is_builtin|yesno:"1,0" }}"
+          data-cat="{{ i.category }}"
+          onclick="icEdit({{ i.pk }})" title="{{ i.name }}">
+    {% if i.is_overridden or not i.is_builtin %}<span class="ic-dot"
+      title="Drawn by hand — Reset swaps it for the shape the icon set ships"></span>{% endif %}
+    {% icon i.name 26 %}
+    <span class="ic-name">{{ i.name }}</span>
+  </button>
+  {% endfor %}
+</div>
+{% empty %}
+<div class="card rise" style="text-align:center;padding:44px;color:var(--muted);font-size:13px">
+  No icons match “{{ q }}”.
+</div>
+{% endfor %}
+
+{# ── Editor ── #}
+<div class="ovl" id="icOvl" role="dialog" aria-modal="true" aria-labelledby="icTitle">
+  <div class="dlg" style="max-width:560px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-5)">
+      <b id="icTitle" style="font-size:16px">Icon</b>
+      <button type="button" class="btn ghost sm" onclick="icClose()">Close</button>
+    </div>
+
+    <form id="icForm" class="ic-form" onsubmit="return icSave(event)">
+      {% csrf_token %}
+      <div style="display:flex;gap:var(--sp-4);align-items:flex-start">
+        <div class="ic-preview" id="icPreview"></div>
+        <div style="flex:1;min-width:0;display:grid;gap:var(--sp-3)">
+          <label class="fld"><span>Name</span>
+            <input type="text" name="name" id="icName" class="inp" required>
+            <small class="muted" id="icNameNote" style="font-size:11px"></small>
+          </label>
+          <label class="fld"><span>Label</span>
+            <input type="text" name="label" id="icLabel" class="inp">
+          </label>
+        </div>
+      </div>
+
+      <label class="fld"><span>SVG</span>
+        <textarea name="body" id="icBody" class="inp" rows="6" spellcheck="false"
+                  placeholder="Paste an SVG, or leave empty to use the original shape"
+                  oninput="icRedraw()"></textarea>
+        <small class="muted" style="font-size:11px;line-height:1.5">
+          A whole &lt;svg&gt; is fine — the wrapper is stripped and only shape elements
+          are kept. Draw for a 24×24 box using currentColor.
+        </small>
+      </label>
+
+      <label class="fld"><span>Or upload a file</span>
+        <input type="file" name="file" id="icFile"
+               accept=".svg,image/svg+xml,.png,.jpg,.jpeg,.webp,.gif,image/*"
+               style="font-size:12.5px">
+        <small class="muted" style="font-size:11px;line-height:1.5">
+          SVG, PNG, JPG, WEBP or GIF. A picture is scaled to fit the same box as a
+          drawn icon, keeping its proportions, so it behaves exactly like the
+          ones the set ships.
+        </small>
+      </label>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)">
+        <label class="fld"><span>Line thickness</span>
+          <input type="number" name="stroke" id="icStroke" class="inp" step="0.1"
+                 min="0.5" max="4" value="2" oninput="icRedraw()">
+        </label>
+        <label class="fld" id="icCatWrap"><span>Group</span>
+          <select name="category" id="icCat" class="inp">
+            {% for v,l in categories %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+
+      <label style="display:flex;align-items:center;gap:var(--sp-2);font-size:13px">
+        <input type="checkbox" name="filled" id="icFilled" onchange="icRedraw()">
+        <span>Solid icon — fill the shape instead of drawing its outline</span>
+      </label>
+
+      <div class="f-foot">
+        <button type="submit" class="btn y">Save</button>
+        <button type="button" class="btn ghost" id="icResetBtn" onclick="icReset()">Restore original</button>
+        <button type="button" class="btn ghost" id="icDelBtn" onclick="icDelete()"
+                style="margin-left:auto;color:var(--bad)">Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const IC = {pk: null, csrf: '{{ csrf_token }}', builtin: false};
+
+/* Both the overlay and the dialog inside it are shown by the `on` class -- the
+   convention every other dialog on the Hub uses. This used `show`, which matches
+   no rule in the stylesheet, and never gave the dialog a class at all, so Add,
+   Edit and Upload on this screen were wired up and permanently invisible. The
+   media picker and the icon picker each had the identical defect. */
+function icToggle(open){
+  const ovl = document.getElementById('icOvl');
+  ovl.classList.toggle('on', open);
+  ovl.querySelector('.dlg')?.classList.toggle('on', open);
+}
+
+function icDraw(body, stroke, filled){
+  const box = document.getElementById('icPreview');
+  if(!body.trim()){ box.innerHTML = '<span class="muted" style="font-size:10.5px">shipped shape</span>'; return; }
+  const fill = filled ? 'currentColor' : 'none';
+  /* Pasted markup is drawn on whatever grid its author used -- 16, 48, 256, 512.
+     Forcing the preview into 24 units is what made a large-grid icon look blank
+     while the saved version was fine, because the server reads the real grid off
+     the <svg> tag. */
+  const m = body.match(/viewBox\s*=\s*["']([^"']+)["']/i);
+  const vb = m ? m[1] : '0 0 24 24';
+  const span = parseFloat(vb.split(/[\s,]+/)[2]) || 24;
+  let w = stroke || 2;
+  if(span !== 24) w = Math.round(w * span / 24 * 100) / 100;
+  const st = filled ? '' : ` stroke="currentColor" stroke-width="${w}"`;
+  box.innerHTML = `<svg width="40" height="40" viewBox="${vb}" fill="${fill}"${st}
+                    stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+}
+
+function icRedraw(){
+  icDraw(document.getElementById('icBody').value,
+         document.getElementById('icStroke').value,
+         document.getElementById('icFilled').checked);
+}
+
+function icNew(){
+  IC.pk = null; IC.builtin = false;
+  document.getElementById('icTitle').textContent = 'Upload an icon';
+  document.getElementById('icForm').reset();
+  document.getElementById('icName').readOnly = false;
+  document.getElementById('icNameNote').textContent = 'Lowercase, dashes instead of spaces.';
+  document.getElementById('icResetBtn').style.display = 'none';
+  document.getElementById('icDelBtn').style.display = 'none';
+  document.getElementById('icCatWrap').style.display = '';
+  icDraw('', 2, false);
+  icToggle(true);
+  document.getElementById('icName').focus();
+}
+
+function icEdit(pk){
+  const cell = document.querySelector('.ic-cell[data-pk="' + pk + '"]');
+  const d = cell.dataset;
+  IC.pk = pk;
+  IC.builtin = d.builtin === '1';
+
+  document.getElementById('icTitle').textContent = d.name;
+  document.getElementById('icForm').reset();
+  document.getElementById('icName').value = d.name;
+  document.getElementById('icName').readOnly = IC.builtin;
+  document.getElementById('icNameNote').textContent = IC.builtin
+    ? 'Shipped icons keep their name, so every template using it keeps working.'
+    : 'Lowercase, dashes instead of spaces.';
+  document.getElementById('icLabel').value = d.label || '';
+  document.getElementById('icBody').value = d.body || '';
+  document.getElementById('icStroke').value = d.stroke || 2;
+  document.getElementById('icFilled').checked = d.filled === '1';
+  document.getElementById('icCat').value = d.cat || 'general';
+
+  /* Restore only means something for an icon with a shipped shape; Delete only
+     for one that has none. Showing both on every icon invites a dead click. */
+  document.getElementById('icResetBtn').style.display = IC.builtin ? '' : 'none';
+  document.getElementById('icDelBtn').style.display = IC.builtin ? 'none' : '';
+  document.getElementById('icCatWrap').style.display = IC.builtin ? 'none' : '';
+
+  icRedraw();
+  icToggle(true);
+}
+
+function icClose(){ icToggle(false); }
+
+async function icPost(url, form){
+  const r = await fetch(url, {method: 'POST', headers: {'X-CSRFToken': IC.csrf},
+                              body: form || new FormData()});
+  let d = {};
+  try { d = await r.json(); } catch(e){}
+  if(!r.ok || d.error){ showToast(d.error || 'That did not save'); return null; }
+  if(d.message) showToast(d.message);
+  return d;
+}
+
+async function icSave(e){
+  e.preventDefault();
+  const form = new FormData(document.getElementById('icForm'));
+  const url = IC.pk ? '/p/icons/' + IC.pk + '/save/' : '/p/icons/new/';
+  const d = await icPost(url, form);
+  if(d) location.reload();
+  return false;
+}
+
+async function icReset(){
+  if(!IC.pk) return;
+  if(!confirm('Restore this icon to its original shape?')) return;
+  const d = await icPost('/p/icons/' + IC.pk + '/reset/');
+  if(d) location.reload();
+}
+
+async function icDelete(){
+  if(!IC.pk) return;
+  if(!confirm('Delete this icon? Anywhere it is used will fall back to nothing.')) return;
+  const d = await icPost('/p/icons/' + IC.pk + '/delete/');
+  if(d) location.reload();
+}
+
+document.getElementById('icOvl').addEventListener('click', e => {
+  if(e.target.id === 'icOvl') icClose();
+});
+document.addEventListener('keydown', e => { if(e.key === 'Escape') icClose(); });
+</script>
+{% endblock %}

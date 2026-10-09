@@ -1,0 +1,206 @@
+{# templates/exchange/thread_detail.html #}
+{% extends 'base.html' %}
+{% load hub_extras cms_tags %}
+{% block title %}{{ thread.title }} — AJi Exchange{% endblock %}
+{% block content %}
+
+<a href="{% url 'community_detail' community.slug %}" class="ctx-back" title="{{ community.name }}"><span class="ctx-back-lab">{{ community.name }}</span></a>
+
+<div class="cx-layout">
+  <div class="cx-main">
+
+  <article class="card rise cx-post">
+    <div class="cx-post-tags">
+      <span class="pill{% if thread.thread_type == 'question' %} info{% else %} mut{% endif %}">{{ thread.get_thread_type_display }}</span>
+      {% if thread.pinned %}<span class="pill warn">{% icon "star" 10 %} Starred</span>{% endif %}
+      {% if community.is_private %}<span class="pill mut">{% icon "lock-simple" 10 %} Private community</span>{% endif %}
+
+      <div class="cx-post-act">
+        {% if can_edit %}
+        <a href="{% url 'thread_edit' community.slug thread.pk %}" class="cx-iconbtn" title="Edit this thread">
+          {% icon "pencil-simple" 15 %}<span>Edit</span>
+        </a>
+        {% endif %}
+        {% if is_admin %}
+        <form data-save="reload" method="post" action="{% url 'thread_pin' community.slug thread.pk %}" style="margin:0">
+          {% csrf_token %}
+          <button type="submit" class="cx-iconbtn{% if thread.pinned %} on{% endif %}"
+                  title="{% if thread.pinned %}Remove from Starred{% else %}Star this thread{% endif %}">
+            {% icon "star" 15 %}<span>{% if thread.pinned %}Starred{% else %}Star{% endif %}</span>
+          </button>
+        </form>
+        {% endif %}
+        <button type="button" class="cx-iconbtn" data-share-open title="Send this thread to a colleague">
+          {% icon "paper-plane-tilt" 15 %}<span>Send</span>
+        </button>
+        {% if can_delete %}
+        <form method="post" action="{% url 'thread_delete' community.slug thread.pk %}" style="margin:0"
+              data-confirm="Delete “{{ thread.title|escapejs }}”? Its replies and files go with it.">
+          {% csrf_token %}
+          <button type="submit" class="cx-iconbtn danger" title="Delete this thread">
+            {% icon "trash" 15 %}<span>Delete</span>
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <h1 class="cx-post-title">{{ thread.title }}</h1>
+
+    <div class="cx-post-by">
+      {% include 'exchange/_avatar.html' with user=thread.author %}
+      <div>
+        <b>{{ thread.author.get_full_name|default:thread.author.username }}</b>
+        <span>{{ thread.created_at|date:"j M Y, H:i" }}{% if thread.edited_at %} · edited {{ thread.edited_at|date:"j M Y, H:i" }}{% endif %}</span>
+      </div>
+    </div>
+
+    <div class="cx-post-body">{{ thread.body|mentions|linebreaks }}</div>
+
+    {% if attachments %}
+    <div class="cx-post-files">
+      <div class="cx-post-files-head">{% icon "paperclip" 13 %} {{ attachments|length }} attachment{{ attachments|length|pluralize }}</div>
+
+      {% if images %}
+      {# A grid of thumbnails rather than one 440px slab per picture. An image #}
+      {# posted to a thread is a reference, not the point of the page. #}
+      {# data-doc opens it in the Hub's own viewer rather than dumping the file #}
+      {# into a new browser tab. #}
+      <div class="cx-shots">
+        {% for att in images %}
+        <a class="cx-shot" href="{{ att.file.url }}" target="_blank" rel="noopener"
+           data-doc="{% url 'document_meta' 'exchange' att.pk %}"
+           title="{{ att.name }} · {{ att.filesize }}">
+          <img src="{{ att.file.url }}" alt="{{ att.name }}" loading="lazy">
+          <span class="cx-shot-cap">{{ att.name }}</span>
+          <span class="cx-shot-open">{% icon "eye" 15 %}</span>
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% for att in files %}
+      {# A PDF reads in the viewer; anything else still downloads, because the #}
+      {# viewer has nothing to show for a zip or a Revit file. The href stays #}
+      {# either way, so this degrades to the download if the script is gone. #}
+      <a class="cx-file"
+         {% if att.file %}href="{{ att.file.url }}"{% if att.is_viewable %} data-doc="{% url 'document_meta' 'exchange' att.pk %}"{% else %} download{% endif %}{% else %}href="{{ att.url }}" target="_blank" rel="noopener"{% endif %}>
+        <span class="cx-doc-ic">
+          {% if att.attach_type == 'video' %}{% icon "video" 16 %}
+          {% elif att.attach_type == 'link' %}{% icon "link-simple" 16 %}
+          {% else %}{% icon "file" 16 %}{% endif %}
+        </span>
+        <span class="cx-doc-txt"><b>{{ att.name }}</b>
+          <span class="cx-doc-meta">{{ att.filesize }}</span></span>
+        {% if att.is_viewable %}{% icon "eye" 15 %}{% else %}{% icon "download-simple" 15 %}{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </article>
+
+  {# ── the conversation ────────────────────────────────────────────────── #}
+  {# One surface, not a card per reply. Five replies used to be five boxes #}
+  {# with five borders and five shadows, which reads as five documents rather #}
+  {# than one conversation. The composer sits at the foot of the same card, #}
+  {# because writing a reply is the end of reading them. #}
+  <section class="card rise cx-talk">
+    <div class="cx-talk-head">
+      <h2>{{ thread.reply_count }} repl{{ thread.reply_count|pluralize:"y,ies" }}</h2>
+    </div>
+
+    {% for reply in replies %}
+    <article class="cx-msg{% if reply.is_answer %} answer{% endif %}">
+      {% include 'exchange/_avatar.html' with user=reply.author size='sm' %}
+      <div class="cx-msg-main">
+        <div class="cx-msg-top">
+          <b>{{ reply.author.get_full_name|default:reply.author.username }}</b>
+          <time datetime="{{ reply.created_at|date:'c' }}">{{ reply.created_at|date:"j M, H:i" }}</time>
+          {% if reply.is_answer %}
+          <span class="cx-answer-tag">{% icon "check-simple" 11 %} Accepted answer</span>
+          {% endif %}
+        </div>
+        <div class="cx-msg-text">{{ reply.body|mentions|linebreaksbr }}
+          {% if reply.edited_at %}<span class="cmt-edited">edited</span>{% endif %}</div>
+        {% url 'reply_edit' reply.pk as ed %}
+        {% url 'reply_delete' reply.pk as dl %}
+        {% include 'includes/_comment_tools.html' with obj=reply edit_url=ed delete_url=dl field='body' value=reply.body label='reply' %}
+      </div>
+    </article>
+    {% empty %}
+    {# One empty state, not two. A non-member used to get "Be the first to #}
+    {# respond" and "You are not a member" stacked, inviting them to do the #}
+    {# thing the next box told them they could not do. #}
+    <div class="cx-talk-none">
+      <span class="cx-talk-none-ic">{% icon "chat-circle-text" 20 %}</span>
+      <b>No replies yet</b>
+      {% if is_member %}
+      <span>Start the conversation below.</span>
+      {% else %}
+      <span>Join {{ community.name }} to start the conversation.</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    {% if is_member %}
+    <form data-save="reload" method="post" class="cx-write">
+      {% csrf_token %}
+      {% include 'exchange/_avatar.html' with user=request.user size='sm' %}
+      <div class="cx-write-fill">
+        <textarea name="body" rows="2" data-mentions required
+                  placeholder="Reply to {{ thread.author.get_full_name|default:thread.author.username }}…"></textarea>
+        <div class="cx-write-foot">
+          <span class="mention-hint">Type <b>@</b> to mention a colleague and notify them.</span>
+          <button type="submit" class="btn y">Post reply</button>
+        </div>
+      </div>
+    </form>
+    {% elif replies %}
+    <div class="cx-talk-none">
+      <b>You are not a member</b>
+      <span>Join {{ community.name }} to reply to this thread.</span>
+    </div>
+    {% endif %}
+  </section>
+
+  </div>
+
+  {% include 'exchange/_thread_side.html' %}
+</div>
+
+{# ── send to chat ─────────────────────────────────────────────────────── #}
+<div class="cx-dlg" id="shareDlg" hidden>
+  <div class="cx-dlg-box" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+    <div class="cx-dlg-head">
+      <h3 id="shareTitle">Send this thread</h3>
+      <button type="button" class="cx-iconbtn" data-share-close aria-label="Close">{% icon "x" 16 %}</button>
+    </div>
+    <form data-save method="post" action="{% url 'thread_share' community.slug thread.pk %}">
+      {% csrf_token %}
+      <div class="cx-dlg-thread">
+        {% icon "chat-circle-text" 15 %}
+        <span><b>{{ thread.title }}</b><i>{{ community.name }}</i></span>
+      </div>
+      {% url 'thread_share_targets' community.slug thread.pk as share_url %}
+      {% if community.is_private %}
+        {% include 'exchange/_people_picker.html' with search_url=share_url field='to' placeholder='Search members of this community…' note='This community is private, so the thread can only be sent to its members.' %}
+      {% else %}
+        {% include 'exchange/_people_picker.html' with search_url=share_url field='to' placeholder='Search colleagues by name…' note='They get it as a chat message with a link back here.' %}
+      {% endif %}
+      <div class="cx-field" style="margin-top:14px">
+        <label for="shareNote">Add a note</label>
+        <input id="shareNote" type="text" name="note" maxlength="500"
+               placeholder="Optional — “thought you would want to see this”">
+      </div>
+      <div class="cx-dlg-foot">
+        <button type="submit" class="btn y" data-share-send>{% icon "paper-plane-tilt" 14 %} Send</button>
+        <button type="button" class="btn ghost" data-share-close>Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% include 'includes/mentions.html' %}
+{% include 'includes/comment_tools_js.html' %}
+{% include 'exchange/_exchange_js.html' %}
+{% endblock %}

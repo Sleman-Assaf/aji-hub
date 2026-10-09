@@ -1,0 +1,327 @@
+{# templates/cms/nav_manage.html — the navigation and the logo. #}
+{# The menu was an array in base.html. Renaming a link or adding one meant a #}
+{# template edit and a deploy; now it is records, edited here. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}Navigation — AJi Hub{% endblock %}
+
+{% block content %}
+<a href="{% url 'cms_index' %}" data-frag class="ctx-back" title="Hub pages"><span class="ctx-back-lab">Hub pages</span></a>
+
+<div class="page-head rise" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div>
+    <div class="eyebrow">Site</div>
+    <h1>Navigation &amp; logo</h1>
+    <p>The menu across the top of every page. Drag to reorder.</p>
+  </div>
+  <button type="button" class="btn y" onclick="nvNew('')">{% icon "plus" 15 %} Add a menu item</button>
+</div>
+
+{# ── Branding ───────────────────────────────────────────────────────────── #}
+<div class="sec-head rise"><h2>Logo</h2></div>
+<form data-save class="card rise nv-brand" id="nvBrand" method="post"
+      action="{% url 'cms_branding_save' %}" enctype="multipart/form-data">
+  {% csrf_token %}
+  <div class="nv-brand-row">
+    <div class="nv-logo-prev">
+      {% if branding.logo %}
+      <img src="{{ branding.logo.url }}" alt="" id="nvLogoPrev">
+      {% else %}
+      <span class="muted">The bundled logo is in use</span>
+      {% endif %}
+    </div>
+    <div class="nv-brand-fields">
+      <label class="fld"><span>Site name</span>
+        <input type="text" name="site_name" class="inp" maxlength="80"
+               value="{{ branding.site_name }}">
+        <small class="muted">Read out on the logo, and used in the tab title.</small>
+      </label>
+      <label class="fld"><span>Logo image</span>
+        <input type="file" name="logo" accept=".png,.jpg,.jpeg,.webp,.svg,.gif">
+        <small class="muted">A wide image works best. PNG with a transparent
+          background looks right on both the light and dark header.</small>
+      </label>
+      <label class="fld"><span>Browser tab icon</span>
+        <input type="file" name="favicon" accept=".png,.svg,.ico">
+      </label>
+      {% if branding.logo %}
+      <label class="nv-check">
+        <input type="checkbox" name="remove_logo" value="1">
+        Go back to the bundled logo
+      </label>
+      {% endif %}
+    </div>
+  </div>
+  <div class="nv-actions">
+    <button type="submit" class="btn y sm">Save branding</button>
+  </div>
+</form>
+
+{# ── The menu ───────────────────────────────────────────────────────────── #}
+<div class="sec-head rise" style="margin-top:var(--sp-7)">
+  <h2>Menu items</h2>
+  <span class="muted" style="font-size:11.5px">{{ tops|length }} across the top</span>
+</div>
+<p class="muted rise nv-hint">
+  A top-level item either goes somewhere itself or opens a dropdown. Give it
+  links inside and it becomes a dropdown; the menu is one level deep, which is
+  all the header can draw.
+</p>
+
+<div class="rise" id="nvList">
+  {% for item in tops %}
+  <div class="nv-item" data-id="{{ item.pk }}">
+    <div class="nv-row" draggable="true">
+      <span class="nv-grip" title="Drag to reorder">⠿</span>
+      <div class="nv-main">
+        <div class="nv-label">{{ item.label }}</div>
+        <div class="nv-meta">
+          {% if item.children.exists %}
+          <span>{{ item.children.count }} link{{ item.children.count|pluralize }} inside</span>
+          {% elif item.url %}<span>{{ item.url }}</span>
+          {% else %}<span class="nv-warn">Goes nowhere and has nothing in it</span>{% endif %}
+          {% if item.audience != 'everyone' %}
+          <span>·</span><span>{{ item.get_audience_display }}</span>{% endif %}
+          {% if not item.is_visible %}<span>·</span><span>Hidden</span>{% endif %}
+        </div>
+      </div>
+      {% if not item.is_visible %}<span class="pill mut">Hidden</span>{% endif %}
+      <div class="nv-acts">
+        <button type="button" class="btn ghost sm" onclick="nvNew('{{ item.pk }}')">Add link</button>
+        <button type="button" class="btn ghost sm" onclick="nvEdit({{ item.pk }})">Edit</button>
+        <button type="button" class="btn ghost sm nv-del"
+                onclick="nvDelete({{ item.pk }}, '{{ item.label|escapejs }}', {{ item.children.count }})">Remove</button>
+      </div>
+    </div>
+
+    {% for k in item.children.all %}
+    <div class="nv-row nv-child" data-id="{{ k.pk }}" draggable="true">
+      <span class="nv-grip" title="Drag to reorder">⠿</span>
+      <span class="nv-kico">{% cms_icon k.icon|default:"file-blank" 15 1.7 %}</span>
+      <div class="nv-main">
+        <div class="nv-label">{{ k.label }}</div>
+        <div class="nv-meta">
+          <span>{{ k.url|default:"No link" }}</span>
+          {% if k.audience != 'everyone' %}<span>·</span><span>{{ k.get_audience_display }}</span>{% endif %}
+          {% if k.new_tab %}<span>·</span><span>New tab</span>{% endif %}
+          {% if not k.is_visible %}<span>·</span><span>Hidden</span>{% endif %}
+        </div>
+      </div>
+      <div class="nv-acts">
+        <button type="button" class="btn ghost sm" onclick="nvEdit({{ k.pk }})">Edit</button>
+        <button type="button" class="btn ghost sm nv-del"
+                onclick="nvDelete({{ k.pk }}, '{{ k.label|escapejs }}', 0)">Remove</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% empty %}
+  <div class="card" style="text-align:center;padding:36px;color:var(--muted);font-size:13.5px">
+    There is no menu yet. Run <code>manage.py seed_navigation</code> to build it
+    from the layout the Hub shipped with.
+  </div>
+  {% endfor %}
+</div>
+
+{# ── One item's settings ────────────────────────────────────────────────── #}
+<div class="ovl" id="nvOvl" role="dialog" aria-modal="true" aria-labelledby="nvTitle">
+  <div class="dlg" style="max-width:560px">
+    <div class="dlg-head">
+      <h3 id="nvTitle">Menu item</h3>
+      <button type="button" class="btn ghost sm" onclick="nvClose()">Close</button>
+    </div>
+    <form id="nvForm" onsubmit="return nvSubmit(event)">
+      <input type="hidden" name="parent" id="nvParent">
+      <label class="fld"><span>Label</span>
+        <input type="text" name="label" id="nvLabel" class="inp" maxlength="60" required>
+      </label>
+      <label class="fld"><span>Link</span>
+        <input type="text" name="url" id="nvUrl" class="inp" maxlength="300"
+               placeholder="/policies/ or https://…">
+        <small class="muted" id="nvUrlNote">
+          A page on the Hub starts with /. Leave empty on an item that only opens
+          a menu.
+        </small>
+      </label>
+      <label class="fld" id="nvIconWrap"><span>Icon</span>
+        <input type="text" name="icon" id="nvIcon" data-icon-field
+               placeholder="Click to choose">
+        <small class="muted">Shown beside a link inside a dropdown.</small>
+      </label>
+      <label class="fld"><span>Who can see it</span>
+        <select name="audience" id="nvAudience" class="inp">
+          {% for value, label in audiences %}
+          <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="fld"><span>Specific groups</span>
+        <select name="audience_groups" id="nvGroups" multiple size="4" class="inp">
+          {% for g in groups %}<option value="{{ g.pk }}">{{ g.name }}</option>{% endfor %}
+        </select>
+        <small class="muted">Only used when the audience above is “Specific groups”.</small>
+      </label>
+      <label class="nv-check">
+        <input type="checkbox" name="is_visible" id="nvVisible" checked> Show it in the menu
+      </label>
+      <label class="nv-check">
+        <input type="checkbox" name="new_tab" id="nvNewTab"> Open in a new tab
+      </label>
+      <p class="nv-err" id="nvErr" hidden></p>
+      <div class="nv-actions">
+        <button type="submit" class="btn y">Save</button>
+        <button type="button" class="btn ghost" onclick="nvClose()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+/* One dialog for every entry, top level or inside a dropdown. The rows carry
+   what the form needs, so opening one costs no request. */
+const NV = {pk: null, csrf: '{{ csrf_token }}'};
+const NV_DATA = {
+  {% for item in tops %}
+  {{ item.pk }}: {label: "{{ item.label|escapejs }}", url: "{{ item.url|escapejs }}",
+    icon: "{{ item.icon|escapejs }}", parent: '', audience: "{{ item.audience }}",
+    visible: {{ item.is_visible|yesno:'true,false' }},
+    newTab: {{ item.new_tab|yesno:'true,false' }},
+    groups: [{% for g in item.audience_groups.all %}{{ g.pk }},{% endfor %}]},
+  {% for k in item.children.all %}
+  {{ k.pk }}: {label: "{{ k.label|escapejs }}", url: "{{ k.url|escapejs }}",
+    icon: "{{ k.icon|escapejs }}", parent: '{{ item.pk }}', audience: "{{ k.audience }}",
+    visible: {{ k.is_visible|yesno:'true,false' }},
+    newTab: {{ k.new_tab|yesno:'true,false' }},
+    groups: [{% for g in k.audience_groups.all %}{{ g.pk }},{% endfor %}]},
+  {% endfor %}
+  {% endfor %}
+};
+
+function nvToggle(open){
+  const o = document.getElementById('nvOvl');
+  o.classList.toggle('on', open);
+  o.querySelector('.dlg')?.classList.toggle('on', open);
+}
+function nvClose(){ nvToggle(false); }
+
+function nvFill(d){
+  document.getElementById('nvLabel').value = d.label || '';
+  document.getElementById('nvUrl').value = d.url || '';
+  document.getElementById('nvIcon').value = d.icon || '';
+  document.getElementById('nvParent').value = d.parent || '';
+  document.getElementById('nvAudience').value = d.audience || 'everyone';
+  document.getElementById('nvVisible').checked = d.visible !== false;
+  document.getElementById('nvNewTab').checked = !!d.newTab;
+  [...document.getElementById('nvGroups').options].forEach(o =>
+    o.selected = (d.groups || []).includes(parseInt(o.value, 10)));
+  /* An icon only shows on a link inside a dropdown, so the field is only
+     offered there rather than looking like it does nothing. */
+  document.getElementById('nvIconWrap').hidden = !d.parent;
+  document.getElementById('nvErr').hidden = true;
+  if (window.ipWire) ipWire(document.getElementById('nvForm'));
+}
+
+function nvNew(parent){
+  NV.pk = null;
+  document.getElementById('nvTitle').textContent = parent ? 'New link' : 'New menu item';
+  nvFill({parent: parent, visible: true, audience: 'everyone'});
+  nvToggle(true);
+  document.getElementById('nvLabel').focus();
+}
+
+function nvEdit(pk){
+  NV.pk = pk;
+  document.getElementById('nvTitle').textContent = 'Edit';
+  nvFill(NV_DATA[pk] || {});
+  nvToggle(true);
+  document.getElementById('nvLabel').focus();
+}
+
+async function nvPost(url, body){
+  try {
+    const r = await fetch(url, {method: 'POST', headers: {'X-CSRFToken': NV.csrf}, body});
+    const d = await r.json();
+    if (!r.ok || d.error){
+      const box = document.getElementById('nvErr');
+      box.textContent = d.error || 'That did not save.';
+      box.hidden = false;
+      return null;
+    }
+    return d;
+  } catch (e){
+    const box = document.getElementById('nvErr');
+    box.textContent = 'Could not reach the server.';
+    box.hidden = false;
+    return null;
+  }
+}
+
+async function nvSubmit(e){
+  e.preventDefault();
+  const fd = new FormData(document.getElementById('nvForm'));
+  const url = NV.pk ? `/p/navigation/${NV.pk}/save/` : '/p/navigation/new/';
+  const d = await nvPost(url, fd);
+  if (d) location.reload();      /* the header itself changes, so the whole page does */
+  return false;
+}
+
+async function nvDelete(pk, label, kids){
+  let msg = `Remove “${label}” from the menu?`;
+  if (kids) msg += ` The ${kids} link(s) inside it go too.`;
+  if (!confirm(msg)) return;
+  const d = await nvPost(`/p/navigation/${pk}/delete/`, new FormData());
+  if (d) location.reload();
+}
+
+/* Reordering. Top-level items reorder among themselves and links reorder within
+   their own dropdown; dragging a link out of one menu into another is not
+   offered, because the Edit dialog is where a link changes parent. */
+(function(){
+  const list = document.getElementById('nvList');
+  if (!list) return;
+  let dragged = null;
+
+  list.addEventListener('dragstart', e => {
+    const row = e.target.closest('.nv-row');
+    if (!row) return;
+    dragged = row;
+    row.classList.add('nv-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  list.addEventListener('dragend', () => {
+    dragged?.classList.remove('nv-dragging');
+    dragged = null;
+    nvSaveOrder();
+  });
+
+  list.addEventListener('dragover', e => {
+    if (!dragged) return;
+    const over = e.target.closest('.nv-row');
+    if (!over || over === dragged) return;
+    /* A child stays among children, a top-level item among top-level items. */
+    if (over.classList.contains('nv-child') !== dragged.classList.contains('nv-child')) return;
+    e.preventDefault();
+    const box = over.getBoundingClientRect();
+    const after = (e.clientY - box.top) > box.height / 2;
+    over.parentNode.insertBefore(dragged, after ? over.nextSibling : over);
+  });
+
+  async function nvSaveOrder(){
+    const fd = new FormData();
+    /* Top-level items are keyed by their wrapper; links by the row itself. */
+    list.querySelectorAll('.nv-item').forEach(w => fd.append('ids[]', w.dataset.id));
+    list.querySelectorAll('.nv-child').forEach(r => fd.append('ids[]', r.dataset.id));
+    await fetch('/p/navigation/order/',
+      {method: 'POST', headers: {'X-CSRFToken': NV.csrf}, body: fd});
+  }
+})();
+
+document.getElementById('nvOvl').addEventListener('click', e => {
+  if (e.target.id === 'nvOvl') nvClose();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('nvOvl').classList.contains('on')) nvClose();
+});
+</script>
+{% endblock %}

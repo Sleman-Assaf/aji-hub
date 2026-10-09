@@ -1,0 +1,20 @@
+{# templates/includes/breadcrumbs.html — where you are, and how to get back. #}
+{# The trail comes from each page's parent, set in Page settings, so it reflects #}
+{# the information architecture rather than the shape of the URL. #}
+{% if crumb_trail|length > 1 %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  {% for step in crumb_trail %}
+    {% if not forloop.last %}
+      <a href="{{ step.get_absolute_url }}">{{ step.crumb }}</a>
+      <span class="sep" aria-hidden="true">›</span>
+    {% elif crumb_leaf %}
+      {# A view can name the thing the reader has opened, so the trail ends on it. #}
+      <a href="{{ step.get_absolute_url }}">{{ step.crumb }}</a>
+      <span class="sep" aria-hidden="true">›</span>
+      <span aria-current="page">{{ crumb_leaf }}</span>
+    {% else %}
+      <span aria-current="page">{{ step.crumb }}</span>
+    {% endif %}
+  {% endfor %}
+</nav>
+{% endif %}

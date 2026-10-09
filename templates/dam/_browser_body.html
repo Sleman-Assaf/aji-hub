@@ -1,0 +1,116 @@
+{# The only part that re-renders after an operation, so folder, search, #}
+{# filters, sort and scroll position are all preserved. #}
+{% load cms_tags %}
+
+{% if folders %}
+<div class="dam-folders">
+  {% for f in folders %}
+  <div class="dam-folder{% if f.colour %} c-{{ f.colour }}{% endif %}">
+    <a href="{% url 'dam_folder' space.slug f.pk %}" class="dam-folder-hit">
+      <span class="dam-folder-ic">
+        {% if f.icon %}{% cms_icon f.icon 18 %}{% else %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>
+        {% endif %}
+      </span>
+      <span class="dam-folder-txt">
+        <span class="dam-folder-name">{{ f.name }}{% if f.pinned %} <b>·</b>{% endif %}</span>
+        <span class="dam-folder-meta">
+          {{ f.asset_count }} file{{ f.asset_count|pluralize }}
+          {% if f.description %} · {{ f.description|truncatechars:44 }}{% endif %}
+        </span>
+      </span>
+    </a>
+    {% if can_manage %}
+    <div class="dam-folder-acts">
+      <button type="button" title="Rename"
+        onclick="damFolderRename({{ f.pk }},'{{ f.name|escapejs }}')" aria-label="Rename folder">✎</button>
+      <button type="button" title="{% if f.pinned %}Unpin{% else %}Pin{% endif %}"
+        onclick="damFolderAct({{ f.pk }},'pin')" aria-label="Pin folder">★</button>
+      <button type="button" title="Delete"
+        onclick="damFolderDelete({{ f.pk }},'{{ f.name|escapejs }}')" aria-label="Delete folder">🗑</button>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if assets %}
+<div class="dam-grid {% if view_mode == 'list' %}as-list{% endif %}" id="damGrid">
+  {% for a in assets %}
+  <article class="dam-card" data-id="{{ a.pk }}">
+    {% if can_manage %}
+    <label class="dam-pick" title="Select">
+      <input type="checkbox" value="{{ a.pk }}" onchange="damSyncBulk()">
+    </label>
+    {% endif %}
+
+    <a href="{% url 'dam_asset' space.slug a.pk %}" class="dam-thumb k-{{ a.kind }}">
+      {% if a.thumbnail %}
+        <img src="{{ a.thumbnail.url }}" alt="" loading="lazy">
+      {% elif a.kind == 'image' %}
+        <img src="{{ a.file.url }}" alt="" loading="lazy">
+      {% else %}
+        <span class="dam-ext">{{ a.format_label }}</span>
+      {% endif %}
+    </a>
+
+    <div class="dam-body">
+      <a href="{% url 'dam_asset' space.slug a.pk %}" class="dam-name" title="{{ a.name }}">{{ a.name }}</a>
+      <div class="dam-meta">
+        <span>{{ a.format_label }}</span><span class="dam-dot">·</span>
+        <span>v{{ a.version }}</span><span class="dam-dot">·</span>
+        <span>{{ a.pretty_size }}</span>
+      </div>
+      <div class="dam-meta">
+        {% if a.updated_by %}{{ a.updated_by.get_full_name|default:a.updated_by.username }} · {% endif %}
+        {{ a.updated_at|date:"j M Y" }}
+      </div>
+      {% if a.tags.all %}
+      <div class="dam-tags">
+        {% for t in a.tags.all %}<a href="?tag={{ t.slug }}" class="dam-tag">{{ t.name }}</a>{% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="dam-acts">
+      <a href="{{ a.file.url }}" download class="dam-act" title="Download">↓</a>
+      <button type="button" class="dam-act" title="Copy link"
+              onclick="damCopy('{{ a.file.url }}')">⧉</button>
+      {% if can_manage %}
+      <button type="button" class="dam-act" title="Rename"
+              onclick="damRename({{ a.pk }},'{{ a.name|escapejs }}')">✎</button>
+      <button type="button" class="dam-act" title="Replace (keeps history)"
+              onclick="damReplace({{ a.pk }})">⇄</button>
+      <button type="button" class="dam-act" title="Move"
+              onclick="damMove({{ a.pk }})">→</button>
+      {% if a.archived %}
+      <button type="button" class="dam-act" title="Restore"
+              onclick="damAsset({{ a.pk }},'restore')">⤺</button>
+      <button type="button" class="dam-act danger" title="Delete permanently"
+              onclick="damDelete({{ a.pk }},'{{ a.name|escapejs }}')">🗑</button>
+      {% else %}
+      <button type="button" class="dam-act" title="Archive"
+              onclick="damAsset({{ a.pk }},'archive')">⇣</button>
+      {% endif %}
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="dam-empty">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>
+  <h3>
+    {% if q %}Nothing matches “{{ q }}”
+    {% elif archived %}Nothing archived here
+    {% elif folders %}This folder holds only sub-folders
+    {% else %}This folder is empty{% endif %}
+  </h3>
+  <p>
+    {% if q %}Try a different term, or clear the filters.
+    {% elif can_manage %}Drag files anywhere onto this panel to upload them.
+    {% else %}Nothing has been published here yet.{% endif %}
+  </p>
+</div>
+{% endif %}

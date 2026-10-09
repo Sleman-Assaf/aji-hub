@@ -1,0 +1,73 @@
+{# templates/taqdeer/settings.html — everything configurable, in five groups. #}
+{# Thirty inputs in a flat column is a wall. The groups are the ones the #}
+{# specification names, which are also the ones somebody actually thinks in. #}
+{% extends 'base.html' %}
+{% load cms_tags hub_extras %}
+{% block title %}Taqdeer Settings{% endblock %}
+
+{% block content %}
+<a href="{% url 'taqdeer_athar_manage' %}" class="ctx-back" title="Athar Management"><span class="ctx-back-lab">Athar Management</span></a>
+
+<div class="tq-nom-head">
+  <div>
+    <div class="eyebrow">HR</div>
+    <h1>Taqdeer Settings</h1>
+  </div>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="ts-wrap">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="tq-err-box">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  {% with people=form.people_fields preset=form.people_preset %}
+  {% for title, blurb, fields in form.fieldsets %}
+  <section class="ts-group">
+    <div class="ts-head">
+      <h2>{{ title }}</h2>
+      <p>{{ blurb }}</p>
+    </div>
+    <div class="ts-body">
+      {% for f in fields %}
+      {% if f.field.widget.input_type == 'checkbox' %}
+      <label class="ts-check{% if f.errors %} bad{% endif %}">
+        {{ f }}
+        <span>
+          <b>{{ f.label }}</b>
+          {% if f.help_text %}<i>{{ f.help_text }}</i>{% endif %}
+        </span>
+      </label>
+      {% elif f.name in people %}
+      {# Searched from the directory, not typed and not a list box of a #}
+      {# thousand usernames. This is the change HR actually asked for. #}
+      <div class="tq-field ts-f wide">
+        <label class="tq-lab">{{ f.label }}</label>
+        {% url 'taqdeer_people_all' as ppl %}
+        {% include 'exchange/_people_picker.html' with search_url=ppl field=f.name preset=preset|lookup:f.name %}
+        {% if f.help_text %}<span class="tq-hint">{{ f.help_text }}</span>{% endif %}
+        {% for e in f.errors %}<span class="tq-err">{{ e }}</span>{% endfor %}
+      </div>
+      {% else %}
+      <div class="tq-field ts-f{% if f.name in 'congratulations_message,certification_template,certificate_recognition_line' %} wide{% endif %}">
+        <label class="tq-lab" for="{{ f.id_for_label }}">{{ f.label }}</label>
+        {{ f }}
+        {% if f.help_text %}<span class="tq-hint">{{ f.help_text }}</span>{% endif %}
+        {% for e in f.errors %}<span class="tq-err">{{ e }}</span>{% endfor %}
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+  {% endwith %}
+
+  <div class="ts-save">
+    <button class="btn y" type="submit">Save settings</button>
+    <span class="tq-hint">Changes apply to the next period and to anything not
+      already released.</span>
+  </div>
+</form>
+{% include 'includes/people_picker_js.html' %}
+{% endblock %}

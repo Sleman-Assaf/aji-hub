@@ -1,0 +1,212 @@
+{# content/_feature_news.html — the working part of AJi News, as a locked feature block. #}
+{# Lifted verbatim from content/news_list.html when that page became builder-driven, so #}
+{# it renders the same markup with the same context as before. Its styles #}
+{# travel with it, which is what lets the feature be placed in a column. #}
+{# The CMS sections that used to be appended here are now blocks on this page itself, #}
+{# so the tag was removed: rendering it inside a feature block recursed forever. #}
+{% load cms_tags %}
+
+{# The primary actions that were here are rows on the page heading block #}
+{# now, so they render inside the header and are editable in the CMS. #}
+<div class="nx-shell rise" style="animation-delay:.04s">
+
+  {# ══ FEED ══ #}
+  <div>
+    <div class="nx-bar">
+      <a href="/news/{% if selected_sort != 'new' %}?sort={{ selected_sort }}{% endif %}"
+         class="nx-chip {% if not selected_cat %}on{% endif %}">All news</a>
+      {% for c in categories %}
+      <a href="/news/?cat={{ c.slug }}{% if selected_sort != 'new' %}&sort={{ selected_sort }}{% endif %}"
+         class="nx-chip {% if selected_cat == c.slug %}on{% endif %}">{{ c.name }}<span class="n">{{ c.n }}</span></a>
+      {% endfor %}
+
+      <form method="get" class="nx-sort" id="nxSort">
+        {% if selected_cat %}<input type="hidden" name="cat" value="{{ selected_cat }}">{% endif %}
+        <select name="sort" onchange="document.getElementById('nxSort').submit()" aria-label="Sort articles">
+          <option value="new"       {% if selected_sort == 'new' %}selected{% endif %}>Newest first</option>
+          <option value="old"       {% if selected_sort == 'old' %}selected{% endif %}>Oldest first</option>
+          <option value="popular"   {% if selected_sort == 'popular' %}selected{% endif %}>Most liked</option>
+          <option value="discussed" {% if selected_sort == 'discussed' %}selected{% endif %}>Most discussed</option>
+        </select>
+      </form>
+    </div>
+
+    <div class="nx-feed">
+      {% for article in articles %}
+      <article class="nx-item">
+        {# The first article on page one gets the lead treatment. #}
+        <a href="{% url 'news_detail' article.slug %}"
+           class="nx-card{% if forloop.first and page_obj.number == 1 and not selected_cat %} lead{% endif %}">
+          {% if article.image %}
+          <div class="nx-thumb"><img src="{{ article.image.url }}" alt="" loading="lazy"></div>
+          {% endif %}
+          <div class="nx-body">
+            <div class="nx-top">
+              {% if article.category %}<span class="nx-cat">{{ article.category.name }}</span>{% endif %}
+              {% if article.pinned %}<span class="nx-tag pin">Pinned</span>{% endif %}
+              {% if article.is_new %}<span class="nx-tag new">New</span>{% endif %}
+              {% if not article.published %}<span class="nx-tag draft">Draft</span>{% endif %}
+              <span class="nx-when">{{ article.date|date:"j M Y" }}</span>
+            </div>
+
+            <h3 class="nx-title">{{ article.title }}</h3>
+            <p class="nx-sum">{{ article.summary }}</p>
+
+            <div class="nx-foot">
+              <span class="nx-av">{{ article.initials }}</span>
+              <span class="nx-who">{{ article.author_name|default:"AJi Hub" }}</span>
+              <span class="nx-sep">·</span>
+              <span class="nx-mx">{{ article.read_minutes }} min read</span>
+              <span class="nx-sep">·</span>
+              <span class="nx-mx" title="Views">
+                {% icon "eye" 2 2 %}
+                {{ article.views }}
+              </span>
+              <span class="nx-mx" title="Likes">
+                {% icon "heart-round" 2 2 %}
+                {{ article.n_likes }}
+              </span>
+              <span class="nx-mx" title="Comments">
+                {% icon "chat" 2 2 %}
+                {{ article.n_comments }}
+              </span>
+              <span class="nx-more">Read more
+                {% icon "arrow-right" 16 2.5 %}
+              </span>
+            </div>
+          </div>
+        </a>
+
+        {% if is_hr %}
+        <div class="nx-admin">
+          <a href="{% url 'news_edit' article.slug %}">Edit</a>
+          <a href="{% url 'news_delete' article.slug %}">Delete</a>
+        </div>
+        {% endif %}
+      </article>
+      {% empty %}
+      <div class="nx-empty">
+        {% icon "newspaper" 16 1.5 %}
+        <h3>{% if selected_cat %}Nothing in this category yet{% else %}No news published yet{% endif %}</h3>
+        <p>{% if selected_cat %}Try another category, or browse everything.{% else %}When something is published it will appear here.{% endif %}</p>
+        {% if selected_cat %}<a href="/news/" class="btn ghost sm">Browse all news</a>
+        {% elif is_hr %}<a href="{% url 'news_create' %}" class="btn y sm">Write the first article</a>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="nx-pages">
+      {# Guard with has_previous: previous_page_number raises EmptyPage on #}
+      {# page 1, and that fires before a |default filter could catch it. #}
+      {% if page_obj.has_previous %}
+      <a class="nx-pg" href="?page={{ page_obj.previous_page_number }}{{ filter_qs }}">‹</a>
+      {% else %}<span class="nx-pg off">‹</span>{% endif %}
+      {% for n in page_range %}
+        {% if n == '…' %}
+          <span class="nx-pg off">…</span>
+        {% elif n == page_obj.number %}
+          <span class="nx-pg on">{{ n }}</span>
+        {% else %}
+          <a class="nx-pg" href="?page={{ n }}{{ filter_qs }}">{{ n }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+      <a class="nx-pg" href="?page={{ page_obj.next_page_number }}{{ filter_qs }}">›</a>
+      {% else %}<span class="nx-pg off">›</span>{% endif %}
+      <span class="nx-pgi">{{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }}</span>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ══ SIDEBAR ══ #}
+  <aside class="nx-side">
+
+    <div class="nx-panel">
+      <div class="nx-stats">
+        <div class="nx-stat"><b>{{ stats.total }}</b><span>Articles</span></div>
+        <div class="nx-stat"><b>{{ stats.month }}</b><span>This month</span></div>
+        <div class="nx-stat"><b>{{ stats.authors }}</b><span>Authors</span></div>
+        <div class="nx-stat"><b>{{ stats.comments }}</b><span>Comments</span></div>
+      </div>
+    </div>
+
+    <div class="nx-panel">
+      <div class="nx-ph">Trending <span class="sub">{{ trending_window }}</span></div>
+      <div class="nx-pb">
+        {% for a in trending %}
+        <a href="{% url 'news_detail' a.slug %}" class="nx-tr">
+          <span class="nx-tr-n">{{ forloop.counter }}</span>
+          <span>
+            <span class="nx-tr-t">{{ a.title }}</span>
+            <span class="nx-tr-m">
+              <span>{{ a.views }} view{{ a.views|pluralize }}</span>
+              <span>{{ a.n_likes }} like{{ a.n_likes|pluralize }}</span>
+              <span>{{ a.n_comments }} comment{{ a.n_comments|pluralize }}</span>
+            </span>
+          </span>
+        </a>
+        {% empty %}
+        <div class="nx-side-empty">Nothing to rank yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="nx-panel">
+      <div class="nx-ph">Categories</div>
+      <div class="nx-pb">
+        <div class="nx-cl">
+          {% for c in categories %}
+          <a href="/news/?cat={{ c.slug }}" class="{% if selected_cat == c.slug %}on{% endif %}">
+            {{ c.name }}<span class="c">{{ c.n }}</span>
+          </a>
+          {% empty %}
+          <div class="nx-side-empty">No categories yet.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="nx-panel">
+      <div class="nx-ph">Latest comments</div>
+      <div class="nx-pb">
+        {% for cm in recent_comments %}
+        <div class="nx-cm">
+          <span class="nx-cm-av">{{ cm.author.first_name.0 }}{{ cm.author.last_name.0 }}</span>
+          <div class="nx-cm-b">
+            <div class="nx-cm-w">{{ cm.author.get_full_name|default:cm.author.username }}</div>
+            <div class="nx-cm-t">{{ cm.text }}</div>
+            <a href="{% url 'news_detail' cm.article.slug %}" class="nx-cm-a">on {{ cm.article.title|truncatechars:34 }}</a>
+          </div>
+        </div>
+        {% empty %}
+        <div class="nx-side-empty">No comments yet — start the conversation.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="nx-panel">
+      <div class="nx-ph">Upcoming <a href="/calendar/" class="sub" style="color:inherit">Calendar →</a></div>
+      <div class="nx-pb">
+        {% for ev in upcoming %}
+        <div class="nx-ev">
+          <div class="nx-ev-d">
+            <div class="m">{{ ev.date|date:"M"|upper }}</div>
+            <div class="n">{{ ev.date|date:"j" }}</div>
+          </div>
+          <div style="min-width:0">
+            <div class="nx-ev-t">{{ ev.title }}</div>
+            <div class="nx-ev-s">{{ ev.get_event_type_display }}{% if ev.time %} · {{ ev.time|time:"H:i" }}{% endif %}</div>
+          </div>
+        </div>
+        {% empty %}
+        <div class="nx-side-empty">Nothing scheduled.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </aside>
+</div>
+{# Sections added through the edit toolbar render here. #}
+
+

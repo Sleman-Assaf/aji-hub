@@ -1,0 +1,65 @@
+{# portal/_feature_booth.html — the working part of AJi Booth, as a locked feature block. #}
+{# Lifted verbatim from portal/booth_wall.html when that page became builder-driven, so #}
+{# it renders the same markup with the same context as before. Its styles #}
+{# travel with it, which is what lets the feature be placed in a column. #}
+{# The CMS sections that used to be appended here are now blocks on this page itself, #}
+{# so the tag was removed: rendering it inside a feature block recursed forever. #}
+{% load cms_tags hub_extras %}
+
+{# The Manage albums button lives in the page heading, where Policies, Brand #}
+{# Files and Portfolio all keep theirs. A banner across the top of the wall #}
+{# saying "You can manage this gallery" used to sit here as well, because the #}
+{# heading button had audience "groups" with no groups chosen and so appeared #}
+{# for nobody — the banner was covering for a misconfigured button rather than #}
+{# for a missing feature. The button is now shown to the Branding group, which #}
+{# is exactly who branding_required lets through, and this is a wall of albums #}
+{# again rather than a wall with a notice above it. #}
+
+<div class="booth-wall rise">
+  {% for album in booth_albums %}
+  {# A cell around the card, so the manage button has something to sit on. The #}
+  {# card itself is a link and cannot contain another one. #}
+  <div class="booth-cell">
+  {# An album with no cover shows the dark panel, not a stand-in fetched from #}
+  {# picsum.photos — that was an external request per album on this page. #}
+  <a href="{% url 'booth_album_view' album.pk %}" class="booth-card{% if not album.cover_photo %} noimg{% endif %}" style="text-decoration:none;{% if album.cover_photo %}background-image:linear-gradient(180deg,rgba(0,0,0,.06) 0%,rgba(0,0,0,.18) 55%,rgba(0,0,0,.82) 100%),url('{{ album.cover_photo.url|css_url }}'){% endif %}">
+    <span class="booth-tag">{{ album.get_tag_display }}</span>
+    {# Photos and videos on their own lines, and only when there are any. It used #}
+    {# to say "12 photos" from a number typed into a form, which counted no #}
+    {# videos and disagreed with the files in the album. Counted for real now. #}
+    {% if album.n_photos or album.n_videos %}
+    <span class="booth-count">
+      {% if album.n_photos %}
+      <span class="booth-count-row">
+        {% icon "image" 13 2 %}{{ album.n_photos }} photo{{ album.n_photos|pluralize }}
+      </span>
+      {% endif %}
+      {% if album.n_videos %}
+      <span class="booth-count-row">
+        {% icon "video" 13 2 %}{{ album.n_videos }} video{{ album.n_videos|pluralize }}
+      </span>
+      {% endif %}
+    </span>
+    {% endif %}
+    <div>
+      <div class="booth-name">{{ album.name }}</div>
+      <div class="booth-period">{{ album.period }}</div>
+    </div>
+  </a>
+  {# Straight into this album's files, without going via the album list. It is #}
+  {# outside the card's <a> because a link cannot sit inside a link. #}
+  {% if is_branding_member %}
+  <a href="{% url 'booth_album_photos' album.pk %}" class="booth-edit"
+     title="Manage the files in {{ album.name }}"
+     aria-label="Manage the files in {{ album.name }}">{% icon "pencil-simple" 13 %}</a>
+  {% endif %}
+  </div>
+  {% empty %}
+  <div class="card" style="grid-column:1/-1;text-align:center;color:var(--muted);padding:32px">
+    {% feature_text section "empty" %}{% if is_branding_member %} Add them via <a href="{% url 'booth_manage' %}">Manage albums</a>.{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{# Sections added through the edit toolbar render here. #}
+
+

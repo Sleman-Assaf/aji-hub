@@ -1,0 +1,375 @@
+{# templates/portal/booth_album_photos.html #}
+{# Managing one album. Rebuilt around three things that were missing or wrong: #}
+{# there was no way to delete more than one file at a time, no way to tell which #}
+{# photo the album card was using, and the icons were a mixture of emoji and #}
+{# hand-drawn SVG rather than the Hub's own set. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}{{ album.name }} — Manage files{% endblock %}
+
+{% block content %}
+
+<a href="{% url 'booth_manage' %}" class="ctx-back" title="Manage albums"><span class="ctx-back-lab">Manage albums</span></a>
+
+<div class="page-head rise bm-head">
+  <div>
+    <div class="eyebrow">AJi Booth</div>
+    <h1>{{ album.name }}</h1>
+    <p>
+      {{ album.get_tag_display }}{% if album.period %} · {{ album.period }}{% endif %}
+      · {{ album.count_label }}
+    </p>
+  </div>
+  <div class="bm-head-act">
+    <a href="{% url 'booth_album_view' album.pk %}" class="btn ghost sm">
+      {% icon "eye" 13 %} View album
+    </a>
+    <form method="post" action="{% url 'booth_album_delete' album.pk %}" style="margin:0"
+          onsubmit="return confirm('Delete the whole album “{{ album.name|escapejs }}”?\n\nEvery photo and video in it goes too. This cannot be undone.')">
+      {% csrf_token %}
+      <button type="submit" class="btn ghost sm danger">
+        {% icon "trash" 13 %} Delete album
+      </button>
+    </form>
+  </div>
+</div>
+
+{# ── Upload ── #}
+<div class="bm-card rise">
+  <h2>Add files</h2>
+  <form data-save="reload" method="post" enctype="multipart/form-data" id="uploadForm">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="upload">
+    {# The drop area, shown until something is chosen. #}
+    <div class="bm-drop" id="uploadZone">
+      {% icon "upload-simple" 30 1.5 %}
+      <b>Choose files or drag them here</b>
+      <span>Photos and videos together — JPG, PNG, WEBP, MP4, WEBM, MOV</span>
+    </div>
+
+    {# ── what is about to be uploaded ── #}
+    {# A count said "9 photos selected", which is a number you have to trust. #}
+    {# The pictures themselves are the only way to see that the right nine are #}
+    {# there — and the only way to notice the wrong one, which is why each can #}
+    {# be taken out again before any of it is sent. #}
+    <div class="bm-pending" id="pending" hidden>
+      <div class="bm-pending-h">
+        <b id="pendingCount"></b>
+        <span id="pendingSize"></span>
+        <button type="button" class="btn ghost sm" id="pendingMore">
+          {% icon "plus" 13 %} Add more
+        </button>
+        <button type="button" class="btn ghost sm" id="pendingClear">Remove all</button>
+      </div>
+      <div class="bm-pending-grid" id="pendingGrid"></div>
+    </div>
+
+    <input type="file" id="mediaFiles" name="media" multiple accept="image/*,video/*" hidden>
+    <div class="bm-drop-row">
+      <input type="text" name="caption" maxlength="300"
+             placeholder="Caption for everything in this batch (optional)">
+      <button type="submit" class="btn y" id="uploadBtn" disabled>
+        {% icon "upload-simple" 14 %} Upload
+      </button>
+    </div>
+  </form>
+</div>
+
+{# ── Everything in the album, as one selectable set ── #}
+{% if photos or videos %}
+<form data-save="reload" method="post" id="bulkForm">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="bulk_delete">
+
+  {# The bar only appears once something is ticked, so it is never in the way. #}
+  <div class="bm-bulk" id="bulkBar" hidden>
+    <label class="bm-check">
+      <input type="checkbox" id="selectAll">
+      <span>Select all</span>
+    </label>
+    <span class="bm-bulk-n" id="bulkCount"></span>
+    <button type="submit" class="btn ghost sm danger" id="bulkDelete">
+      {% icon "trash" 13 %} Delete selected
+    </button>
+    <button type="button" class="btn ghost sm" id="bulkClear">Clear</button>
+  </div>
+
+  {% if photos %}
+  <div class="bm-sec">
+    <h2>{% icon "image" 15 %} Photos <i>{{ photos|length }}</i></h2>
+  </div>
+  <div class="bm-grid rise">
+    {% for photo in photos %}
+    <div class="bm-tile{% if photo.is_cover %} is-cover{% endif %}">
+      <label class="bm-pick">
+        <input type="checkbox" name="photo_ids" value="{{ photo.pk }}" class="bm-sel">
+        <span></span>
+      </label>
+      {% if photo.is_cover %}
+      <span class="bm-cover-badge">{% icon "star" 11 %} Album cover</span>
+      {% endif %}
+      <img src="{{ photo.image.url }}" alt="{{ photo.caption|default:'Photo' }}" loading="lazy">
+      {% if photo.caption %}<div class="bm-cap" title="{{ photo.caption }}">{{ photo.caption }}</div>{% endif %}
+      <div class="bm-tile-act">
+        {% if photo.is_cover %}
+        <button type="submit" form="coverClear{{ photo.pk }}" class="bm-abtn on"
+                title="This is the cover — click to clear it">
+          {% icon "star" 13 %} Cover
+        </button>
+        {% else %}
+        <button type="submit" form="coverSet{{ photo.pk }}" class="bm-abtn"
+                title="Use this photo on the album card">
+          {% icon "star" 13 %} Make cover
+        </button>
+        {% endif %}
+        <button type="submit" form="del{{ photo.pk }}" class="bm-abtn danger" title="Delete">
+          {% icon "trash" 13 %}
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if videos %}
+  <div class="bm-sec">
+    <h2>{% icon "video" 15 %} Videos <i>{{ videos|length }}</i></h2>
+  </div>
+  <div class="bm-grid rise">
+    {% for video in videos %}
+    <div class="bm-tile">
+      <label class="bm-pick">
+        <input type="checkbox" name="video_ids" value="{{ video.pk }}" class="bm-sel">
+        <span></span>
+      </label>
+      <video src="{{ video.video.url }}" controls preload="metadata"></video>
+      {% if video.caption %}<div class="bm-cap" title="{{ video.caption }}">{{ video.caption }}</div>{% endif %}
+      <div class="bm-tile-act">
+        <button type="submit" form="delv{{ video.pk }}" class="bm-abtn danger" title="Delete">
+          {% icon "trash" 13 %} Delete
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</form>
+
+{# The per-tile forms live outside the bulk form: a form cannot be nested inside #}
+{# another, and the buttons above reach them by id. #}
+{% for photo in photos %}
+<form data-save="reload" method="post" id="coverSet{{ photo.pk }}" hidden>
+  {% csrf_token %}<input type="hidden" name="action" value="set_cover">
+  <input type="hidden" name="photo_id" value="{{ photo.pk }}">
+</form>
+<form data-save="reload" method="post" id="coverClear{{ photo.pk }}" hidden>
+  {% csrf_token %}<input type="hidden" name="action" value="clear_cover">
+</form>
+<form data-save="reload" method="post" id="del{{ photo.pk }}" hidden
+      onsubmit="return confirm('Delete this photo?')">
+  {% csrf_token %}<input type="hidden" name="action" value="delete">
+  <input type="hidden" name="photo_id" value="{{ photo.pk }}">
+</form>
+{% endfor %}
+{% for video in videos %}
+<form data-save="reload" method="post" id="delv{{ video.pk }}" hidden
+      onsubmit="return confirm('Delete this video?')">
+  {% csrf_token %}<input type="hidden" name="action" value="delete_video">
+  <input type="hidden" name="video_id" value="{{ video.pk }}">
+</form>
+{% endfor %}
+
+{% else %}
+<div class="bm-empty rise">
+  {% icon "image" 38 1.3 %}
+  <b>Nothing in this album yet</b>
+  <span>Add photos and videos above. They appear on the Booth wall straight away.</span>
+</div>
+{% endif %}
+
+<script>
+/* ── choosing what to upload ──
+   `current` is the one list that matters; every path ends by writing it back
+   into input.files, so what the form posts is always exactly what is on screen.
+   That round trip is also the only way to remove a single file — a FileList
+   cannot be edited, only replaced.
+
+   Object URLs are revoked whenever the grid is redrawn. Nine photos off a phone
+   is a few hundred megabytes of decoded image, and holding on to that on a page
+   somebody leaves open is how a tab starts to crawl. */
+(function () {
+  const zone  = document.getElementById('uploadZone');
+  const input = document.getElementById('mediaFiles');
+  const panel = document.getElementById('pending');
+  const grid  = document.getElementById('pendingGrid');
+  const count = document.getElementById('pendingCount');
+  const size  = document.getElementById('pendingSize');
+  const btn   = document.getElementById('uploadBtn');
+  if (!zone || !input) return;
+
+  let current = [];
+  let urls = [];
+  let appending = false;
+
+  const isVideo = f => f.type.indexOf('video/') === 0;
+  // Name, size and mtime together: enough to know the same file twice.
+  const key = f => f.name + ':' + f.size + ':' + f.lastModified;
+
+  function human(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  function setFiles(files) {
+    current = files;
+    const dt = new DataTransfer();
+    files.forEach(f => dt.items.add(f));
+    input.files = dt.files;
+    draw();
+  }
+
+  /* Add to the selection rather than replace it. The file dialog only ever
+     reports what was chosen this time, so picking three more would otherwise
+     discard the six already there — the opposite of "add more". */
+  function mergeIn(incoming) {
+    const seen = new Set(current.map(key));
+    const merged = current.slice();
+    incoming.forEach(f => {
+      if (!seen.has(key(f))) { seen.add(key(f)); merged.push(f); }
+    });
+    setFiles(merged);
+  }
+
+  function draw() {
+    urls.forEach(URL.revokeObjectURL);
+    urls = [];
+    grid.innerHTML = '';
+
+    const any = current.length > 0;
+    panel.hidden = !any;
+    zone.hidden = any;              // the drop area gives way to the pictures
+    btn.disabled = !any;
+    if (!any) return;
+
+    const photos = current.filter(f => !isVideo(f)).length;
+    const videos = current.length - photos;
+    const parts = [];
+    if (photos) parts.push(photos + ' photo' + (photos === 1 ? '' : 's'));
+    if (videos) parts.push(videos + ' video' + (videos === 1 ? '' : 's'));
+    count.textContent = parts.join(' and ') + ' ready';
+    size.textContent = human(current.reduce((n, f) => n + f.size, 0)) + ' in total';
+
+    current.forEach((f, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'bm-pend' + (isVideo(f) ? ' vid' : '');
+
+      const url = URL.createObjectURL(f);
+      urls.push(url);
+      const media = document.createElement(isVideo(f) ? 'video' : 'img');
+      media.src = url;
+      if (isVideo(f)) { media.muted = true; media.preload = 'metadata'; }
+      else { media.alt = f.name; }
+      cell.appendChild(media);
+
+      const name = document.createElement('span');
+      name.className = 'bm-pend-n';
+      name.textContent = f.name;
+      name.title = f.name + ' · ' + human(f.size);
+      cell.appendChild(name);
+
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'bm-pend-x';
+      x.setAttribute('aria-label', 'Remove ' + f.name);
+      x.textContent = '×';
+      x.addEventListener('click', () => setFiles(current.filter((_, n) => n !== i)));
+      cell.appendChild(x);
+
+      grid.appendChild(cell);
+    });
+  }
+
+  zone.addEventListener('click', () => { appending = false; input.click(); });
+  document.getElementById('pendingMore')
+    .addEventListener('click', () => { appending = true; input.click(); });
+  document.getElementById('pendingClear')
+    .addEventListener('click', () => setFiles([]));
+
+  input.addEventListener('change', () => {
+    const picked = [...input.files];
+    // A cancelled dialog reports nothing; that must not wipe the selection.
+    if (!picked.length) { setFiles(current); return; }
+    if (appending) { appending = false; mergeIn(picked); }
+    else setFiles(picked);
+  });
+
+  ['dragover', 'dragenter'].forEach(e => {
+    zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('over'); });
+    panel.addEventListener(e, ev => ev.preventDefault());
+  });
+  ['dragleave', 'dragend'].forEach(e =>
+    zone.addEventListener(e, () => zone.classList.remove('over')));
+
+  // Dropping adds, for the same reason "add more" does.
+  function onDrop(ev) {
+    ev.preventDefault();
+    zone.classList.remove('over');
+    const dropped = [...ev.dataTransfer.files];
+    if (dropped.length) mergeIn(dropped);
+  }
+  zone.addEventListener('drop', onDrop);
+  panel.addEventListener('drop', onDrop);
+
+  draw();
+})();
+
+/* Selection: the bar shows up when something is ticked and says how many. */
+(function () {
+  const form = document.getElementById('bulkForm');
+  if (!form) return;
+  const bar = document.getElementById('bulkBar');
+  const count = document.getElementById('bulkCount');
+  const all = document.getElementById('selectAll');
+  const boxes = () => [...form.querySelectorAll('.bm-sel')];
+
+  function sync() {
+    const picked = boxes().filter(b => b.checked);
+    bar.hidden = picked.length === 0;
+    count.textContent = picked.length + ' selected';
+    all.checked = picked.length === boxes().length && picked.length > 0;
+    boxes().forEach(b => b.closest('.bm-tile').classList.toggle('picked', b.checked));
+  }
+
+  form.addEventListener('change', e => {
+    if (e.target.classList.contains('bm-sel')) sync();
+  });
+  all.addEventListener('change', () => {
+    boxes().forEach(b => { b.checked = all.checked; });
+    sync();
+  });
+  document.getElementById('bulkClear').addEventListener('click', () => {
+    boxes().forEach(b => { b.checked = false; });
+    sync();
+  });
+  form.addEventListener('submit', e => {
+    const n = boxes().filter(b => b.checked).length;
+    if (!n) { e.preventDefault(); return; }
+    if (!confirm('Delete ' + n + ' selected file' + (n === 1 ? '' : 's') +
+                 '?\n\nThis cannot be undone.')) e.preventDefault();
+  });
+  /* Ticking is the common action, so the whole tile is a target — except the
+     buttons on it, which do something else. */
+  form.addEventListener('click', e => {
+    if (e.target.closest('.bm-tile-act') || e.target.closest('label') ||
+        e.target.closest('video')) return;
+    const tile = e.target.closest('.bm-tile');
+    if (!tile) return;
+    const box = tile.querySelector('.bm-sel');
+    box.checked = !box.checked;
+    sync();
+  });
+  sync();
+})();
+</script>
+{% endblock %}

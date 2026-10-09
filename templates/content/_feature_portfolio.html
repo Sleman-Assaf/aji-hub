@@ -1,0 +1,225 @@
+{% load cms_tags %}
+{# content/_feature_portfolio.html — the working part of Portfolio, as a locked feature block. #}
+{# Lifted verbatim from content/portfolio.html when that page became builder-driven, so #}
+{# it renders the same markup with the same context as before. Its styles #}
+{# travel with it, which is what lets the feature be placed in a column. #}
+
+{# Search and type. Division is blank across the whole portfolio, and year and #}
+{# status are not recorded for most of it — dropdowns that could only ever hide #}
+{# projects rather than help anybody find one. Typing does the finding instead. #}
+{# #}
+{# A real GET form: with the script broken the Search button still works and a #}
+{# searched URL can still be shared. With it running, nothing here reloads. #}
+<form method="get" class="pf-bar rise" id="pfBar">
+  <div class="pf-find">
+    {% icon "search" 15 1.8 %}
+    <input type="text" name="q" id="pfQ" value="{{ selected.q }}" autocomplete="off"
+           placeholder="Search by name, location or type…">
+    <button type="button" class="pf-find-x" id="pfClear" aria-label="Clear the search"
+            {% if not selected.q %}hidden{% endif %}>{% icon "x" 13 2 %}</button>
+  </div>
+  <select name="type" id="pfType">
+    <option value="">All types</option>
+    {% for t in types %}<option value="{{ t }}" {% if selected.type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+  </select>
+  <button type="submit" class="btn y" id="pfGo">Search</button>
+  {# `total`, not the length of the page — the grid holds the first 28. #}
+  <span class="pf-count" id="pfCount">{{ total }} project{{ total|pluralize }}</span>
+</form>
+
+<div class="pf-grid rise" id="pfGrid">
+  {% for p in projects %}
+  <div class="proj">
+
+    {# ── Image banner ── #}
+    <div class="pf-img">
+      {% if p.image %}
+      <img src="{{ p.image.url }}" alt="{{ p.title }}">
+      {% else %}
+      {# No photograph. Drawn here rather than fetched: this used to pull a #}
+      {# stand-in from picsum.photos, one external request per card. #}
+      <span class="pf-noimg{% if p.use_placeholder %} dummy{% endif %}" aria-hidden="true">
+        {% if p.use_placeholder %}{% icon "image" 26 1.5 %}{% else %}{{ p.type|default:"AJi"|slice:":2"|upper }}{% endif %}
+      </span>
+      {% endif %}
+
+      {# Entity — dark top-left #}
+      {% if p.division %}<div class="pf-entity">{{ p.division }}</div>{% endif %}
+      {# Type — yellow below entity #}
+      {% if p.type %}<div class="pf-type">{{ p.type|upper }}</div>{% endif %}
+    </div>
+
+    {# ── Body below image ── #}
+    {# Location and description are always here, even with nothing in them. A #}
+    {# card that drops a line it has no content for is a card shorter than the #}
+    {# one beside it, and the grid then looks like a mistake rather than a grid. #}
+    <div class="pf-body">
+      <div class="pf-title">{{ p.title }}</div>
+      <div class="pf-loc">{% if p.location %}{% icon "map-pin-round" 13 1.7 %}{{ p.location }}{% endif %}</div>
+      {# What the project is, in a line or two. This was the division and the #}
+      {# year: the division is blank on every project, and the year was wrong on #}
+      {# 315 of them, so the strip under each card said "· 2026" and nothing #}
+      {# else. The division still shows — on the picture, above the type — for #}
+      {# any project that has one. #}
+      <div class="pf-desc">{{ p.blurb }}</div>
+    </div>
+
+  </div>
+  {% empty %}
+  <div class="pf-empty">{% feature_text section "empty" %}</div>
+  {% endfor %}
+</div>
+
+{# The rest of the portfolio, on request — within whatever the box and the #}
+{# dropdown above have narrowed it to. #}
+<div class="dir-more" id="pfMore"{% if not has_more %} hidden{% endif %}>
+  <button type="button" class="btn ghost" id="pfMoreBtn"
+          data-offset="{{ next_offset }}" data-limit="{{ more_page }}">
+    Load {{ more_page }} more
+  </button>
+  <span class="muted" id="pfShown">Showing {{ projects|length }} of {{ total }}</span>
+</div>
+
+{# The location pin, rendered once for the cards built in JavaScript below. #}
+<template id="pfPin">{% icon "map-pin-round" 13 1.7 %}</template>
+
+<script>
+(function () {
+  var grid    = document.getElementById('pfGrid');
+  var btn     = document.getElementById('pfMoreBtn');
+  var wrap    = document.getElementById('pfMore');
+  var shownEl = document.getElementById('pfShown');
+  var countEl = document.getElementById('pfCount');
+  var form    = document.getElementById('pfBar');
+  var box     = document.getElementById('pfQ');
+  var sel     = document.getElementById('pfType');
+  var clr     = document.getElementById('pfClear');
+  var go      = document.getElementById('pfGo');
+  if (!grid || !btn) return;
+
+  var shown = grid.querySelectorAll('.proj').length;
+  /* The pin comes out of the icon tag once, held in a <template> and read as
+     text. Interpolating raw SVG straight into a JavaScript string literal would
+     put whatever quoting and line breaks the icon happens to contain inside the
+     quotes — this way the markup is identical to the server-rendered card and
+     nothing has to be escaped. */
+  var holder = document.getElementById('pfPin');
+  var PIN = holder ? holder.innerHTML.trim() : '';
+  var EMPTY = grid.querySelector('.pf-empty');
+  var EMPTY_HTML = EMPTY ? EMPTY.outerHTML
+                         : '<div class="pf-empty">No projects match.</div>';
+
+  function esc(s){ return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+  function card(p){
+    /* Mirrors the Django card above, including the empty location and
+       description lines — the two have to agree or a card that arrived by fetch
+       stands a different height from the ones already on screen. */
+    var pic = p.image
+      ? '<img src="' + esc(p.image) + '" alt="' + esc(p.title) + '">'
+      : '<span class="pf-noimg' + (p.placeholder ? ' dummy' : '') + '" aria-hidden="true">'
+        + esc(String(p.type || 'AJi').slice(0, 2).toUpperCase()) + '</span>';
+    return '<div class="proj">'
+      + '<div class="pf-img">' + pic
+      + (p.division ? '<div class="pf-entity">' + esc(p.division) + '</div>' : '')
+      + (p.type ? '<div class="pf-type">' + esc(String(p.type).toUpperCase()) + '</div>' : '')
+      + '</div><div class="pf-body">'
+      + '<div class="pf-title">' + esc(p.title) + '</div>'
+      + '<div class="pf-loc">' + (p.location ? PIN + esc(p.location) : '') + '</div>'
+      + '<div class="pf-desc">' + esc(p.blurb) + '</div>'
+      + '</div></div>';
+  }
+
+  function query(extra){
+    var params = new URLSearchParams();
+    if (box && box.value.trim()) params.set('q', box.value.trim());
+    if (sel && sel.value) params.set('type', sel.value);
+    for (var k in extra) params.set(k, extra[k]);
+    return params;
+  }
+
+  function ask(params, signal){
+    return fetch(window.location.pathname + '?' + params.toString(),
+                 {headers: {'X-Requested-With': 'XMLHttpRequest'}, signal: signal})
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+  }
+
+  function fill(d){
+    var list = d.projects || [];
+    grid.innerHTML = list.length ? list.map(card).join('') : EMPTY_HTML;
+    shown = list.length;
+    countEl.textContent = d.total + ' project' + (d.total === 1 ? '' : 's');
+    shownEl.textContent = 'Showing ' + shown + ' of ' + d.total;
+    btn.dataset.offset = d.next_offset;
+    wrap.hidden = !d.has_more;
+  }
+
+  // ── load more ──
+  btn.addEventListener('click', function () {
+    var was = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Loading…';
+    ask(query({offset: btn.dataset.offset, limit: btn.dataset.limit}))
+      .then(function (d) {
+        grid.insertAdjacentHTML('beforeend', (d.projects || []).map(card).join(''));
+        shown += (d.projects || []).length;
+        shownEl.textContent = 'Showing ' + shown + ' of ' + d.total;
+        btn.dataset.offset = d.next_offset;
+        wrap.hidden = !d.has_more;
+      })
+      .catch(function () {})
+      .then(function () { btn.disabled = false; btn.textContent = was; });
+  });
+
+  // ── searching as you type ──
+  if (!box) return;
+  if (go) go.hidden = true;      // typing searches by itself; the button is furniture
+
+  var timer = null, inflight = null, applied = null;
+
+  function run(immediate){
+    var key = (box.value.trim() + ' ' + (sel ? sel.value : ''));
+    clr.hidden = !box.value.trim();
+    if (key === applied) return;
+
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      /* A one-letter search matches far more and takes longer than the five
+         letters typed after it, so answers can arrive out of order. Dropping the
+         earlier request stops the slow broad one landing on the quick precise
+         one. */
+      if (inflight) inflight.abort();
+      var ctl = new AbortController();
+      inflight = ctl;
+      applied = key;
+      grid.classList.add('searching');
+
+      ask(query({offset: 0, limit: btn.dataset.limit}), ctl.signal)
+        .then(function (d) {
+          fill(d);
+          grid.classList.remove('searching');
+          inflight = null;
+          var p = query({});
+          history.replaceState(null, '', p.toString() ? '?' + p.toString()
+                                                      : location.pathname);
+        })
+        .catch(function (err) {
+          if (err.name === 'AbortError') return;   // superseded, not failed
+          grid.classList.remove('searching');
+          inflight = null;
+          applied = null;                          // let the same term retry
+        });
+    }, immediate ? 0 : 200);
+  }
+
+  box.addEventListener('input', function () { run(false); });
+  if (sel) sel.addEventListener('change', function () { run(true); });
+  clr.addEventListener('click', function () { box.value = ''; run(true); box.focus(); });
+  form.addEventListener('submit', function (e) { e.preventDefault(); run(true); });
+  box.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && box.value) { e.preventDefault(); box.value = ''; run(true); }
+  });
+})();
+</script>

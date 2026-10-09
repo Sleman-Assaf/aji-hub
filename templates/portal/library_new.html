@@ -1,0 +1,112 @@
+{# templates/portal/library_new.html — a new library, in the order it matters. #}
+{# Four numbered steps on one page rather than a wizard: a wizard hides what it #}
+{# is going to ask next, and the point of this order is that you can see it. #}
+{# Who may open the library and whether its documents may leave the Hub are #}
+{# settled above the upload box, not after it — a file that spent ten minutes #}
+{# under the wrong rule was readable by the wrong people for ten minutes. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}New document library{% endblock %}
+{% block content %}
+
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">Policies &amp; Manuals</div>
+    <h1>New document library</h1>
+    <p>
+      Name it, decide who can open it, then fill it. You can change any of this
+      afterwards — except that nothing is uploaded until the rules are set.
+    </p>
+  </div>
+  <div class="lh-head-go">
+    <a href="{% url 'libraries_home' %}" class="btn ghost">{% icon "arrow-left" 15 %} All libraries</a>
+  </div>
+</div>
+
+<form method="post" action="{% url 'library_new' %}" enctype="multipart/form-data"
+      class="ls-form rise">
+  {% csrf_token %}
+
+  <section class="ls-card">
+    <h2><span class="ls-step">1</span> What it is</h2>
+    <p class="ls-lede">
+      The name and subtitle are what colleagues see on the tile in Policies
+      &amp; Manuals.
+    </p>
+    <div class="ls-grid">
+      <label class="ls-f wide">
+        <span>Library name <em>required</em></span>
+        <input type="text" name="name" required maxlength="200" autofocus
+               placeholder="e.g. QHSE Manuals">
+      </label>
+      <label class="ls-f wide">
+        <span>Subtitle</span>
+        <input type="text" name="description" maxlength="300"
+               placeholder="e.g. Quality, health, safety and environment">
+      </label>
+      <label class="ls-f">
+        <span>Icon</span>
+        <input type="text" name="icon" data-icon-field data-icon-only>
+      </label>
+    </div>
+  </section>
+
+  <section class="ls-card">
+    <h2><span class="ls-step">2</span> Who can open it</h2>
+    <p class="ls-lede">
+      Chosen people only means the library is not shown to anybody else at
+      all — not greyed out, not listed as locked. It simply is not there. By
+      request means everyone can see it exists and ask you for it, and the people
+      you name below are already in without asking.
+    </p>
+    {% include 'portal/_access_fields.html' with obj=blank scope='library' all_groups=all_groups %}
+  </section>
+
+  <section class="ls-card">
+    <h2><span class="ls-step">3</span> Who helps you run it</h2>
+    <p class="ls-lede">
+      Optional, and worth doing. They can add documents and folders and answer
+      access requests alongside you — a library whose only owner is on leave can
+      neither take a new document nor answer anybody asking for one.
+    </p>
+    {% include 'exchange/_people_picker.html' with search_url=people_url field='managers' preset=none placeholder='Search a colleague to add…' note='They keep whatever read access they already had — being a deputy is about running the library, not seeing it.' %}
+  </section>
+
+  <section class="ls-card">
+    <h2><span class="ls-step">4</span> Fill it</h2>
+    <p class="ls-lede">
+      Drop in a zip and its folders are recreated exactly as they are inside
+      it — files and all. Or leave this empty and add folders and documents once
+      the library exists.
+    </p>
+    <div class="pol-drop" data-drop>
+      <label class="pol-drop-in">
+        <input type="file" name="archive" accept=".zip,application/zip" data-drop-input>
+        <span class="pol-drop-ic">{% icon "file-zip" 18 1.7 %}</span>
+        <span class="pol-drop-t">
+          <b data-drop-label>Drop a zip here, or choose one</b>
+          <i>Folders come across as they are, empty ones included. Up to 400 items.</i>
+        </span>
+      </label>
+      <div class="pol-drop-go">
+        <select name="doc_type" aria-label="What these are">
+          <option value="policy">Policies</option>
+          <option value="sop">SOPs</option>
+          <option value="guideline">Guidelines</option>
+          <option value="form">Forms / templates</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <div class="ls-actions">
+    <button type="submit" class="btn y">Create library</button>
+    <a href="{% url 'libraries_home' %}" class="btn ghost">Cancel</a>
+  </div>
+</form>
+
+{% include 'includes/icon_picker_js.html' %}
+{% include 'includes/access_fields_js.html' %}
+{% include 'includes/people_picker_js.html' %}
+{% include 'portal/_drop_js.html' %}
+{% endblock %}

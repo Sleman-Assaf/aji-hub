@@ -1,0 +1,188 @@
+{# templates/cms/page_manage.html — reorder / show / hide / duplicate sections. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}Manage {{ page.title }} — AJi Hub{% endblock %}
+
+{% block extra_head %}
+<style>
+/* Editor chrome only — nothing here affects how published pages look. */
+.mg-row{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--paper-2);
+  border:1px solid var(--line);margin-bottom:8px}
+.mg-row.dragging{opacity:.45}
+.mg-row.over{border-color:var(--yellow);box-shadow:inset 0 0 0 2px var(--yellow)}
+.mg-row.hidden-row{background:var(--paper-3)}
+.mg-grip{cursor:grab;color:var(--muted-2);flex:none;line-height:1;font-size:15px;letter-spacing:2px}
+.mg-main{flex:1;min-width:0}
+.mg-t{font-weight:700;font-size:14px}
+.mg-m{font-size:11.5px;color:var(--muted);margin-top:2px;display:flex;gap:9px;flex-wrap:wrap}
+.mg-acts{display:flex;gap:6px;flex:none;flex-wrap:wrap}
+.mg-acts .btn{padding:5px 10px;font-size:11.5px}
+.mg-add{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.mg-add a{display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid var(--line);
+  background:var(--paper-2);text-decoration:none;color:inherit;font-size:13px;font-weight:600;transition:.13s}
+.mg-add a:hover{border-color:var(--ink);box-shadow:3px 3px 0 var(--yellow)}
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="{{ page.get_absolute_url }}" class="ctx-back" title="{{ page.title }}"><span class="ctx-back-lab">{{ page.title }}</span></a>
+
+<div class="page-head rise" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div>
+    <div class="eyebrow">Manage content</div>
+    <h1>{{ page.title }}</h1>
+    <p>Drag to reorder. Changes are live for everyone who can see the page.</p>
+  </div>
+  <div style="display:flex;gap:8px;flex:none">
+    <a href="{% url 'cms_page_settings' page.slug %}" data-frag class="btn ghost">Page settings</a>
+    <a href="{% url 'cms_section_create' page.slug %}" data-frag class="btn y">+ Add section</a>
+  </div>
+</div>
+
+<div class="rise" style="max-width:900px">
+  <div class="sec-head"><h2>Sections</h2><span class="lk" style="cursor:default">{{ sections|length }}</span></div>
+
+  <div id="mgList">
+    {% for s in sections %}
+    <div class="mg-row{% if not s.is_visible %} hidden-row{% endif %}" draggable="true" data-id="{{ s.pk }}">
+      <span class="mg-grip" title="Drag to reorder">⠿</span>
+      <div class="mg-main">
+        <div class="mg-t">{{ s.title|default:s.get_type_display }}</div>
+        <div class="mg-m">
+          <span>{{ s.get_type_display }}</span>
+          <span>·</span>
+          <span>{{ s.get_audience_display }}</span>
+          {% if s.takes_items %}<span>·</span><span>{{ s.items.count }} item{{ s.items.count|pluralize }}</span>{% endif %}
+          {% if s.schedule_state != 'live' %}<span>·</span><span>{{ s.schedule_state }}</span>{% endif %}
+        </div>
+      </div>
+      {% if s.pinned %}<span class="pill info">Pinned</span>{% endif %}
+      {% if not s.is_visible %}<span class="pill mut">Hidden</span>{% endif %}
+      <div class="mg-acts">
+        <a href="{% url 'cms_section_edit' page.slug s.pk %}" data-frag class="btn ghost sm">Edit</a>
+        <form data-save="reload" method="post" data-frag action="{% url 'cms_section_action' page.slug s.pk 'toggle' %}">{% csrf_token %}
+          <button class="btn ghost sm">{% if s.is_visible %}Hide{% else %}Show{% endif %}</button></form>
+        <form data-save="reload" method="post" data-frag action="{% url 'cms_section_action' page.slug s.pk 'pin' %}">{% csrf_token %}
+          <button class="btn ghost sm">{% if s.pinned %}Unpin{% else %}Pin{% endif %}</button></form>
+        <form data-save="reload" method="post" data-frag action="{% url 'cms_section_action' page.slug s.pk 'duplicate' %}">{% csrf_token %}
+          <button class="btn ghost sm">Duplicate</button></form>
+        <form data-save="reload" method="post" data-frag data-confirm="Delete this section and its items?"
+              action="{% url 'cms_section_action' page.slug s.pk 'delete' %}">{% csrf_token %}
+          <button class="btn ghost sm">Delete</button></form>
+      </div>
+    </div>
+    {% empty %}
+    <div class="card" style="text-align:center;padding:36px;color:var(--muted);font-size:13.5px">
+      No sections yet — add one below.
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="sec-head" style="margin-top:30px"><h2>Add a section</h2></div>
+  <div class="mg-add">
+    {% for value, label in section_types %}
+    <a href="{% url 'cms_section_create' page.slug %}?type={{ value }}" data-frag>{{ label }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+/* Drag-and-drop reordering. Order is persisted on drop, so a refresh keeps it. */
+(function () {
+  var list = document.getElementById('mgList');
+  if (!list) return;
+  var dragged = null;
+
+  list.addEventListener('dragstart', function (e) {
+    var row = e.target.closest('.mg-row');
+    if (!row) return;
+    dragged = row;
+    row.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  list.addEventListener('dragend', function () {
+    if (dragged) dragged.classList.remove('dragging');
+    [].forEach.call(list.children, function (r) { r.classList.remove('over'); });
+    dragged = null;
+    save();
+  });
+
+  list.addEventListener('dragover', function (e) {
+    e.preventDefault();
+    var row = e.target.closest('.mg-row');
+    if (!row || row === dragged || !dragged) return;
+    [].forEach.call(list.children, function (r) { r.classList.remove('over'); });
+    row.classList.add('over');
+    var box = row.getBoundingClientRect();
+    var after = (e.clientY - box.top) > box.height / 2;
+    list.insertBefore(dragged, after ? row.nextSibling : row);
+  });
+
+  function save() {
+    var ids = [].map.call(list.querySelectorAll('.mg-row'), function (r) { return r.dataset.id; });
+    if (!ids.length) return;
+    var body = new URLSearchParams();
+    ids.forEach(function (id) { body.append('ids[]', id); });
+    fetch('{% url 'cms_sections_reorder' page.slug %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': '{{ csrf_token }}'
+      },
+      body: body.toString()
+    }).catch(function () {});
+  }
+})();
+</script>
+
+{% if removed %}
+<div class="sec-head rise" style="margin-top:var(--sp-7)">
+  <h2>Removed blocks</h2>
+  <span class="muted" style="font-size:11.5px">{{ removed|length }}</span>
+</div>
+<p class="muted rise" style="font-size:12.5px;line-height:1.6;max-width:70ch">
+  Deleting a block in the editor keeps it here so the action can be undone later,
+  not just while the Undo button is on screen. Restoring puts it back where it was.
+</p>
+<div class="card rise">
+  {% for s in removed %}
+  <div style="display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) 0;
+              border-bottom:1px solid var(--line)">
+    <span style="flex:1;min-width:0;font-size:13px">
+      <b>{{ s.get_type_display }}</b>
+      {% if s.title %}<span class="muted"> — {{ s.title }}</span>{% endif %}
+      <span class="muted" style="display:block;font-size:11.5px">
+        Removed {{ s.deleted_at|date:"j M Y, H:i" }}
+      </span>
+    </span>
+    <button type="button" class="btn ghost sm"
+            onclick="pmRestore({{ s.pk }})">Restore</button>
+    <button type="button" class="btn ghost sm" style="color:var(--bad)"
+            onclick="pmPurge({{ s.pk }}, '{{ s.get_type_display|escapejs }}')">Delete for good</button>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+/* Both go through the editor's endpoints, so restoring from here and undoing in
+   the editor take exactly the same path. */
+async function pmAct(url, confirmMsg){
+  if (confirmMsg && !confirm(confirmMsg)) return;
+  const r = await fetch(url, {method: 'POST',
+    headers: {'X-CSRFToken': '{{ csrf_token }}'}});
+  /* A restore or purge changes both the removed list below and the section
+     count above, so the whole screen is refetched rather than just patching one
+     row -- through the same fragment swap as everything else here, not a full
+     browser reload. */
+  if (r.ok) window.fragGo ? fragGo(location.pathname + location.search, false) : location.reload();
+  else alert('That did not work.');
+}
+function pmRestore(pk){ pmAct('/p/edit/block/' + pk + '/restore/'); }
+function pmPurge(pk, label){
+  pmAct('/p/edit/block/' + pk + '/purge/',
+        'Delete this ' + label + ' permanently? This cannot be undone.');
+}
+</script>
+{% endif %}
+{% endblock %}

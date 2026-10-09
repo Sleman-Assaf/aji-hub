@@ -1,0 +1,134 @@
+{# templates/includes/mentions.html — @mention support for comment boxes. #}
+{# Include once per page, then add data-mentions to each textarea. #}
+<style>
+/* A name, not a highlighter stripe. This was mustard text on a pale yellow
+   wash: 2.6:1 against its own background, below the readable floor and muddy at
+   any size. A name set in the same ink as the sentence it sits in, one step
+   heavier, reads instantly and costs the line nothing. The brand yellow comes
+   in on hover, under the name, where an accent can be seen without being read
+   through. */
+.mention{font-weight:750;color:var(--ink);background:none;padding:0;
+  text-decoration:none;box-shadow:inset 0 -2px 0 transparent;
+  transition:box-shadow .13s}
+a.mention:hover{box-shadow:inset 0 -2px 0 var(--yellow)}
+/* Fixed, and parented to the open dialog when there is one. A modal dialog is
+   painted in the top layer, so a list appended to <body> is behind it however
+   large its z-index — it simply would not be there. */
+.mention-pop{position:fixed;z-index:9999;background:var(--paper-2);border:1px solid var(--line-2);
+  border-radius:12px;overflow:hidden;
+  box-shadow:0 10px 26px -12px rgba(18,18,16,.35);max-height:250px;overflow-y:auto}
+.mention-opt{padding:8px 11px;cursor:pointer;display:flex;flex-direction:column;gap:1px;font-size:13px}
+.mention-opt b{font-weight:700}
+.mention-opt span{font-size:11.5px;color:var(--muted)}
+.mention-opt.on,.mention-opt:hover{background:var(--paper-3)}
+.mention-hint{font-size:11.5px;color:var(--muted);margin-top:6px}
+</style>
+<script>
+/* @mention autocomplete. Delegated, so it works for any number of boxes. */
+(function () {
+  if (window.__ajiMentions) return;
+  window.__ajiMentions = true;
+
+  var box = null, items = [], active = -1, target = null, tokenStart = -1, timer = null;
+
+  function close() {
+    if (box) { box.remove(); box = null; }
+    items = []; active = -1; tokenStart = -1;
+  }
+
+  /* Where the list has to live to be visible at all. */
+  function host() {
+    return (target && target.closest && target.closest('dialog[open]'))
+           || document.body;
+  }
+
+  function place() {
+    if (!box || !target) return;
+    var r = target.getBoundingClientRect();
+    var h = box.offsetHeight;
+    /* Flip above when there is no room below. The comment box in a post dialog
+       is the last thing in it, so below is usually a few pixels of nothing. */
+    var below = window.innerHeight - r.bottom;
+    var up = h && below < h + 8 && r.top > below;
+    box.style.left = r.left + 'px';
+    box.style.top = (up ? r.top - h - 4 : r.bottom + 4) + 'px';
+    box.style.width = r.width + 'px';
+  }
+
+  function draw() {
+    if (!items.length) { close(); return; }
+    if (!box) { box = document.createElement('div'); box.className = 'mention-pop'; }
+    if (box.parentNode !== host()) host().appendChild(box);
+    box.innerHTML = items.map(function (u, i) {
+      return '<div class="mention-opt' + (i === active ? ' on' : '') + '" data-i="' + i + '">' +
+             '<b></b><span></span></div>';
+    }).join('');
+    // Set text via textContent so a name can never inject markup.
+    box.querySelectorAll('.mention-opt').forEach(function (el, i) {
+      var u = items[i];
+      el.querySelector('b').textContent = u.name || u.username;
+      el.querySelector('span').textContent = '@' + u.username + (u.role ? ' · ' + u.role : '');
+      el.addEventListener('mousedown', function (e) { e.preventDefault(); pick(i); });
+    });
+    place();
+  }
+
+  function pick(i) {
+    var u = items[i];
+    if (!u || !target || tokenStart < 0) return;
+    var value = target.value, caret = target.selectionStart;
+    target.value = value.slice(0, tokenStart) + '@' + u.username + ' ' + value.slice(caret);
+    var pos = tokenStart + u.username.length + 2;
+    target.focus();
+    target.setSelectionRange(pos, pos);
+    close();
+  }
+
+  function tokenAtCaret(el) {
+    var upto = el.value.slice(0, el.selectionStart);
+    var m = /@([A-Za-z0-9_.\-]*)$/.exec(upto);
+    if (!m) return null;
+    // Only treat it as a mention at the start of a word.
+    var before = upto.slice(0, m.index);
+    if (before && !/\s$/.test(before)) return null;
+    return { q: m[1], start: m.index };
+  }
+
+  function isBox(el) {
+    return el && el.matches && el.matches('textarea[data-mentions],input[data-mentions]');
+  }
+
+  document.addEventListener('input', function (e) {
+    if (!isBox(e.target)) return;
+    target = e.target;
+    var tok = tokenAtCaret(target);
+    if (!tok || tok.q.length < 2) { close(); return; }
+    tokenStart = tok.start;
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      fetch('/people/api/search/?q=' + encodeURIComponent(tok.q))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          items = (d.users || []).filter(function (u) { return u.username; }).slice(0, 8);
+          active = items.length ? 0 : -1;
+          draw();
+        })
+        .catch(close);
+    }, 140);
+  }, true);
+
+  document.addEventListener('keydown', function (e) {
+    if (!isBox(e.target) || !box || !items.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = (active + 1) % items.length; draw(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = (active - 1 + items.length) % items.length; draw(); }
+    else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pick(active); }
+    else if (e.key === 'Escape') { close(); }
+  }, true);
+
+  document.addEventListener('click', function (e) {
+    if (box && !box.contains(e.target) && !isBox(e.target)) close();
+  });
+  window.addEventListener('scroll', place, true);
+  window.addEventListener('resize', place);
+})();
+</script>

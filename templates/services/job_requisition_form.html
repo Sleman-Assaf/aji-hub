@@ -1,0 +1,185 @@
+{# templates/services/job_requisition_form.html #}
+{% extends 'base.html' %}
+{% block title %}Job Requisition — AJi Hub{% endblock %}
+
+{% block content %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">Services</div>
+    <h1>New Position — Job Requisition</h1>
+    <p>Submit a request for a new position. It will route to your Director, then HR, then the CEO for approval.</p>
+  </div>
+</div>
+
+<div class="card rise" style="max-width:760px">
+  <h3>New Position Details</h3>
+  <form method="post" id="jrForm">
+    {% csrf_token %}
+    <div class="field">
+      <label>Job Title</label>
+      <input type="text" name="job_title" required>
+    </div>
+
+    <div class="field">
+      <label>Company</label>
+      <select id="companySelect" required>
+        <option value="">— Select company —</option>
+        {% for e in entities %}
+        <option value="{{ e.pk }}">{{ e.name }}</option>
+        {% endfor %}
+      </select>
+      <input type="hidden" name="company" id="companyId">
+    </div>
+
+    <div class="field jr-combo">
+      <label>Department / Unit</label>
+      <input type="text" id="departmentSearch" autocomplete="off" placeholder="Select a company first" disabled>
+      <input type="hidden" name="department" id="departmentId">
+      <div class="jr-combo-list" id="departmentList"></div>
+    </div>
+
+    <div class="field">
+      <label>Reports To</label>
+      <select name="reports_to" id="reportsToSelect" disabled>
+        <option value="">— Select department first —</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Targeted Start Date</label>
+      <input type="date" name="targeted_start_date">
+    </div>
+    <div class="field">
+      <label>Work Location</label>
+      <input type="text" name="work_location">
+    </div>
+
+    <h3 style="margin-top:22px">Justification for New Position</h3>
+    <div class="field">
+      <label>Business Need — why is this position required, and what are the risks if not created?</label>
+      <textarea name="business_need" rows="4" required></textarea>
+    </div>
+
+    <h3 style="margin-top:22px">Position Details</h3>
+    <div class="field">
+      <label>Primary Responsibilities</label>
+      <textarea name="primary_responsibilities" rows="4"></textarea>
+    </div>
+    <div class="field">
+      <label>Key Qualifications</label>
+      <textarea name="key_qualifications" rows="4"></textarea>
+    </div>
+
+    <div class="f-foot">
+      <button type="submit" class="btn y">Submit for Approval</button>
+      <a href="{% url 'home' %}" class="btn ghost">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+(function(){
+  const companySelect   = document.getElementById('companySelect');
+  const companyId       = document.getElementById('companyId');
+  const deptSearch      = document.getElementById('departmentSearch');
+  const deptId          = document.getElementById('departmentId');
+  const deptList        = document.getElementById('departmentList');
+  const reportsToSelect = document.getElementById('reportsToSelect');
+  const form            = document.getElementById('jrForm');
+
+  let departments = [];
+
+  function resetDept(){
+    departments = [];
+    deptSearch.value = '';
+    deptId.value = '';
+    deptSearch.disabled = true;
+    deptSearch.placeholder = 'Select a company first';
+    deptList.classList.remove('show');
+    deptList.innerHTML = '';
+    resetReportsTo('Select department first');
+  }
+
+  function resetReportsTo(placeholder){
+    reportsToSelect.innerHTML = '<option value="">— ' + placeholder + ' —</option>';
+    reportsToSelect.disabled = true;
+  }
+
+  function renderDeptList(items){
+    if(!items.length){
+      deptList.innerHTML = '<div class="jr-combo-empty">No matches</div>';
+      deptList.classList.add('show');
+      return;
+    }
+    deptList.innerHTML = items.map(d =>
+      '<div class="jr-combo-item" data-id="'+d.id+'" data-name="'+d.name.replace(/"/g,'&quot;')+'">'+d.name+'</div>'
+    ).join('');
+    deptList.classList.add('show');
+  }
+
+  companySelect.addEventListener('change', function(){
+    resetDept();
+    if(!this.value){ companyId.value=''; return; }
+    companyId.value = this.value;
+    deptSearch.disabled = false;
+    deptSearch.placeholder = 'Type to search department / unit…';
+    fetch('{% url "services:api_departments" %}?entity=' + this.value, {headers:{'X-Requested-With':'XMLHttpRequest'}})
+      .then(r => r.json())
+      .then(data => { departments = data.departments || []; });
+  });
+
+  deptSearch.addEventListener('focus', function(){
+    if(deptSearch.disabled) return;
+    const q = this.value.trim().toLowerCase();
+    const matches = q ? departments.filter(d => d.name.toLowerCase().includes(q)) : departments;
+    renderDeptList(matches);
+  });
+
+  deptSearch.addEventListener('input', function(){
+    deptId.value = '';
+    resetReportsTo('Select department first');
+    const q = this.value.trim().toLowerCase();
+    const matches = q ? departments.filter(d => d.name.toLowerCase().includes(q)) : departments;
+    renderDeptList(matches);
+  });
+
+  deptList.addEventListener('click', function(e){
+    const item = e.target.closest('.jr-combo-item');
+    if(!item) return;
+    deptSearch.value = item.dataset.name;
+    deptId.value = item.dataset.id;
+    deptList.classList.remove('show');
+    loadReportsTo(item.dataset.id);
+  });
+
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('.jr-combo')) deptList.classList.remove('show');
+  });
+
+  function loadReportsTo(departmentId){
+    resetReportsTo('Loading…');
+    fetch('{% url "services:api_department_managers" %}?department=' + departmentId, {headers:{'X-Requested-With':'XMLHttpRequest'}})
+      .then(r => r.json())
+      .then(data => {
+        const managers = data.managers || [];
+        if(!managers.length){
+          reportsToSelect.innerHTML = '<option value="">— No head/manager found for this unit —</option>';
+          reportsToSelect.disabled = true;
+          return;
+        }
+        reportsToSelect.innerHTML = '<option value="">— Select —</option>' + managers.map(m =>
+          '<option value="'+m.id+'">'+m.name + (m.role ? ' — ' + m.role : '') +'</option>'
+        ).join('');
+        reportsToSelect.disabled = false;
+      });
+  }
+
+  form.addEventListener('submit', function(e){
+    if(!companyId.value || !deptId.value){
+      e.preventDefault();
+      alert('Please select a company and a department / unit from the list.');
+    }
+  });
+})();
+</script>
+{% endblock %}

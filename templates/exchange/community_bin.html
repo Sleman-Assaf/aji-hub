@@ -1,0 +1,60 @@
+{# templates/exchange/community_bin.html — removed communities, and the way back. #}
+{% extends 'base.html' %}
+{% load cms_tags %}
+{% block title %}Removed communities — AJi Exchange{% endblock %}
+{% block content %}
+
+<a href="{% url 'exchange_home' %}" class="ctx-back" title="AJi Exchange"><span class="ctx-back-lab">AJi Exchange</span></a>
+
+<div class="page-head">
+  <div class="eyebrow">Intranet Admin</div>
+  <h1>Removed communities</h1>
+  <p>Removing a community hides it and destroys nothing, so any of these can be
+     put back exactly as it was. They are kept for {{ purge_after_days }} days;
+     after that the nightly clear-out takes them, or you can delete one for good
+     here and not wait.</p>
+</div>
+
+{# Oldest first: the ones with least time left are the ones worth looking at. #}
+<div class="cx-panel">
+  {% for c in removed %}
+  <div class="cx-member">
+    <span class="cx-av">{% icon "users-three" 15 %}</span>
+    <div class="cx-member-txt">
+      <b>{{ c.name }}</b>
+      <span>
+        {{ c.n_threads }} thread{{ c.n_threads|pluralize }} ·
+        {{ c.n_members }} member{{ c.n_members|pluralize }} ·
+        removed {{ c.deleted_at|date:"j M Y, H:i" }}{% if c.deleted_by %}
+        by {{ c.deleted_by.get_full_name|default:c.deleted_by.username }}{% endif %}
+      </span>
+      {# How long is left, because "can be restored" without a deadline reads #}
+      {# as "for ever" — and then the clear-out is a nasty surprise. #}
+      <span class="cx-bin-left{% if c.days_until_purge == 0 %} due{% endif %}">
+        {% if c.days_until_purge == 0 %}
+          {% icon "warning-circle" 12 %} Past its {{ purge_after_days }} days — the next clear-out will take it
+        {% else %}
+          {% icon "clock-counter-clockwise" 12 %} Clears in {{ c.days_until_purge }} day{{ c.days_until_purge|pluralize }}
+        {% endif %}
+      </span>
+    </div>
+    <div class="cx-member-act">
+      <form data-save="reload" method="post" action="{% url 'community_restore' c.slug %}" style="margin:0">
+        {% csrf_token %}
+        <button type="submit" class="btn y sm">{% icon "arrow-counter-clockwise" 13 %} Restore</button>
+      </form>
+      {# The only irreversible action in Exchange, so it says exactly what it #}
+      {# will destroy and makes you agree to that, not to the word "delete". #}
+      <form data-save="reload" method="post" action="{% url 'community_purge' c.slug %}" style="margin:0"
+            onsubmit="return confirm('Delete “{{ c.name|escapejs }}” permanently?\n\n{{ c.n_threads }} thread{{ c.n_threads|pluralize }} and every reply, attachment and join request inside will be destroyed.\n\nThis cannot be undone.');">
+        {% csrf_token %}
+        <button type="submit" class="btn ghost danger sm">{% icon "trash" 13 %} Delete for good</button>
+      </form>
+    </div>
+  </div>
+  {% empty %}
+  <div class="cx-side-empty">Nothing has been removed.</div>
+  {% endfor %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,43 @@
+{# templates/cms/sections/community.html — community chips plus recent threads. #}
+{% load cms_tags %}
+<div class="sec-head">
+  <h2 {% if cms_edit_mode %}data-ed-field="title" contenteditable="true"{% endif %}>{{ section.title|default:"From your communities"|aji }}</h2>
+  <a href="{{ section|cfg:"link_url"|default:"/exchange/" }}" class="lk">{{ section|cfg:"link_label"|default:"AJi Exchange" }} →</a>
+</div>
+<div class="card" style="padding:20px var(--sp-5)">
+  <div class="com-chips">
+    {% for community in communities %}
+    <a href="/exchange/{{ community.slug }}/" class="com-chip">
+      <span>{{ community.name }}</span>
+      <span class="cnt">{{ community.thread_count|default:community.threads.count }}</span>
+    </a>
+    {% empty %}
+    <span style="color:var(--muted);font-size:13px">No communities yet.</span>
+    {% endfor %}
+  </div>
+  {% for thread in threads %}
+  <a href="{% url 'thread_detail' thread.community.slug thread.pk %}" class="thread-row">
+    {# A mark, not a word. The label was three times the width of its own icon #}
+    {# and pushed every title along by that much; a speech bubble already reads #}
+    {# as a discussion. It also used to test for a "resource" type that does not #}
+    {# exist, so every discussion on the card was labelled a question. #}
+    {# role="img" with the label, rather than a clipped span: a bare span's #}
+    {# aria-label is not announced, and the kind is the one thing lost when the #}
+    {# word goes. #}
+    <span class="thread-ic{% if thread.thread_type == "question" %} q{% endif %}"
+          role="img" title="{{ thread.get_thread_type_display }}"
+          aria-label="{{ thread.get_thread_type_display }}">
+      {% if thread.thread_type == "question" %}{% icon "help" 13 %}{% else %}{% icon "chat" 13 %}{% endif %}
+    </span>
+    <div style="flex:1;min-width:0">
+      <div class="thread-title">{{ thread.title }}</div>
+      <div class="thread-meta">{{ thread.community.name|default:"" }} · {{ thread.author.get_full_name|default:thread.author.username }} · {{ thread.created_at|date:"j M Y" }}</div>
+    </div>
+    <div class="thread-stats">{{ thread.reply_count }} replies
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </div>
+  </a>
+  {% empty %}
+  <div style="padding:20px 0;color:var(--muted);font-size:13px;text-align:center">No discussions yet. <a href="/exchange/" style="font-weight:700;color:var(--ink)">Start one →</a></div>
+  {% endfor %}
+</div>

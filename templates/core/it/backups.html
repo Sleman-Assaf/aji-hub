@@ -1,0 +1,282 @@
+{% extends 'core/it/_shell.html' %}
+{% load cms_tags %}
+{% block title %}Backups — IT Portal{% endblock %}
+{% block it_note %}Choose what a backup contains and how often it runs, or take one now.{% endblock %}
+
+{% block it_content %}
+<div class="it-grid2">
+  <div class="it-card">
+    <div class="it-card-h">{% icon "download-tray" 16 %}<span class="sp">Take a backup</span></div>
+    <form method="post" action="{% url 'it_backup_now' %}">
+      {% csrf_token %}
+      <div class="it-card-b">
+        <p style="margin:0 0 14px;font-size:13px;color:var(--ink-2);line-height:1.65">
+          Takes exactly what is ticked below, into
+          <span class="it-mono">{{ folder }}</span>. The folder is created if it
+          is not there, so deleting it costs nothing.</p>
+        <label class="it-lab" for="note">Note (optional)</label>
+        <input class="it-in" id="note" name="note" placeholder="e.g. before the LDAP change">
+      </div>
+      <div class="it-bar">
+        <button class="btn y sm" type="submit">{% icon "download-tray" 14 %} Back up now</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="it-card">
+    <div class="it-card-h">{% icon "folder-tab" 16 %}<span class="sp">On disk now</span></div>
+    <div class="it-card-b">
+      <table class="it-table">
+        <tr>
+          <td><b>Database</b><br>
+            <span style="font-size:11.5px;color:var(--muted)">Everything the Hub
+            knows: people, content, settings, messages</span></td>
+          <td style="text-align:right;white-space:nowrap">
+            <span class="it-chip ok">Dated copy</span><br>
+            <span class="it-mono">{{ db_size|filesizeformat }}</span></td>
+        </tr>
+        <tr>
+          <td><b>Uploaded files</b><br>
+            <span style="font-size:11.5px;color:var(--muted)">Photos, documents,
+            brand files, everything under media</span></td>
+          <td style="text-align:right;white-space:nowrap">
+            <span class="it-chip ok">Mirrored</span><br>
+            <span class="it-mono">{{ media_size }}</span></td>
+        </tr>
+      </table>
+      {% if mirror_size %}
+      <p style="margin:12px 0 0;font-size:12.5px;color:var(--ink-2)">
+        The mirror holds <b>{{ mirror_count }}</b> files, {{ mirror_size }}.</p>
+      {% endif %}
+      <p style="margin:10px 0 0;font-size:12px;color:var(--muted);line-height:1.6">
+        A mirror gives you last night, not last month. If a file was deleted
+        weeks ago it is not here; for that you want a storage-level snapshot as
+        well.
+      </p>
+    </div>
+  </div>
+</div>
+
+{# ── the policy: what, how often, how many ─────────────────────────────── #}
+<div class="it-card" id="policy">
+  <div class="it-card-h">{% icon "clock-2" 16 %}<span class="sp">What a backup is</span>
+    {% if last_run %}<span class="it-chip ok">Last run {{ last_run }}</span>
+    {% else %}<span class="it-chip warnc">Never run</span>{% endif %}</div>
+  <form method="post" action="{% url 'it_backup_settings' %}">
+    {% csrf_token %}
+    <div class="it-card-b">
+      <p style="margin:0 0 14px;font-size:13px;color:var(--ink-2);line-height:1.65">
+        These answers are used by both the button above and the scheduled job,
+        so a backup taken by hand and one taken overnight are the same backup.
+      </p>
+
+      <label class="it-lab">What to include</label>
+      <div class="bk-parts">
+        {% for p in parts %}
+        <label class="bk-opt">
+          <input type="checkbox" name="parts" value="{{ p.key }}"{% if p.on %} checked{% endif %}>
+          <span class="bk-opt-t"><b>{{ p.label }}</b><span>{{ p.blurb }}</span></span>
+        </label>
+        {% endfor %}
+      </div>
+      <p class="it-cmd-note">Including the uploaded files makes the first run
+        slow — it is gigabytes. Every run after it copies only what changed, so
+        it is quick.</p>
+
+      <label class="it-lab" style="margin-top:18px">How often</label>
+      <div class="bk-parts">
+        {% for s in schedules %}
+        <label class="bk-opt">
+          <input type="radio" name="schedule" value="{{ s.key }}"{% if s.on %} checked{% endif %}>
+          <span class="bk-opt-t"><b>{{ s.label }}</b><span>{{ s.blurb }}</span></span>
+        </label>
+        {% endfor %}
+      </div>
+
+      <div class="bk-row">
+        <span>
+          <label class="it-lab" for="hour">At</label>
+          <input class="it-in" id="hour" name="hour" value="{{ hour }}"
+                 inputmode="numeric" style="width:74px">
+          <span class="bk-unit">:00, 0&ndash;23</span>
+        </span>
+        <span>
+          <label class="it-lab" for="keep">Keep the most recent</label>
+          <input class="it-in" id="keep" name="keep" value="{{ keep }}"
+                 inputmode="numeric" style="width:74px">
+          <span class="bk-unit">of each; older ones are removed</span>
+        </span>
+      </div>
+    </div>
+    <div class="it-bar">
+      <button class="btn y sm" type="submit">Save backup settings</button>
+      <span style="font-size:12.5px;color:var(--muted);flex:1">
+        The line below is rebuilt from these, so it always matches.</span>
+    </div>
+  </form>
+</div>
+
+{# ── the line the server needs ─────────────────────────────────────────── #}
+<div class="it-card" id="schedule">
+  <div class="it-card-h">{% icon "clock-2" 16 %}<span class="sp">Give this to the server</span>
+    <span class="it-chip">{{ cmd.backup.every }}{% if cmd.backup.every != 'off' %} at {{ hour }}:00{% endif %}</span></div>
+  <div class="it-card-b">
+    {% if schedule == 'off' %}
+    <p style="margin:0;font-size:13px;color:var(--ink-2);line-height:1.65">
+      Nothing is scheduled — backups happen only when somebody presses the
+      button. Pick a frequency above and the line to paste appears here.
+    </p>
+    {% else %}
+    <p style="margin:0 0 14px;font-size:13px;color:var(--ink-2);line-height:1.65">
+      The Hub cannot schedule itself — a web application only runs when somebody
+      asks it for a page. Give the server this and it runs whether anybody is
+      using the Hub or not.
+    </p>
+
+    {% if cmd.on_windows %}
+    <label class="it-lab">Windows Task Scheduler</label>
+    <pre class="it-cmd">{{ cmd.backup.windows }}</pre>
+    <p class="it-cmd-note">Run it in a Command Prompt opened as administrator. One line.</p>
+
+    <label class="it-lab" style="margin-top:16px">If you deploy on Linux instead</label>
+    <pre class="it-cmd">{{ cmd.backup.linux }}</pre>
+    <p class="it-cmd-note">Goes in <span class="it-mono">crontab -e</span>.
+      Change <span class="it-mono">{{ cmd.linux_path }}</span> to wherever the Hub
+      ends up — this machine is Windows, so that part is a placeholder.</p>
+    {% else %}
+    <label class="it-lab">cron</label>
+    <pre class="it-cmd">{{ cmd.backup.linux }}</pre>
+    <p class="it-cmd-note">Goes in <span class="it-mono">crontab -e</span> for the
+      user the Hub runs as.</p>
+
+    <label class="it-lab" style="margin-top:16px">If you deploy on Windows instead</label>
+    <pre class="it-cmd">{{ cmd.backup.windows }}</pre>
+    {% endif %}
+
+    <p style="margin:14px 0 0;font-size:12.5px;color:var(--muted);line-height:1.6">
+      It carries the parts you ticked. Change them above and paste the new line
+      — or leave the parts off the line entirely and it will follow this page
+      every night on its own.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="it-card">
+  <div class="it-card-h">{% icon "clipboard-text" 16 %}<span class="sp">Backups taken</span>
+    <span class="it-chip">{{ records|length }}</span></div>
+  <div class="it-card-b flush">
+    {% for r in records %}
+    <div class="it-row">
+      <span class="it-row-main">
+        <b>{{ r.filename }}</b>
+        <span>{{ r.created_at|date:"j M Y, H:i" }} · {{ r.size_display }}{% if r.taken_by %} · {{ r.taken_by.get_full_name|default:r.taken_by.username }}{% endif %}{% if r.note %} · {{ r.note }}{% endif %}</span>
+      </span>
+      {% if r.on_disk %}
+      {% if r.can_restore %}
+      <a class="cx-iconbtn" href="{% url 'it_backup_restore' r.pk %}">
+        {% icon "clock-2" 13 %}<span>Restore</span></a>
+      {% endif %}
+      <a class="cx-iconbtn" href="{% url 'it_backup_download' r.pk %}">
+        {% icon "download-simple" 13 %}<span>Download</span></a>
+      {% else %}
+      <span class="it-chip bad">File missing</span>
+      {% endif %}
+      <form method="post" action="{% url 'it_backup_delete' r.pk %}" style="margin:0"
+            data-confirm="Delete {{ r.filename|escapejs }}? The file goes with it.">
+        {% csrf_token %}
+        <button class="cx-iconbtn danger" type="submit">{% icon "trash" 13 %}<span>Delete</span></button>
+      </form>
+    </div>
+    {% empty %}
+    <div class="it-none">No backup has been taken yet.</div>
+    {% endfor %}
+  </div>
+  <form method="post" action="{% url 'it_backup_folder' %}" class="it-bar">
+    {% csrf_token %}
+    <label class="it-lab" for="folder" style="margin:0">Folder</label>
+    <input class="it-in" id="folder" name="folder" value="{{ folder }}"
+           style="flex:1;min-width:260px;width:auto">
+    <button class="btn ghost sm" type="submit">Save folder</button>
+    <span style="flex-basis:100%;font-size:11.5px;color:var(--muted);line-height:1.55">
+      Leave it empty for the default, <span class="it-mono">{{ default_folder }}</span>.
+      It is created whenever a backup runs, so deleting it is not a problem —
+      the next backup puts it back. A mounted share is usually the better place
+      on a real server: a backup on the same disk as the Hub is lost with it.
+    </span>
+  </form>
+</div>
+
+{# ── the log reports ───────────────────────────────────────────────────── #}
+<div class="it-card" id="reports">
+  <div class="it-card-h">{% icon "clipboard-text" 16 %}<span class="sp">Audit log reports</span>
+    <span class="it-chip">{{ reports|length }}</span></div>
+  <div class="it-card-b">
+    <p style="margin:0 0 14px;font-size:13px;color:var(--ink-2);line-height:1.65">
+      A plain-text copy of the audit log for a period, kept as a file. Named for
+      the week it covers, so a folder of them reads as a history rather than a
+      pile of "latest".
+    </p>
+    {% if cmd.on_windows %}
+    <label class="it-lab">Windows Task Scheduler — Mondays at 03:00</label>
+    <pre class="it-cmd">{{ cmd.report.windows }}</pre>
+    <label class="it-lab" style="margin-top:16px">If you deploy on Linux instead</label>
+    <pre class="it-cmd">{{ cmd.report.linux }}</pre>
+    {% else %}
+    <label class="it-lab">cron — Mondays at 03:00</label>
+    <pre class="it-cmd">{{ cmd.report.linux }}</pre>
+    <label class="it-lab" style="margin-top:16px">If you deploy on Windows instead</label>
+    <pre class="it-cmd">{{ cmd.report.windows }}</pre>
+    {% endif %}
+  </div>
+  {# The reports land beside the backups, under reports/. #}
+
+  <div class="it-card-b flush">
+    {% for r in reports %}
+    <div class="it-row">
+      <span class="it-row-main">
+        <b>{{ r.name }}</b>
+        <span>{{ r.when|date:"j M Y, H:i" }} · {{ r.size }}</span>
+      </span>
+      <a class="cx-iconbtn" href="{% url 'it_report_download' r.name %}">
+        {% icon "download-simple" 13 %}<span>Download</span></a>
+    </div>
+    {% empty %}
+    <div class="it-none">No report has been written yet.</div>
+    {% endfor %}
+  </div>
+
+  <form method="post" action="{% url 'it_report_now' %}" class="it-bar">
+    {% csrf_token %}
+    <label class="it-lab" for="days" style="margin:0">Cover the last</label>
+    <input class="it-in" id="days" name="days" value="7" inputmode="numeric"
+           style="width:70px;flex:none">
+    <span style="font-size:12.5px;color:var(--muted)">days</span>
+    <button class="btn y sm" type="submit">Write a report now</button>
+  </form>
+</div>
+
+<style>
+.it-cmd{margin:0;padding:11px 13px;background:var(--bed);color:#eceae2;border-radius:9px;
+  font-family:var(--mono,monospace);font-size:11.5px;line-height:1.6;overflow-x:auto;
+  white-space:pre;-webkit-font-smoothing:antialiased;user-select:all}
+.it-cmd-note{margin:6px 0 0;font-size:11.5px;color:var(--muted);line-height:1.55}
+
+/* The two pickers. A whole tickable card rather than a bare checkbox: each
+   option needs a line saying what it means, and a label that includes that
+   line is a bigger target than the box alone. */
+.bk-parts{display:grid;gap:9px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.bk-opt{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;cursor:pointer;
+  border:1px solid var(--line);border-radius:11px;background:var(--paper-2);
+  transition:border-color .14s,background .14s}
+.bk-opt:hover{border-color:var(--line-2)}
+.bk-opt:has(input:checked){border-color:var(--ink);background:var(--soft,#FAFAF7)}
+.bk-opt input{margin:2px 0 0;flex:none;accent-color:var(--ink)}
+.bk-opt-t{display:flex;flex-direction:column;gap:3px;font-size:13px;line-height:1.45}
+.bk-opt-t span{font-size:11.5px;color:var(--muted);line-height:1.5}
+.bk-row{display:flex;gap:26px;flex-wrap:wrap;margin-top:18px}
+.bk-row>span{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.bk-row .it-lab{margin:0}
+.bk-unit{font-size:12.5px;color:var(--muted)}
+</style>
+{% endblock %}
