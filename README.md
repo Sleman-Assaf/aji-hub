@@ -1,10 +1,10 @@
 # AJi Hub
 
-**A modular Django intranet for employee services, company communication and internal knowledge.**
+**A modular Django intranet with employee services, company communication and a RAG-powered knowledge assistant.**
 
-AJi Hub combines an employee directory, news, policies and brand resources, messaging, service requests, bookings, recognition and configurable content pages in one server-rendered web application.
+AJi Hub combines an employee directory, news, policies and brand resources, messaging, service requests, bookings, recognition and configurable content pages in one server-rendered web application. Its Retrieval-Augmented Generation (RAG) system retrieves relevant information from the company's knowledge base to help the AI assistant answer employee questions using internal knowledge.
 
-**بالعربية:** بوابة داخلية تجمع دليل الموظفين، الأخبار والسياسات، المحادثات، طلبات الخدمات والحجوزات وإدارة محتوى الشركة في مكان واحد.
+**بالعربية:** بوابة داخلية تجمع دليل الموظفين، الأخبار والسياسات، المحادثات، طلبات الخدمات والحجوزات وإدارة محتوى الشركة في مكان واحد، وتضم نظام RAG يسترجع المعلومات من قاعدة معرفة الشركة لمساعدة الموظفين في الحصول على إجابات مبنية على المعرفة الداخلية.
 
 ## Features
 
@@ -15,7 +15,8 @@ AJi Hub combines an employee directory, news, policies and brand resources, mess
 - Service requests, job requisitions, meeting-room and vehicle bookings.
 - Cafeteria requests, training and employee recognition.
 - Content management for navigation and reusable page sections.
-- Optional AI assistant, knowledge-base, LDAP and IIS SSO integrations.
+- RAG-powered AI assistant that retrieves relevant company knowledge to support employee questions and answers.
+- Configurable external AI/knowledge-base services, LDAP and IIS SSO integrations.
 
 ## Technology
 
