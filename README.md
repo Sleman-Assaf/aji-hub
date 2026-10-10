@@ -1,7 +1,5 @@
 # AJi Hub
 
-> **Upload checkpoint — incomplete static assets.** The source code and local setup documentation are preserved here, but `static/css/aji_hub.css`, fonts, images and videos are pending upload after the workspace disconnected. Do not treat this checkout as the fully validated prepared package. Cached map tiles are excluded intentionally. The full prepared package passed the checks described below before this interrupted upload.
-
 **A modular Django intranet for employee services, company communication and internal knowledge.**
 
 AJi Hub combines an employee directory, news, policies and brand resources, messaging, service requests, bookings, recognition and configurable content pages in one server-rendered web application.

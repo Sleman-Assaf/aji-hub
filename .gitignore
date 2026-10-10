@@ -88,3 +88,6 @@ PicTemplate/
 bolt_kling/
 *.zip
 *.rar
+
+# Cached map tiles
+.tilecache/
